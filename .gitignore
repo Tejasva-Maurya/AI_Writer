@@ -1,0 +1,40 @@
+# Ignore Python bytecode and cache directories
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore virtual environments
+venv/
+env/
+.env/
+
+# Ignore IDE/editor directories
+.vscode/
+.idea/
+
+# Ignore environment files and local settings
+*.env
+*.env.*
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore build and dependency directories
+node_modules/
+build/
+dist/
+
+# Ignore database files
+*.sqlite3
+
+# Ignore coverage and test artifacts
+.coverage
+.pytest_cache/
+htmlcov/
