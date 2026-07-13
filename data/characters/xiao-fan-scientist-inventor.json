@@ -1,0 +1,24 @@
+{
+  "name": "Xiao Fan",
+  "slug": "xiao-fan-scientist-inventor",
+  "type": "main",
+  "age": "60 years old",
+  "appearance": "short, bespectacled man with a neat beard and unkempt hair; often seen wearing lab coats or casual clothes adorned with various gadgets he invented.",
+  "personality": "serious, focused on work to the point of obsession. Dreamer who fantasizes about myths/gods but remains grounded in scientific principles due to his experiments aimed at pushing human limits.",
+  "speech_style": "formal and precise when discussing science; imaginative yet analytical during discussions involving mythology or supernatural powers.",
+  "abilities": [
+    "advanced knowledge in various fields of science",
+    "inventor with a knack for creating innovative gadgets"
+  ],
+  "cultivation_level": null,
+  "backstory": "Xiao Fan dedicated his life to scientific research, conducting numerous experiments and inventing new devices. Despite being unmarried at the age of 60 due to his intense focus on work, he remains fascinated by myths and supernatural powers.",
+  "relationships": {},
+  "habits": [
+    "spends long hours in a lab",
+    "keeps detailed notes about every experiment"
+  ],
+  "arc_notes": "Xiao Fan's arc may involve balancing personal life with professional achievements or discovering the true potential of his inventions through mythological inspiration",
+  "first_appeared_chapter": 0,
+  "last_seen_chapter": 1,
+  "micro_summary": "A dedicated scientist who experiments tirelessly, dreaming about myths and supernatural powers while remaining grounded in science."
+}

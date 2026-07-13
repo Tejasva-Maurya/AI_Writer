@@ -1,0 +1,14 @@
+{
+  "name": "Neuroscience Lab at Night",
+  "slug": "neuroscience-lab-night-stormy-weather",
+  "scene_type": "indoor/outdoor hybrid",
+  "description": "The scene is set in a high-tech neuroscience lab during an intense thunderstorm. Lightning flashes and the sound of rain hitting windows can be heard as Dr. Hiroshi Nakamura works late into night, surrounded by blinking computer screens displaying brainwave data.",
+  "atmosphere": "Tense with underlying excitement",
+  "textures": "The smell of ozone from lightning strikes mingles with sterile lab smells; flickering lights cast eerie shadows on the walls.",
+  "known_inhabitants": [
+    "Dr. Hiroshi Nakamura"
+  ],
+  "significance": "A pivotal scene where Dr. Nakamura's groundbreaking research takes a dangerous turn due to an unexpected electrical surge, leading him into a Brain Wave Pod with life-saving potential but also imminent danger.",
+  "first_appeared_chapter": 1,
+  "micro_summary": "Stormy night in the neuroscience lab"
+}

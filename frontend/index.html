@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NovelForge AI — Light Novel Writer</title>
+  <meta name="description" content="AI-powered local light novel writing assistant with character management, scene building, and GPU-accelerated chapter generation.">
+  <meta name="author" content="NovelForge AI">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+  <header class="app-header" role="banner">
+    <div class="header-brand">
+      <span class="brand-icon" aria-hidden="true">✦</span>
+      <h1 class="brand-name">NovelForge AI</h1>
+    </div>
+
+    <div class="header-center">
+      <div class="novel-title-wrapper" id="novel-title-wrapper" title="Click to edit novel title">
+        <span class="novel-title-display" id="novel-title-display">Untitled Novel</span>
+        <input type="text" class="novel-title-input" id="novel-title-input" placeholder="Novel Title" aria-label="Novel title">
+        <span class="edit-icon" aria-hidden="true">✎</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="chapter-badge" id="chapter-badge" title="Total chapters written">
+        <span class="badge-icon">📖</span>
+        <span id="chapter-count">0</span>
+        <span class="badge-label">chapters</span>
+      </div>
+      <button class="btn-header" id="btn-settings" title="Novel Settings" aria-label="Open settings">
+        <span class="btn-icon">⚙</span>
+        <span>Settings</span>
+      </button>
+      <div class="export-dropdown-wrapper">
+        <button class="btn-header btn-export" id="btn-export" title="Export novel" aria-label="Export novel" aria-haspopup="true" aria-expanded="false">
+          <span class="btn-icon">📤</span>
+          <span>Export</span>
+          <span class="dropdown-arrow">▾</span>
+        </button>
+        <div class="export-dropdown" id="export-dropdown" role="menu">
+          <button class="export-option" id="export-txt" role="menuitem">
+            <span>📄</span> Export as .txt
+          </button>
+          <button class="export-option" id="export-md" role="menuitem">
+            <span>📝</span> Export as .md
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════ MAIN LAYOUT ═══════════════════════════════ -->
+  <main class="app-layout" role="main">
+
+    <!-- ─────────────────── LEFT SIDEBAR — CHARACTERS ─────────────────── -->
+    <aside class="sidebar sidebar-left" id="sidebar-characters" aria-label="Characters panel">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">
+          <span class="sidebar-title-accent"></span>
+          CHARACTERS
+        </h2>
+        <span class="sidebar-count" id="char-count-badge">0</span>
+      </div>
+
+      <div class="sidebar-scroll">
+        <!-- Main Cast -->
+        <div class="cast-section" id="section-main-cast">
+          <div class="cast-label">
+            <span class="cast-dot cast-dot-main"></span>
+            MAIN CAST
+          </div>
+          <div class="card-list" id="main-cast-list" aria-label="Main cast characters">
+            <div class="empty-state" id="main-cast-empty">
+              <span class="empty-icon">👤</span>
+              <p>No main characters yet</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supporting Cast -->
+        <div class="cast-section" id="section-supporting">
+          <div class="cast-label">
+            <span class="cast-dot cast-dot-temp"></span>
+            SUPPORTING
+          </div>
+          <div class="card-list" id="supporting-cast-list" aria-label="Supporting characters">
+            <div class="empty-state" id="supporting-cast-empty">
+              <span class="empty-icon">👥</span>
+              <p>No supporting characters</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-add" id="btn-add-character" aria-label="Add new character">
+          <span class="btn-add-icon">+</span>
+          <span>New Character</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ─────────────────── CENTER PANEL — CHAPTER WRITER ─────────────────── -->
+    <section class="center-panel" id="center-panel" aria-label="Chapter writer">
+
+      <!-- Mode Switcher Tabs -->
+      <div class="mode-tabs" role="tablist" aria-label="Writing modes">
+        <button class="mode-tab active" id="mode-tab-plot" role="tab" data-mode="plot" aria-selected="true" title="Write chapter plots">
+          <span class="mode-tab-icon">✍️</span>
+          <span>Plot Writing</span>
+        </button>
+        <button class="mode-tab" id="mode-tab-character" role="tab" data-mode="character" aria-selected="false" title="Build a character profile">
+          <span class="mode-tab-icon">👤</span>
+          <span>Character Build</span>
+        </button>
+        <button class="mode-tab" id="mode-tab-scene" role="tab" data-mode="scene" aria-selected="false" title="Build a scene or location">
+          <span class="mode-tab-icon">🏔️</span>
+          <span>Scene Build</span>
+        </button>
+        <button class="mode-tab" id="mode-tab-world" role="tab" data-mode="world" aria-selected="false" title="Describe world elements">
+          <span class="mode-tab-icon">🌐</span>
+          <span>World Build</span>
+        </button>
+      </div>
+
+      <!-- ── MODE: PLOT WRITING ── -->
+      <div class="mode-panel active" id="mode-panel-plot" role="tabpanel">
+        <div class="plot-section glass-panel" id="plot-section">
+          <div class="section-header">
+            <div class="section-label">
+              <span class="section-num" id="chapter-num-label">CHAPTER ?</span>
+              <span class="section-title-text">PLOT INPUT</span>
+            </div>
+            <div class="chapter-meta-info" id="chapter-meta-info">
+              <span class="meta-item" id="meta-word-count"></span>
+            </div>
+          </div>
+
+          <div class="textarea-wrapper">
+            <textarea
+              id="plot-input"
+              class="plot-textarea"
+              placeholder="Describe what happens in this chapter... The AI will handle scene setting, dialogue, emotions, and hooks."
+              aria-label="Chapter plot description"
+              rows="6"
+            ></textarea>
+            <div class="textarea-glow"></div>
+          </div>
+
+          <div class="generate-row">
+            <button class="btn-generate" id="btn-generate" aria-label="Generate chapter">
+              <span class="generate-icon">▶</span>
+              <span class="generate-text">Generate Chapter</span>
+              <div class="btn-shimmer"></div>
+            </button>
+            <div class="generate-hint" id="generate-hint">
+              <span id="next-chapter-hint">Will generate Chapter 1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MODE: CHARACTER BUILD ── -->
+      <div class="mode-panel" id="mode-panel-character" role="tabpanel" hidden>
+        <div class="build-section glass-panel">
+          <div class="build-header">
+            <span class="build-icon">👤</span>
+            <div>
+              <div class="build-title">Character Builder</div>
+              <div class="build-subtitle">Describe a character in your own words — the AI will refine and create a full profile.</div>
+            </div>
+          </div>
+          <div class="build-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="build-char-name">Name <span class="label-optional">(optional)</span></label>
+                <input type="text" class="form-input" id="build-char-name" placeholder="e.g. Xiao Fan, Elder Wu...">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="build-char-existing">Update Existing <span class="label-optional">(optional)</span></label>
+                <select class="form-select" id="build-char-existing"><option value="">— Create New Character —</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="build-char-desc">Your Description</label>
+              <div class="textarea-wrapper">
+                <textarea id="build-char-desc" class="plot-textarea build-textarea"
+                  placeholder="Describe this character in your own words. Include personality, appearance, backstory, abilities, quirks — anything you have in mind. Even rough phrases work.
+
+Example: 'Xiao Fan is 17, looks weak but hides ancient bloodline. Quiet, cold to strangers but loyal to friends. Has a scar on his left hand. Pretends to be at the lowest cultivation level but can secretly suppress his aura.'"
+                  rows="7"
+                ></textarea>
+                <div class="textarea-glow"></div>
+              </div>
+            </div>
+            <div class="build-actions">
+              <button class="btn-refine" id="btn-refine-char">
+                <span class="refine-icon">✨</span>
+                <span class="refine-text">Refine &amp; Save Character</span>
+                <div class="btn-shimmer"></div>
+              </button>
+              <div class="refine-status" id="refine-char-status"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MODE: SCENE BUILD ── -->
+      <div class="mode-panel" id="mode-panel-scene" role="tabpanel" hidden>
+        <div class="build-section glass-panel">
+          <div class="build-header">
+            <span class="build-icon">🏔️</span>
+            <div>
+              <div class="build-title">Scene &amp; Location Builder</div>
+              <div class="build-subtitle">Describe a place in your own words — the AI will craft a full atmospheric profile.</div>
+            </div>
+          </div>
+          <div class="build-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="build-scene-name">Location Name <span class="label-optional">(optional)</span></label>
+                <input type="text" class="form-input" id="build-scene-name" placeholder="e.g. Azure Peak Sect, Crimson Abyss...">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="build-scene-existing">Update Existing <span class="label-optional">(optional)</span></label>
+                <select class="form-select" id="build-scene-existing"><option value="">— Create New Location —</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="build-scene-desc">Your Description</label>
+              <div class="textarea-wrapper">
+                <textarea id="build-scene-desc" class="plot-textarea build-textarea"
+                  placeholder="Describe this place in any way you want. Atmosphere, layout, what it feels like to be there, its history, why it matters.
+
+Example: 'Azure Peak Sect is on a misty mountain, always cold. Massive stone stairs leading up. Waterfalls on both sides. Feels oppressive — like the mountain itself judges you. Senior disciples train on the upper peaks, outer disciples stuck at the base.'"
+                  rows="7"
+                ></textarea>
+                <div class="textarea-glow"></div>
+              </div>
+            </div>
+            <div class="build-actions">
+              <button class="btn-refine btn-refine-gold" id="btn-refine-scene">
+                <span class="refine-icon">✨</span>
+                <span class="refine-text">Refine &amp; Save Location</span>
+                <div class="btn-shimmer"></div>
+              </button>
+              <div class="refine-status" id="refine-scene-status"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MODE: WORLD BUILD ── -->
+      <div class="mode-panel" id="mode-panel-world" role="tabpanel" hidden>
+        <div class="build-section glass-panel">
+          <div class="build-header">
+            <span class="build-icon">🌐</span>
+            <div>
+              <div class="build-title">World Builder</div>
+              <div class="build-subtitle">Describe any aspect of your world — the AI merges it into your global settings. Build the world as the story evolves.</div>
+            </div>
+          </div>
+          <div class="world-snapshot" id="world-snapshot"></div>
+          <div class="build-form">
+            <div class="form-group">
+              <label class="form-label" for="build-world-desc">What are you adding to the world?</label>
+              <div class="textarea-wrapper">
+                <textarea id="build-world-desc" class="plot-textarea build-textarea"
+                  placeholder="Describe any world element — cultivation system, magic, factions, rules, history, hierarchy...
+
+Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Foundation, Core, Nascent, Soul, Void, Dao, and Immortal. At Body Tempering level you just strengthen your body. Once you reach Foundation, you form your cultivation base. Reaching Core is considered a true cultivator.'"
+                  rows="7"
+                ></textarea>
+                <div class="textarea-glow"></div>
+              </div>
+            </div>
+            <div class="build-actions">
+              <button class="btn-refine btn-refine-mint" id="btn-refine-world">
+                <span class="refine-icon">✨</span>
+                <span class="refine-text">Integrate into World Settings</span>
+                <div class="btn-shimmer"></div>
+              </button>
+              <div class="refine-status" id="refine-world-status"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline Status -->
+      <div class="pipeline-section glass-panel" id="pipeline-section" aria-live="polite" aria-label="Generation pipeline status" hidden>
+        <div class="pipeline-header">
+          <div class="pipeline-title">
+            <span class="pipeline-icon">⚡</span>
+            GENERATION PIPELINE
+          </div>
+          <div class="pipeline-progress-bar">
+            <div class="pipeline-progress-fill" id="pipeline-progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="pipeline-steps" id="pipeline-steps">
+          <div class="pipeline-step" data-step="1" id="step-1">
+            <div class="step-indicator">
+              <span class="step-icon">🔍</span>
+              <span class="step-num">01</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Analyze Plot</div>
+              <div class="step-log" id="step-1-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="2" id="step-2">
+            <div class="step-indicator">
+              <span class="step-icon">🧩</span>
+              <span class="step-num">02</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Extract Entities</div>
+              <div class="step-log" id="step-2-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="3" id="step-3">
+            <div class="step-indicator">
+              <span class="step-icon">👤</span>
+              <span class="step-num">03</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Build Profiles</div>
+              <div class="step-log" id="step-3-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="4" id="step-4">
+            <div class="step-indicator">
+              <span class="step-icon">⚙</span>
+              <span class="step-num">04</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Optimize Context</div>
+              <div class="step-log" id="step-4-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="5" id="step-5">
+            <div class="step-indicator">
+              <span class="step-icon">🚀</span>
+              <span class="step-num">05</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Prepare Model</div>
+              <div class="step-log" id="step-5-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="6" id="step-6">
+            <div class="step-indicator">
+              <span class="step-icon">✍</span>
+              <span class="step-num">06</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Write Chapter</div>
+              <div class="step-log" id="step-6-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+
+          <div class="pipeline-step" data-step="7" id="step-7">
+            <div class="step-indicator">
+              <span class="step-icon">📊</span>
+              <span class="step-num">07</span>
+            </div>
+            <div class="step-content">
+              <div class="step-name">Summarize & Save</div>
+              <div class="step-log" id="step-7-log"></div>
+            </div>
+            <div class="step-status-icon">
+              <span class="step-pending">○</span>
+              <span class="step-active" hidden>◉</span>
+              <span class="step-done" hidden>✓</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- New entity notifications -->
+        <div class="new-entities" id="new-entities"></div>
+      </div>
+
+      <!-- Chapter Output -->
+      <div class="output-section glass-panel" id="output-section" hidden>
+        <div class="output-header">
+          <div class="output-title-row">
+            <span class="output-chapter-badge" id="output-chapter-badge">Chapter 1</span>
+            <h2 class="output-chapter-title" id="output-chapter-title">—</h2>
+          </div>
+          <div class="output-stats">
+            <span class="stat-badge" id="output-word-count">
+              <span class="stat-icon">📝</span>
+              <span id="word-count-num">0</span> words
+            </span>
+            <button class="btn-small" id="btn-view-full" title="View full chapter" aria-label="View full chapter in modal">⛶ Full View</button>
+          </div>
+        </div>
+
+        <div class="output-body">
+          <div class="chapter-text-area" id="chapter-text-area" aria-label="Chapter text output" aria-live="polite"></div>
+          <div class="text-cursor" id="text-cursor" hidden aria-hidden="true">▍</div>
+        </div>
+      </div>
+
+      <!-- Multi-chapter notice -->
+      <div class="multi-chapter-notice glass-panel" id="multi-chapter-notice" hidden>
+        <span class="notice-icon">⚡</span>
+        <p id="multi-chapter-message">This plot may span multiple chapters.</p>
+      </div>
+
+      <!-- Chapter History -->
+      <div class="history-bar glass-panel" id="history-bar">
+        <div class="history-label">
+          <span class="history-icon">📚</span>
+          HISTORY
+        </div>
+        <div class="history-pills-wrapper">
+          <div class="history-pills" id="history-pills" role="list" aria-label="Chapter history">
+            <div class="history-empty" id="history-empty">No chapters yet</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────────────── RIGHT SIDEBAR — SCENES ─────────────────── -->
+    <aside class="sidebar sidebar-right" id="sidebar-scenes" aria-label="Scenes panel">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">
+          <span class="sidebar-title-accent sidebar-title-accent-gold"></span>
+          LOCATIONS
+        </h2>
+        <span class="sidebar-count sidebar-count-gold" id="scene-count-badge">0</span>
+      </div>
+
+      <div class="sidebar-scroll">
+        <div class="card-list" id="scenes-list" aria-label="Scene locations">
+          <div class="empty-state" id="scenes-empty">
+            <span class="empty-icon">🗺</span>
+            <p>No locations yet</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer sidebar-footer-col">
+        <button class="btn-add btn-add-gold" id="btn-add-scene" aria-label="Add new location">
+          <span class="btn-add-icon">+</span>
+          <span>New Location</span>
+        </button>
+        <button class="btn-world" id="btn-world" aria-label="Open world settings">
+          <span>🌐</span>
+          <span>World Settings</span>
+        </button>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ═══════════════════════════════ MODALS ═══════════════════════════════ -->
+
+  <!-- ── Character Edit Modal ── -->
+  <div class="modal-overlay" id="modal-character" role="dialog" aria-modal="true" aria-labelledby="char-modal-title" hidden>
+    <div class="modal glass-panel modal-large">
+      <div class="modal-header">
+        <h2 class="modal-title" id="char-modal-title">New Character</h2>
+        <button class="modal-close" data-modal="modal-character" aria-label="Close character modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="char-name">Name *</label>
+            <input type="text" class="form-input" id="char-name" placeholder="Character name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="char-type">Type *</label>
+            <select class="form-select" id="char-type" aria-label="Character type">
+              <option value="main">Main Character</option>
+              <option value="temporary">Supporting / Temporary</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="char-age">Age</label>
+            <input type="text" class="form-input" id="char-age" placeholder="e.g. 18, Unknown">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="char-cultivation">Cultivation Level</label>
+            <input type="text" class="form-input" id="char-cultivation" placeholder="e.g. Qi Condensation Stage 3">
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="char-appearance">Appearance</label>
+            <textarea class="form-textarea" id="char-appearance" placeholder="Physical description..." rows="3"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="char-personality">Personality</label>
+            <textarea class="form-textarea" id="char-personality" placeholder="Personality traits..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="char-speech">Speech Style</label>
+            <input type="text" class="form-input" id="char-speech" placeholder="e.g. Formal, uses ancient idioms">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Abilities</label>
+            <div class="tag-input-wrapper" id="abilities-tag-input">
+              <div class="tags-display" id="abilities-tags"></div>
+              <input type="text" class="tag-input-field" id="abilities-input" placeholder="Add ability, press Enter">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Habits</label>
+            <div class="tag-input-wrapper" id="habits-tag-input">
+              <div class="tags-display" id="habits-tags"></div>
+              <input type="text" class="tag-input-field" id="habits-input" placeholder="Add habit, press Enter">
+            </div>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="char-backstory">Backstory</label>
+            <textarea class="form-textarea" id="char-backstory" placeholder="Character history and origin..." rows="4"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="char-arc">Arc Notes</label>
+            <textarea class="form-textarea" id="char-arc" placeholder="Character arc and future plans..." rows="3"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="char-micro">Micro Summary</label>
+            <input type="text" class="form-input" id="char-micro" placeholder="One-line description for context optimization">
+          </div>
+
+          <!-- Relationships -->
+          <div class="form-group form-group-full">
+            <label class="form-label">Relationships</label>
+            <div class="relationships-editor" id="relationships-editor">
+              <div class="relationships-list" id="relationships-list"></div>
+              <div class="relationship-add-row">
+                <input type="text" class="form-input" id="rel-name" placeholder="Character name">
+                <input type="text" class="form-input" id="rel-desc" placeholder="Relationship description">
+                <button class="btn-small btn-add-rel" id="btn-add-relationship">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-modal="modal-character">Cancel</button>
+        <button class="btn-save" id="btn-save-character">Save Character</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scene Edit Modal ── -->
+  <div class="modal-overlay" id="modal-scene" role="dialog" aria-modal="true" aria-labelledby="scene-modal-title" hidden>
+    <div class="modal glass-panel modal-large">
+      <div class="modal-header">
+        <h2 class="modal-title" id="scene-modal-title">New Location</h2>
+        <button class="modal-close" data-modal="modal-scene" aria-label="Close scene modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="scene-name">Name *</label>
+            <input type="text" class="form-input" id="scene-name" placeholder="Location name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="scene-type">Scene Type</label>
+            <input type="text" class="form-input" id="scene-type" placeholder="e.g. Mountain Peak, Hidden Realm">
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="scene-description">Description</label>
+            <textarea class="form-textarea" id="scene-description" placeholder="Full scene description..." rows="4"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="scene-atmosphere">Atmosphere</label>
+            <textarea class="form-textarea" id="scene-atmosphere" placeholder="Mood, weather, ambiance..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="scene-textures">Textures & Details</label>
+            <textarea class="form-textarea" id="scene-textures" placeholder="Sensory details, textures..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Known Inhabitants</label>
+            <div class="tag-input-wrapper" id="inhabitants-tag-input">
+              <div class="tags-display" id="inhabitants-tags"></div>
+              <input type="text" class="tag-input-field" id="inhabitants-input" placeholder="Add inhabitant, press Enter">
+            </div>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="scene-significance">Significance</label>
+            <textarea class="form-textarea" id="scene-significance" placeholder="Why this location matters to the story..." rows="3"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="scene-micro">Micro Summary</label>
+            <input type="text" class="form-input" id="scene-micro" placeholder="One-line summary for context optimization">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-modal="modal-scene">Cancel</button>
+        <button class="btn-save" id="btn-save-scene">Save Location</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── World Settings Modal ── -->
+  <div class="modal-overlay" id="modal-world" role="dialog" aria-modal="true" aria-labelledby="world-modal-title" hidden>
+    <div class="modal glass-panel modal-large">
+      <div class="modal-header">
+        <h2 class="modal-title" id="world-modal-title">🌐 World Settings</h2>
+        <button class="modal-close" data-modal="modal-world" aria-label="Close world settings modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="world-name">World Name</label>
+            <input type="text" class="form-input" id="world-name" placeholder="e.g. Azure Continent">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Genre Tags</label>
+            <div class="tag-input-wrapper" id="genre-tags-input">
+              <div class="tags-display" id="genre-tags"></div>
+              <input type="text" class="tag-input-field" id="genre-tags-field" placeholder="Add genre tag, press Enter">
+            </div>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="world-magic">Magic System</label>
+            <textarea class="form-textarea" id="world-magic" placeholder="Describe the magic system..." rows="3"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="world-cultivation">Cultivation System</label>
+            <textarea class="form-textarea" id="world-cultivation" placeholder="Describe the cultivation/power system..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Professions</label>
+            <div class="tag-input-wrapper" id="professions-tag-input">
+              <div class="tags-display" id="professions-tags"></div>
+              <input type="text" class="tag-input-field" id="professions-input" placeholder="Add profession, press Enter">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Hierarchy Levels</label>
+            <div class="tag-input-wrapper" id="hierarchy-tag-input">
+              <div class="tags-display" id="hierarchy-tags"></div>
+              <input type="text" class="tag-input-field" id="hierarchy-input" placeholder="Add level, press Enter">
+            </div>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label">Factions</label>
+            <div class="tag-input-wrapper" id="factions-tag-input">
+              <div class="tags-display" id="factions-tags"></div>
+              <input type="text" class="tag-input-field" id="factions-input" placeholder="Add faction, press Enter">
+            </div>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="world-rules">Rules of the World</label>
+            <textarea class="form-textarea" id="world-rules" placeholder="Fundamental laws and rules..." rows="4"></textarea>
+          </div>
+          <div class="form-group form-group-full">
+            <label class="form-label" for="world-lore">Lore Notes</label>
+            <textarea class="form-textarea" id="world-lore" placeholder="Additional lore and history..." rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-modal="modal-world">Cancel</button>
+        <button class="btn-save" id="btn-save-world">Save World Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Novel Settings Modal ── -->
+  <div class="modal-overlay" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" hidden>
+    <div class="modal glass-panel">
+      <div class="modal-header">
+        <h2 class="modal-title" id="settings-modal-title">⚙ Novel Settings</h2>
+        <button class="modal-close" data-modal="modal-settings" aria-label="Close settings modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid form-grid-1">
+          <div class="form-group">
+            <label class="form-label" for="meta-title">Novel Title</label>
+            <input type="text" class="form-input" id="meta-title" placeholder="Your novel's title">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-genre">Genre</label>
+            <input type="text" class="form-input" id="meta-genre" placeholder="e.g. Xianxia, Isekai, Fantasy">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-author">Author</label>
+            <input type="text" class="form-input" id="meta-author" placeholder="Author name">
+          </div>
+          <div class="settings-divider">
+            <span>AI Model Configuration</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-writer-model">Writer Model</label>
+            <div class="model-select-row">
+              <select class="form-select" id="meta-writer-model" aria-label="Writer model"></select>
+              <button class="btn-refresh-models" id="btn-refresh-models" title="Refresh model list from Ollama">&#x21bb; Refresh</button>
+            </div>
+            <p class="form-hint">Used for the main chapter writing step. Must be pulled in Ollama first.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-specialist-model">Specialist Model</label>
+            <select class="form-select" id="meta-specialist-model" aria-label="Specialist model"></select>
+            <p class="form-hint">Used for entity extraction, profiling and summarization. Smaller models are fine.</p>
+          </div>
+
+          <!-- Dynamic Ollama Status + Model Browser -->
+          <div class="ollama-status-bar" id="ollama-status-bar">
+            <span class="ollama-dot" id="ollama-dot"></span>
+            <span id="ollama-status-text">Checking Ollama...</span>
+          </div>
+
+          <div class="model-browser" id="model-browser">
+            <div class="model-browser-header">
+              <span class="model-browser-title">Available Models</span>
+              <span class="model-browser-subtitle">Click a model to set as writer. Shift+click to set as specialist.</span>
+            </div>
+            <div class="model-browser-grid" id="model-browser-grid">
+              <!-- Dynamically populated -->
+              <div class="model-browser-loading">Loading models...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-modal="modal-settings">Cancel</button>
+        <button class="btn-save" id="btn-save-settings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Chapter View Modal ── -->
+  <div class="modal-overlay" id="modal-chapter" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" hidden>
+    <div class="modal glass-panel modal-fullscreen">
+      <div class="modal-header">
+        <div class="chapter-view-header">
+          <span class="output-chapter-badge" id="view-chapter-badge">Chapter 1</span>
+          <h2 class="modal-title" id="chapter-modal-title">Chapter Title</h2>
+        </div>
+        <div class="chapter-view-meta">
+          <span class="stat-badge" id="view-word-count">0 words</span>
+          <button class="modal-close" data-modal="modal-chapter" aria-label="Close chapter view">✕</button>
+        </div>
+      </div>
+      <div class="modal-body chapter-view-body">
+        <div class="chapter-featured">
+          <div class="featured-group" id="view-characters-featured">
+            <span class="featured-label">Characters:</span>
+            <div class="featured-tags" id="view-char-tags"></div>
+          </div>
+          <div class="featured-group" id="view-scenes-featured">
+            <span class="featured-label">Locations:</span>
+            <div class="featured-tags" id="view-scene-tags"></div>
+          </div>
+        </div>
+        <div class="chapter-view-text" id="chapter-view-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Character/Scene Full View Modal ── -->
+  <div class="modal-overlay" id="modal-profile" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" hidden>
+    <div class="modal glass-panel modal-large">
+      <div class="modal-header">
+        <h2 class="modal-title" id="profile-modal-title">Character Profile</h2>
+        <button class="modal-close" data-modal="modal-profile" aria-label="Close profile modal">✕</button>
+      </div>
+      <div class="modal-body" id="profile-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn-cancel" data-modal="modal-profile">Close</button>
+        <button class="btn-save" id="btn-edit-profile">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ TOAST ═══════════════════════════════ -->
+  <div class="toast-container" id="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

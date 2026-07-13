@@ -1,0 +1,9 @@
+{
+  "title": "Untitled Novel",
+  "genre": "",
+  "author": "",
+  "total_chapters": 1,
+  "writer_model": "gemma3:12b",
+  "specialist_model": "phi4-mini:3.8b",
+  "created_at": ""
+}
