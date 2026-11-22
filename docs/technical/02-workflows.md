@@ -29,10 +29,12 @@ flowchart TD
     B -- no --> C{"python --version OK?"}
     C -- yes --> Q[PYTHON_EXE=python]
     C -- no --> X1["[ERROR] Python not found → pause, exit 1"]
-    P & Q --> D{"python -c 'import fastapi' OK?"}
+    P & Q --> D{"DEP_CHECK OK?<br/>(fastapi, uvicorn, pydantic, httpx, ollama ≥ 0.4)"}
     D -- no --> E["pip install -r app/requirements.txt -q"]
-    D -- yes --> F["[OK] Dependencies ready (⚠ ollama NOT checked)"]
-    E --> G{"app/backend/main.py exists?"}
+    E --> D2{"DEP_CHECK OK now?"}
+    D2 -- no --> X3["[ERROR] still missing → print manual pip command, pause, exit 1"]
+    D2 -- yes --> G{"app/backend/main.py exists?"}
+    D -- yes --> F["[OK] Dependencies ready"]
     F --> G
     G -- no --> X2["[ERROR] Not found → pause, exit 1"]
     G -- yes --> H["start /min /d backend\\ python -m uvicorn main:app --host 127.0.0.1 --port 8000<br/>(window: NovelForge-Backend)"]
@@ -44,7 +46,8 @@ flowchart TD
 ```
 
 Notes:
-- The dependency check only probes `fastapi` (`app/start.bat:39`). If FastAPI is present but `ollama` is missing, pip is skipped and the backend window crashes at import time (KI-003). The launcher then prints `[WARN] Server is slow to start` and opens a browser that cannot connect.
+- The dependency check (`DEP_CHECK`, `app/start.bat:40`) imports every runtime package and requires `ollama` ≥ 0.4, so a missing or too-old package triggers `pip install -r` (which also upgrades). If the packages are still missing afterwards (no network, pip error), the launcher stops with the manual command instead of starting a broken server. In v1.0.0 it probed only `fastapi` (KI-003, fixed in plan 005).
+- Even without `ollama`, the backend itself now starts (the import is optional). Generation and the Build tabs then fail with "ollama Python package not installed: run pip install -r app/requirements.txt".
 - To stop the app, close the minimised **NovelForge-Backend** window. The launcher has no stop command.
 
 ## W2 — Frontend boot

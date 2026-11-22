@@ -38,11 +38,11 @@ def _extract_json(text: str) -> Dict:
     return {}
 
 
-def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dict:
-    """Make a single ollama call and parse JSON response."""
+async def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dict:
+    """Make one ollama call and parse the JSON reply. Async, so the server stays responsive (KI-005)."""
     if ollama is None:
-        raise RuntimeError("ollama library not installed")
-    response = ollama.chat(
+        raise RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")
+    response = await ollama.AsyncClient().chat(
         model=model,
         messages=[
             {"role": "system", "content": system},
@@ -55,7 +55,7 @@ def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dict:
     return _extract_json(content)
 
 
-def analyze_plot(plot: str, novel_meta: dict, model: str) -> Dict:
+async def analyze_plot(plot: str, novel_meta: dict, model: str) -> Dict:
     system = """You are a precise JSON generator for a light novel story analyzer.
 Output ONLY valid JSON with no markdown fences, no explanation, no extra text."""
     user = f"""Analyze this chapter plot and return ONLY this exact JSON:
@@ -78,10 +78,10 @@ Rules:
 - key_events: 2-4 main plot events
 
 Plot: {plot}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def resolve_entities(entity_mentions: Dict, existing_chars: List[Dict], existing_scenes: List[Dict], model: str) -> Dict:
+async def resolve_entities(entity_mentions: Dict, existing_chars: List[Dict], existing_scenes: List[Dict], model: str) -> Dict:
     system = """You are a JSON database resolver for a novel management system.
 Output ONLY valid JSON with no markdown, no explanation."""
     user = f"""Match entities from a story plot to an existing database.
@@ -111,10 +111,10 @@ Return ONLY this JSON:
     {{"name": "name", "slug": "slug", "status": "existing", "importance": "main"}}
   ]
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def profile_new_entities(new_chars: List[str], new_scenes: List[str], plot: str, world: WorldSettings, tone: str, chapter_number: int, model: str) -> Dict:
+async def profile_new_entities(new_chars: List[str], new_scenes: List[str], plot: str, world: WorldSettings, tone: str, chapter_number: int, model: str) -> Dict:
     if not new_chars and not new_scenes:
         return {"characters": [], "scenes": []}
     world_brief = f"World: {world.world_name}. Genre: {', '.join(world.genre_tags)}. Cultivation: {world.cultivation_system}. Magic: {world.magic_system}."
@@ -167,10 +167,10 @@ Return ONLY this JSON structure:
     }}
   ]
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def select_context(involved_chars: List[Dict], involved_scenes: List[Dict], all_chapters: List[Dict], plot: str, current_chapter: int, model: str) -> Dict:
+async def select_context(involved_chars: List[Dict], involved_scenes: List[Dict], all_chapters: List[Dict], plot: str, current_chapter: int, model: str) -> Dict:
     system = """You are a context optimization system for an AI story writer.
 Decide what information to include. Output ONLY valid JSON."""
     char_list = [{"slug": c["slug"], "name": c["name"], "importance": c["importance"]} for c in involved_chars]
@@ -212,10 +212,10 @@ Return ONLY this JSON:
     "1": "micro"
   }}
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def predict_updates(plot: str, primary_chars: List[str], main_scenes: List[str], model: str) -> Dict:
+async def predict_updates(plot: str, primary_chars: List[str], main_scenes: List[str], model: str) -> Dict:
     system = """You are a story continuity tracker. Predict what will change. Output ONLY valid JSON."""
     user = f"""Based on this plot, predict which characters and scenes will have updated information after this chapter.
 
@@ -229,10 +229,10 @@ Return ONLY this JSON:
   "scenes_to_update": ["slug1"]
 }}"""
     # keep_alive=0 to unload specialist from VRAM before writer loads
-    return _call(model, system, user, keep_alive=0)
+    return await _call(model, system, user, keep_alive=0)
 
 
-def post_write_update(chapter_text: str, char_profiles: List[Dict], scene_profiles: List[Dict], model: str) -> Dict:
+async def post_write_update(chapter_text: str, char_profiles: List[Dict], scene_profiles: List[Dict], model: str) -> Dict:
     system = """You are a story summarizer and continuity tracker for a light novel.
 Generate summaries and track character/scene changes. Output ONLY valid JSON."""
     chars_brief = [{"slug": c.get("slug"), "name": c.get("name"), "arc_notes": c.get("arc_notes", "")} for c in char_profiles]
@@ -265,10 +265,10 @@ Return ONLY this JSON:
   }}
 }}"""
     # keep_alive=0 to unload after post-write
-    return _call(model, system, user, keep_alive=0)
+    return await _call(model, system, user, keep_alive=0)
 
 
-def refine_character(description: str, name: Optional[str], world: WorldSettings, model: str) -> Dict:
+async def refine_character(description: str, name: Optional[str], world: WorldSettings, model: str) -> Dict:
     """Refine a rough character description into a structured character profile JSON."""
     world_brief = f"World: {world.world_name}. Genre: {', '.join(world.genre_tags)}. Cultivation: {world.cultivation_system}."
     system = """You are a character designer for a light novel. Given a rough, informal description of a character,
@@ -301,10 +301,10 @@ Return ONLY this JSON (fill in all fields based on the description, using reason
   "last_seen_chapter": 0,
   "micro_summary": "one sentence who they are"
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def refine_scene(description: str, name: Optional[str], world: WorldSettings, model: str) -> Dict:
+async def refine_scene(description: str, name: Optional[str], world: WorldSettings, model: str) -> Dict:
     """Refine a rough scene/location description into a structured scene profile JSON."""
     world_brief = f"World: {world.world_name}. Genre: {', '.join(world.genre_tags)}."
     system = """You are a world-builder for a light novel. Given a rough, informal description of a location,
@@ -331,10 +331,10 @@ Return ONLY this JSON:
   "first_appeared_chapter": 0,
   "micro_summary": "one sentence description"
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)
 
 
-def refine_world(description: str, existing_world: WorldSettings, model: str) -> Dict:
+async def refine_world(description: str, existing_world: WorldSettings, model: str) -> Dict:
     """Integrate a rough world-building description into the world settings structure."""
     current = f"""Current world: {existing_world.world_name or 'unnamed'}.
 Genres: {', '.join(existing_world.genre_tags) or 'none set'}.
@@ -364,4 +364,4 @@ Analyze what aspects of the world this description touches and return ONLY this 
   "rules_of_the_world": "",
   "lore_notes": ""
 }}"""
-    return _call(model, system, user)
+    return await _call(model, system, user)

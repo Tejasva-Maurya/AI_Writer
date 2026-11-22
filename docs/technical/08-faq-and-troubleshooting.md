@@ -9,7 +9,7 @@
    ```bash
    cd app/backend && python -m uvicorn main:app --host 127.0.0.1 --port 8000
    ```
-2. **`ModuleNotFoundError: No module named 'ollama'`** (from `agents/writer.py`): install it with `pip install "ollama>=0.4"`. `app/start.bat` skips installation whenever FastAPI is already present (KI-003).
+2. **A missing Python package** (`ModuleNotFoundError: No module named '…'`): run `pip install -r app/requirements.txt` from the repo root. Since plan 005, `app/start.bat` checks every package on launch and installs or upgrades as needed. The backend also starts without `ollama`; generation then fails with the message in A2.
 3. **`Error loading ASGI app. Could not import module "main"`**: you ran `uvicorn main:app` from the wrong folder. Run it from `app/backend/`, or from the repo root with `--app-dir app/backend`.
 4. **Port in use** (`[Errno 10048]` / `address already in use`): another process holds port 8000, often an old backend window. Close it, or change the port in all three places ([06 §2.1](06-configuration.md#21-network--process)).
 5. You opened `http://localhost:8000` instead of `http://127.0.0.1:8000`. That usually still works (CORS is open), but prefer `127.0.0.1`.
@@ -19,21 +19,21 @@
 |---|---|---|
 | `Connection refused`, `ConnectError`, `Failed to connect to Ollama` | Ollama is not running | Start Ollama (`ollama serve` or the tray app) |
 | `model "xyz" not found` / 404 | Selected model not pulled | `ollama pull xyz`, or choose an installed model in Settings |
-| `'dict' object has no attribute 'message'` | ollama-python < 0.4 installed | `pip install -U "ollama>=0.4"` (KI-004) |
-| `ollama library not installed` | `ollama` package missing (specialist guard) | `pip install "ollama>=0.4"` |
+| `'dict' object has no attribute 'message'` | ollama-python < 0.4 installed | `pip install -r app/requirements.txt` (upgrades it; `start.bat` does this automatically) |
+| `ollama Python package not installed: run pip install -r app/requirements.txt` | `ollama` package missing (the server still starts) | Run that command, then restart the backend |
 | `'>' not supported between instances of 'str' and 'int'` | Specialist returned `estimated_chapters` as text (KI-015) | Retry, or use a stronger specialist model |
 | model name is empty (`model is required`) | Settings were saved with empty model fields (KI-006) | Open Settings **with the button**, pick models, Save |
 
 The full traceback is in the SSE `error.detail` field. Watch it with the `curl -N` command in [07 §7](07-setup-and-usage.md#7-developer-quick-reference) or in the browser DevTools → Network → the `generate-chapter` response.
 
 ### A3. Generation hangs on one step
-- Steps 1–5 and 7 call the specialist **synchronously**. While a call runs, the whole server is busy, and even sidebar reloads wait (KI-005). Large models on CPU can take minutes per step.
+- Each specialist step (1–5 and 7) waits for the model, and large models on CPU can take minutes per step. The rest of the app stays usable meanwhile: sidebars and other pages still load (since plan 005, KI-005).
 - First use of a model includes loading it from disk into VRAM. Check `ollama ps` to see what is loaded.
 - If the writer step never starts, VRAM may be exhausted. See A4.
 
 ### A4. Out of memory / VRAM errors, or the system becomes very slow
 - Use smaller models (e.g. writer `llama3.1:8b`, specialist `phi4-mini:3.8b`).
-- The writer requests `num_ctx 32768`. Lowering it in `writer.py:57` greatly reduces memory use.
+- The writer requests `num_ctx 32768`. Lowering it in `writer.py:63` greatly reduces memory use.
 - After using the Build tabs, the specialist stays loaded (`keep_alive=-1`). Run `ollama stop <model>` or restart Ollama to free it.
 - Close other GPU-heavy applications.
 
@@ -107,4 +107,4 @@ No. Back up `data/` regularly, or commit it to a private git repo.
 Only the backend console window (uvicorn access log and Python tracebacks) and the browser DevTools console. There is no log file (KI-025).
 
 **Which Python version should I use?**
-3.11–3.14 all work with current FastAPI/Pydantic, provided you install a current `ollama` (≥ 0.4). Avoid the stale pins in `app/requirements.txt` until KI-004 is fixed.
+3.11 or newer. `pip install -r app/requirements.txt` was verified on 3.14.5 (every package installs as a wheel) and pulls current versions on 3.11–3.13 too.

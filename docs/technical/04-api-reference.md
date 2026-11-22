@@ -138,7 +138,7 @@ Common body (`RefineRequest`):
 ```json
 {"description": "rough free text", "name": "optional name hint", "existing_slug": "optional slug to merge into"}
 ```
-These are synchronous: the response arrives when the specialist finishes (seconds to minutes). The specialist stays loaded (`keep_alive=-1`).
+The response arrives when the specialist finishes (seconds to minutes). The call is awaited (async client), so the server keeps answering other requests meanwhile (KI-005, fixed in plan 005). The specialist stays loaded (`keep_alive=-1`). If the `ollama` Python package is missing, these return **500**.
 
 ### `POST /api/refine/character`
 - `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.

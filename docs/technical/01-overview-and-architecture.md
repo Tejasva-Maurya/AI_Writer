@@ -45,20 +45,19 @@ Besides chapter generation it offers:
 
 ## 3. Technology stack
 
-| Layer | Technology | Version (pinned in `app/requirements.txt`) | Notes |
+| Layer | Technology | Version (lower bound in `app/requirements.txt`; verified with) | Notes |
 |---|---|---|---|
-| Runtime | Python | README says 3.11+ | Committed bytecode is `cpython-313`. The current dev machine has Python 3.14. |
-| Web framework | FastAPI | `0.111.0` | Async route handlers, Pydantic request validation, `StreamingResponse` for SSE. |
-| ASGI server | Uvicorn `[standard]` | `0.30.1` | Launched by `app/start.bat` as `python -m uvicorn main:app`. |
-| Validation / models | Pydantic v2 | `2.7.1` | `model_dump()` used everywhere (v2 API). |
-| LLM client | `ollama` (ollama-python) | `0.3.3` | ⚠ The code uses attribute access (`response.message.content`), which needs ollama-python **≥ 0.4**. See KI-004. |
-| HTTP client | `httpx` | *not pinned* (comes in transitively with `ollama`) | Used directly in `main.py` for `/api/tags` and `/api/pull`. |
-| Unused pins | `aiofiles==23.2.1`, `python-multipart==0.0.9` | — | Not imported by project code. |
+| Runtime | Python | 3.11+ (verified on 3.14.5) | Every dependency resolves to a ready-made wheel on 3.14 (plan 005). |
+| Web framework | FastAPI | `>=0.111` (0.141.1) | Async route handlers, Pydantic request validation, `StreamingResponse` for SSE. |
+| ASGI server | Uvicorn `[standard]` | `>=0.30` (0.52.3) | Launched by `app/start.bat` as `python -m uvicorn main:app`. |
+| Validation / models | Pydantic v2 | `>=2.9,<3` (2.13.4) | `model_dump()` used everywhere (v2 API). |
+| LLM client | `ollama` (ollama-python) | `>=0.4,<1` (0.6.3) | Both agents use `ollama.AsyncClient`. Attribute access (`response.message.content`) needs ≥ 0.4, and ollama ≥ 0.4 itself needs pydantic ≥ 2.9. The import is optional at startup (KI-003). |
+| HTTP client | `httpx` | `>=0.27` (0.28.1) | Used directly in `main.py` for `/api/tags` and `/api/pull`. |
 | LLM runtime | Ollama server | any recent | HTTP API on `http://localhost:11434`. |
 | Frontend | HTML5 + CSS3 + vanilla ES2020 JS | — | Google Fonts: *Cinzel* (display), *Crimson Pro* (body), *JetBrains Mono* (mono). |
-| Launcher | Windows batch (`app/start.bat`) | — | Detects Python, installs deps, starts server, polls health, opens browser. |
+| Launcher | Windows batch (`app/start.bat`) | — | Detects Python, checks every dependency (incl. ollama ≥ 0.4) and installs/upgrades if needed, starts server, polls health, opens browser. |
 
-> **Environment drift (verified 2026-11-22):** The pins in `app/requirements.txt` do not match any environment observed to work. The dev machine has FastAPI 0.141.1, Pydantic 2.13.4, Uvicorn 0.52.3, httpx 0.28.1 and **no `ollama` package**, so the backend fails to import (`ModuleNotFoundError: ollama` from `app/backend/agents/writer.py:5`). See KI-003/KI-004.
+> **Dependencies (plan 005, D-009):** `app/requirements.txt` holds lower bounds plus a comment with the verified versions. In v1.0.0 it held stale exact pins (`ollama==0.3.3`, `pydantic==2.7.1`) that matched no working environment, and the backend could not even import without `ollama`. Both are fixed (KI-003, KI-004).
 
 ## 4. System context
 
@@ -195,7 +194,7 @@ AI_Writer/
 │   │   ├── app.js            (1890 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
 │   │   └── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
 │   ├── start.bat                        Windows launcher (double-click)
-│   └── requirements.txt                 Python dependencies (⚠ stale pins, KI-004)
+│   └── requirements.txt                 Python dependencies (lower bounds; verified versions in a comment)
 ├── data/                                NOVEL DATA (created/updated by the app; sample content is committed)
 │   ├── characters/*.json
 │   ├── scenes/*.json
@@ -221,7 +220,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 ## 8. Process & runtime model
 
 - **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:395-397`).
-- **Async, with blocking parts.** Route handlers are `async def`. The specialist uses the **synchronous** `ollama.chat`, so each specialist call blocks the event loop. While one runs, the server cannot answer other requests (KI-005). Writer streaming uses `ollama.AsyncClient` and does not block.
+- **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast.
 - **No background jobs, queues or locks.** A generation lives exactly as long as its HTTP response stream. Two generations at once are not prevented on the server; the frontend blocks a second one only within the same tab (`state.isGenerating`).
 - **State.** All durable state is in `data/`. The server keeps no in-memory state between requests, apart from the module-level constant `RECOMMENDED_MODELS`.
 

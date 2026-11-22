@@ -1,22 +1,19 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-22, through plan 004. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-22, through plan 005. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 32 open · 1 partly fixed (KI-023) · 5 fixed in [Unreleased] (KI-001, KI-002, KI-022, KI-027, KI-036).
+**At a glance:** 29 open · 1 partly fixed (KI-023) · 8 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-022, KI-027, KI-036).
 
-### Open (33)
+### Open (30)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-003 | High | Setup | Server fails to start without `ollama`; `app/start.bat` only checks `fastapi` ✔ | Open |
-| KI-004 | High | Setup | `app/requirements.txt` pins are stale/incompatible (ollama 0.3.3 vs ≥0.4 API; pydantic 2.7.1 vs Py3.13+; httpx missing) | Open |
-| KI-005 | Medium | Backend | Synchronous `ollama.chat` blocks the event loop during specialist calls | Open |
 | KI-006 | Medium | Frontend | `Alt+S` opens Settings without loading models, so empty model names can be saved | Open |
 | KI-007 | Medium | Frontend | Settings save resets `total_chapters`/`created_at` | Open |
 | KI-008 | Medium | Frontend/Pipeline | Next chapter number = count+1 (not max+1), so gaps cause overwrites | Open |
@@ -48,7 +45,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Open |
 
-### Fixed (5)
+### Fixed (8)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -56,6 +53,9 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 |---|---|---|---|---|
 | KI-001 | High | Frontend↔API | Manual character/location create & edit always fail (422: missing `slug`) ✔ | Fixed in Unreleased [plan 003] |
 | KI-002 | High | Frontend | `apiPost` returns `Response`; refine handlers treat it as JSON. World modal can wipe world settings | Fixed in Unreleased [plan 003] |
+| KI-003 | High | Setup | Server fails to start without `ollama`; `app/start.bat` only checks `fastapi` ✔ | Fixed in Unreleased [plan 005] |
+| KI-004 | High | Setup | `app/requirements.txt` pins are stale/incompatible (ollama 0.3.3 vs ≥0.4 API; pydantic 2.7.1 vs Py3.13+; httpx missing) | Fixed in Unreleased [plan 005] |
+| KI-005 | Medium | Backend | Synchronous `ollama.chat` blocks the event loop during specialist calls | Fixed in Unreleased [plan 005] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
@@ -76,16 +76,19 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Impact:** The status reads "Created: undefined". `state.world` becomes a `Response`, so the world snapshot shows "No world settings yet". **Opening World Settings and saving afterwards overwrites `world_settings.json` with empty values (data loss).**
 - **Fix:** make `apiPost` return `res.json()`, and update the two callers that check `res.ok` (`saveCharacter`/`saveScene`). Or add `await res.json()` in the refine handlers.
 
-### KI-003 — Server fails to start without `ollama`; launcher check too narrow · High · Verified ✔
+### KI-003 — Server fails to start without `ollama`; launcher check too narrow · High · Verified ✔ · ✅ Fixed in Unreleased (plan 005)
+- **Status: Fixed in Unreleased [plan 005].** `agents/writer.py` guards the import like the specialist, and `stream_chapter` yields a clear error when the package is missing. `app/start.bat` runs `DEP_CHECK` (all runtime packages plus `ollama >= 0.4`), installs or upgrades on failure, re-checks, and stops with the manual command if it still fails. Verified: `import main` succeeds without `ollama` (the committed code raised `ModuleNotFoundError`); the server answers `/api/health`; generation ends with "ollama Python package not installed: run pip install -r app/requirements.txt". The launcher block was tested with no ollama, ollama 0.6.3 and ollama 0.3.3. The evidence below describes the v1.0.0 code.
 - **Evidence:** `app/backend/agents/writer.py:5` does `import ollama` unguarded. `import main` → `ModuleNotFoundError: No module named 'ollama'` (reproduced 2026-11-22 on Python 3.14 with FastAPI installed). `app/start.bat:39` probes only `import fastapi`.
 - **Fix:** have `app/start.bat` probe all required modules (`import fastapi, uvicorn, pydantic, httpx, ollama`), and/or guard the import in `writer.py` like `specialist.py` does, yielding a clear error event.
 
-### KI-004 — Stale / incompatible dependency pins · High
+### KI-004 — Stale / incompatible dependency pins · High · ✅ Fixed in Unreleased (plan 005)
+- **Status: Fixed in Unreleased [plan 005].** `app/requirements.txt` now holds lower bounds: `fastapi>=0.111`, `uvicorn[standard]>=0.30`, `pydantic>=2.9,<3`, `httpx>=0.27`, `ollama>=0.4,<1` (policy D-009). The pydantic floor is **2.9**, not the 2.7 suggested below, because `ollama==0.4.0` itself requires `pydantic>=2.9` (read from the 0.4.0 wheel). `aiofiles` and `python-multipart` are removed. Verified: the 0.4.0 and 0.6.3 sources both provide `AsyncClient.chat(...) -> ChatResponse`; the app runs with ollama 0.6.3; a fresh install on Python 3.14.5 resolves 23 packages, all wheels. The evidence below describes the v1.0.0 file.
 - **Evidence:** The code uses attribute access on Ollama responses (`specialist.py:54` `response.message.content`, `writer.py:59` `chunk.message.content`). ollama-python introduced typed (attribute-accessible) responses in 0.4.0; 0.3.x returns plain dicts. `app/requirements.txt` pins `ollama==0.3.3`. `pydantic==2.7.1` predates Python 3.13 wheels, yet the committed bytecode is cpython-313. `httpx` is imported in `main.py:7` but not listed. `aiofiles` and `python-multipart` are unused.
 - **Note:** The 0.3.3 incompatibility follows from the ollama-python API history and was not executed here (ollama is not installed on the analysis machine).
 - **Fix:** replace with tested lower bounds, e.g. `fastapi>=0.111`, `uvicorn[standard]>=0.30`, `pydantic>=2.7,<3`, `httpx>=0.27`, `ollama>=0.4,<1`. Drop the unused packages. Document the tested Python versions.
 
-### KI-005 — Event loop blocked by synchronous specialist calls · Medium
+### KI-005 — Event loop blocked by synchronous specialist calls · Medium · ✅ Fixed in Unreleased (plan 005)
+- **Status: Fixed in Unreleased [plan 005]** (by the second option below). Every specialist function is `async def` and uses `await ollama.AsyncClient().chat(...)`; the 6 pipeline calls and 3 refine routes await them. Verified with a stub whose specialist call takes 4 s: during a generation plus a refine, 20 requests to `/api/health` and `/api/characters` took at most 0.07 s (the committed code took 14.9 s). The evidence below describes the v1.0.0 code.
 - **Evidence:** `specialist._call` uses `ollama.chat` (sync) and is called from the async generator `run_pipeline` and from async refine routes.
 - **Impact:** While a specialist call runs (seconds to minutes), the server cannot answer any request (UI reloads, health, model list).
 - **Fix:** `await asyncio.to_thread(specialist.fn, …)` at the call sites, or switch the specialist to `ollama.AsyncClient`.

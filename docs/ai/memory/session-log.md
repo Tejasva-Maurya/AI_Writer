@@ -38,3 +38,13 @@
 - **Plan:** none (git housekeeping on user request).
 - **Open threads:** Plans 003 + 004 commit not pushed. GitHub's contributor cache may take time to drop Claude.
   - _(Resolved the same session: pushed as `5960228`, local `main` realigned.)_
+
+### 2026-11-22 — Claude Code (Opus 5.5) — fix KI-003, KI-004, KI-005 (plan 005)
+- **Goal:** The server must start without `ollama`; the launcher must check every dependency; `requirements.txt` must install a working set; the server must stay responsive while the specialist works.
+- **Outcome:**
+  - Specialist is fully `async` (`await ollama.AsyncClient().chat`), with no line shifts. `writer.py` guards the import.
+  - `start.bat` runs `DEP_CHECK` (all packages plus `ollama >= 0.4`), installs, re-checks, and stops on failure.
+  - `requirements.txt` holds lower bounds (pydantic floor 2.9 because ollama 0.4 needs it, D-009).
+  - Verified against the real ollama 0.4.0/0.6.3 sources and an isolated 0.6.3 install. Responsiveness during specialist work: max 0.07 s vs 14.9 s before. Launcher block tested in 3 scenarios. Fresh resolve on Python 3.14 is all wheels.
+- **Plan:** 005 (done).
+- **Open threads:** Committed and pushed in the same session. Real LLM not exercised. `start.bat` not run end-to-end (it would install into the user's Python and open windows).

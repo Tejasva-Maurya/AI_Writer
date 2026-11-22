@@ -2,7 +2,10 @@
 Writer Agent — main large model (default: gemma3:12b)
 Streams chapter text via SSE. Uses keep_alive=300 to stay warm between chapters.
 """
-import ollama
+try:
+    import ollama
+except ImportError:  # the server must still start without it (KI-003)
+    ollama = None
 from typing import AsyncGenerator, Tuple
 
 WRITER_SYSTEM = """You are a master light novel author. Write compelling, immersive fiction.
@@ -33,6 +36,9 @@ async def stream_chapter(
     Async generator yielding (event_type, content) tuples.
     event_type: 'token' | 'error'
     """
+    if ollama is None:
+        yield ("error", "ollama Python package not installed: run pip install -r app/requirements.txt")
+        return
     user_prompt = f"""{master_prompt}
 
 === YOUR WRITING TASK ===

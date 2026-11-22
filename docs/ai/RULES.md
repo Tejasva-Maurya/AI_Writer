@@ -68,7 +68,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 
 ## 4. Coding conventions
 
-- **Python:** `async def` routes. `HTTPException(status, msg)` for errors. Pydantic v2 (`model_dump()`, not `.dict()`). Type hints like the existing code. UTF-8 JSON with `indent=2, ensure_ascii=False`. Keep functions small and module-level (no classes for services). Before blocking I/O inside async code, prefer `asyncio.to_thread` (see KI-005).
+- **Python:** `async def` routes. `HTTPException(status, msg)` for errors. Pydantic v2 (`model_dump()`, not `.dict()`). Type hints like the existing code. UTF-8 JSON with `indent=2, ensure_ascii=False`. Keep functions small and module-level (no classes for services). LLM calls use `ollama.AsyncClient` (specialist and writer) and are awaited; never call the sync `ollama.chat` from async code (it froze the server, KI-005). Wrap any other slow blocking call with `asyncio.to_thread`.
 - **LLM prompts:** keep the "Output ONLY valid JSON" + literal-template style. Every new field read from LLM output uses `.get()` with a default and tolerates the wrong type.
 - **Frontend:** vanilla JS only. No frameworks, bundlers, npm, TypeScript or CDN libraries. Add DOM refs to the `DOM` cache or use `$()`. Put new API calls through the `api*` helpers. Report user-visible errors with `showToast`. Escape all dynamic HTML.
 - **CSS:** use the `:root` custom properties. Add new rules in the matching banner section of `style.css`.

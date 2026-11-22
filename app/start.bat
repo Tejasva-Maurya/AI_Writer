@@ -12,6 +12,7 @@ echo.
 set "BACKEND_DIR=%~dp0backend"
 set "PORT=8000"
 set "REQ_FILE=%~dp0requirements.txt"
+set "DEP_CHECK=import fastapi, uvicorn, pydantic, httpx, ollama; from importlib.metadata import version; v = tuple(int(x) for x in version('ollama').split('.')[:2]); raise SystemExit(v < (0, 4))"
 set "PYTHON_EXE="
 
 REM --- Detect Python (py launcher first, then python) ---
@@ -34,12 +35,19 @@ if "%PYTHON_EXE%"=="" (
 echo  [OK] Python: %PYTHON_EXE%
 echo.
 
-REM --- Install dependencies only if fastapi is missing ---
+REM --- Install/upgrade dependencies if any is missing or ollama is older than 0.4 (KI-003) ---
 echo  [1/3] Checking dependencies...
-%PYTHON_EXE% -c "import fastapi" >nul 2>&1
+%PYTHON_EXE% -c "%DEP_CHECK%" >nul 2>&1
 if errorlevel 1 (
-    echo  [..] First run - installing packages...
+    echo  [..] Installing or updating packages...
     %PYTHON_EXE% -m pip install -r "%REQ_FILE%" -q
+    %PYTHON_EXE% -c "%DEP_CHECK%" >nul 2>&1
+    if errorlevel 1 (
+        echo  [ERROR] Required packages are still missing. Run this to see why:
+        echo    %PYTHON_EXE% -m pip install -r "%REQ_FILE%"
+        pause
+        exit /b 1
+    )
     echo  [OK] Packages installed.
 ) else (
     echo  [OK] Dependencies ready.

@@ -28,6 +28,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   [plan 001] [plan 002]
 
 ### Changed
+- `app/requirements.txt` uses lower bounds instead of stale exact pins: `fastapi>=0.111`, `uvicorn[standard]>=0.30`, `pydantic>=2.9,<3`, `httpx>=0.27` (was missing), `ollama>=0.4,<1` (was 0.3.3, incompatible with the code). `pip install -r app/requirements.txt` works again on Python 3.11–3.14. [plan 005] [KI-004]
 - **Repository reorganized into three areas** [plan 002]:
   - `app/`: the application. `backend/`, `frontend/`, `start.bat` and `requirements.txt` moved here from the root. **Launch with `app/start.bat`**. Manual runs: `cd app/backend`, then `python -m uvicorn main:app`.
   - `data/`: the novel data. Unchanged location (repo root), now explicitly outside the application.
@@ -40,6 +41,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - AI rules: commits and PRs carry no AI `Co-Authored-By` / "Generated with" attribution (`docs/ai/RULES.md` §8, decision D-008). The already-published docs/reorganisation commit was reworded without the trailer (`02d6e6d` → `14dd6aa`, same content).
 
 ### Removed
+- Unused dependencies `aiofiles` and `python-multipart` from `app/requirements.txt` (nothing imports them). [plan 005] [KI-004]
 - Compiled `__pycache__/*.pyc` files are no longer tracked: they moved with the code into `app/backend/`, where `.gitignore` excludes them, so committing the move drops the old tracked copies. [plan 002] [KI-022]
 
 ### Fixed
@@ -51,6 +53,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   - **Pipeline:** step 3 keeps the existing profile and emits a `warning`.
   - **Implementation:** new `create()` in the character/scene managers, using an exclusive file open.
   - [plan 004] [KI-036]
+- The backend starts even when the `ollama` Python package is missing; generation and the Build tabs then report "ollama Python package not installed: run pip install -r app/requirements.txt". `app/start.bat` now checks every runtime package (and `ollama` >= 0.4) on each launch, installs or upgrades when needed, and stops with the manual command if that fails, instead of only checking FastAPI. [plan 005] [KI-003]
+- The app no longer freezes while the specialist model works: specialist calls use the async Ollama client, so sidebars, settings and other requests are served during generation and refine steps. [plan 005] [KI-005]
 
 ---
 

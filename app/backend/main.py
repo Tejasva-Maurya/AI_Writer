@@ -315,7 +315,7 @@ async def refine_character(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = specialist.refine_character(req.description, req.name, world, meta.specialist_model)
+    result = await specialist.refine_character(req.description, req.name, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to generate character profile")
     # Merge with existing if slug provided
@@ -344,7 +344,7 @@ async def refine_scene(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = specialist.refine_scene(req.description, req.name, world, meta.specialist_model)
+    result = await specialist.refine_scene(req.description, req.name, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to generate scene profile")
     existing = None
@@ -371,7 +371,7 @@ async def refine_world(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = specialist.refine_world(req.description, world, meta.specialist_model)
+    result = await specialist.refine_world(req.description, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to refine world description")
     # Merge result into existing world settings

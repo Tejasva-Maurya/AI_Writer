@@ -40,11 +40,11 @@ python -m venv venv
 venv\Scripts\activate
 ```
 ```bash
-pip install fastapi "uvicorn[standard]" pydantic httpx "ollama>=0.4"
+pip install -r app/requirements.txt
 ```
 
-> ⚠ **Why not `pip install -r app/requirements.txt`?** In v1.0.0 the pins are stale (KI-004). `ollama==0.3.3` returns dict responses while the code expects attribute access (needs ≥ 0.4). `pydantic==2.7.1` has no wheels for Python 3.13+. `httpx` is used but not listed. Until `app/requirements.txt` is fixed, install the unpinned set above.
-> If you do use `app/start.bat`, note that it only installs packages when `fastapi` is missing (KI-003). If FastAPI is already installed globally but `ollama` is not, run `pip install "ollama>=0.4"` yourself.
+`app/requirements.txt` lists lower bounds (FastAPI, Uvicorn, Pydantic ≥ 2.9, httpx, ollama ≥ 0.4), so pip installs current versions. On Python 3.11–3.14 everything comes as ready-made wheels. If an older `ollama` (< 0.4) is installed, the same command upgrades it.
+`app/start.bat` does this for you: on every launch it checks each package (and that `ollama` is at least 0.4), installs or upgrades when needed, and stops with the manual command if that fails. (In v1.0.0 the pins were stale and the launcher only checked FastAPI: KI-003 and KI-004, fixed in plan 005.)
 
 ### 2.3 Verify
 

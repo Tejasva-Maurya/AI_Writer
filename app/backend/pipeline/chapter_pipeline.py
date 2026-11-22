@@ -43,7 +43,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
     try:
         # ── STEP 1: ANALYZE PLOT ──────────────────────────────────────
         yield _sse("status", step=1, message="Analyzing plot...")
-        analysis = specialist.analyze_plot(plot, novel_meta.model_dump(), spec_model)
+        analysis = await specialist.analyze_plot(plot, novel_meta.model_dump(), spec_model)
         tone = analysis.get("tone", "action")
         estimated_chapters = analysis.get("estimated_chapters", 1)
         entity_mentions = analysis.get("entity_mentions", {"characters": [], "locations": []})
@@ -61,7 +61,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         existing_chars = [{"name": c.name, "slug": c.slug} for c in all_chars]
         existing_scenes = [{"name": s.name, "slug": s.slug} for s in all_scenes]
 
-        resolution = specialist.resolve_entities(entity_mentions, existing_chars, existing_scenes, spec_model)
+        resolution = await specialist.resolve_entities(entity_mentions, existing_chars, existing_scenes, spec_model)
         resolved_chars = resolution.get("characters", [])
         resolved_scenes = resolution.get("scenes", [])
 
@@ -73,7 +73,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         if new_char_names or new_scene_names:
             yield _sse("status", step=3, message=f"Creating profiles for {len(new_char_names)} new characters and {len(new_scene_names)} new locations...")
             world = world_manager.load()
-            profiles = specialist.profile_new_entities(new_char_names, new_scene_names, plot, world, tone, chapter_number, spec_model)
+            profiles = await specialist.profile_new_entities(new_char_names, new_scene_names, plot, world, tone, chapter_number, spec_model)
 
             for char_data in profiles.get("characters", []):
                 try:
@@ -115,7 +115,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
 
         # Fallback: if specialist didn't set well, use simple rules
         if involved_chars_for_selection or involved_scenes_for_selection:
-            context_selection = specialist.select_context(
+            context_selection = await specialist.select_context(
                 involved_chars_for_selection, involved_scenes_for_selection,
                 chapters_brief, plot, chapter_number, spec_model
             )
@@ -157,7 +157,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         primary_chars = [c.get("slug") for c in resolved_chars if c.get("importance") == "primary"]
         main_scenes = [s.get("slug") for s in resolved_scenes if s.get("importance") == "main"]
         # This call uses keep_alive=0 — UNLOADS specialist from VRAM
-        update_predictions = specialist.predict_updates(plot, primary_chars, main_scenes, spec_model)
+        update_predictions = await specialist.predict_updates(plot, primary_chars, main_scenes, spec_model)
         yield _sse("status", step=5, message="Specialist agent released. Loading writer model...")
 
         # ── BUILD MASTER PROMPT ───────────────────────────────────────
@@ -190,7 +190,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         featured_char_profiles = [chars_dict[slug].model_dump() for slug in primary_chars if slug in chars_dict]
         featured_scene_slugs = main_scenes
 
-        post_data = specialist.post_write_update(full_text, featured_char_profiles, [], spec_model)
+        post_data = await specialist.post_write_update(full_text, featured_char_profiles, [], spec_model)
 
         # Save chapter
         chapter = Chapter(

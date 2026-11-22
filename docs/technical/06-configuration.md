@@ -22,23 +22,23 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:58` (`--host`), `main.py:397` | Edit both. Do **not** bind `0.0.0.0` without adding auth (no auth + CORS `*`). |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:397` | Edit both. Do **not** bind `0.0.0.0` without adding auth (no auth + CORS `*`). |
 | Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:397`, **`app/frontend/app.js:6`** (`API`) | Change **all three** together. The frontend talks to an absolute URL. |
 | Frontend API base | `http://127.0.0.1:8000/api` | `app.js:6` | Opening the UI as `http://localhost:8000` makes API calls cross-origin (they work only because CORS is `*`). |
 | Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:243`, `main.py:280` | Edit the source. |
 | Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
 | CORS | `allow_origins=["*"]`, all methods/headers | `main.py:32-37` | Restrict to `http://127.0.0.1:8000` if hardening. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:58`, `main.py:397` | — |
-| Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:64-72` | — |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:397` | — |
+| Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
 
 | Parameter | Specialist | Writer | Location |
 |---|---|---|---|
-| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:52`, `writer.py:57` |
+| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:52`, `writer.py:63` |
 | `temperature` | 0.1 | 0.8 | same |
-| `top_p` | (Ollama default) | 0.9 | `writer.py:57` |
-| `keep_alive` | `-1` (keep loaded) by default. `0` in `predict_updates` and `post_write_update` | `300` s | `specialist.py:41,232,268`, `writer.py:56` |
+| `top_p` | (Ollama default) | 0.9 | `writer.py:63` |
+| `keep_alive` | `-1` (keep loaded) by default. `0` in `predict_updates` and `post_write_update` | `300` s | `specialist.py:41,232,268`, `writer.py:62` |
 | Streaming | no | yes | — |
 | JSON mode (`format="json"`) | **not used** | n/a | — |
 
@@ -48,9 +48,9 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Knob | Value | Location |
 |---|---|---|
-| Target chapter length | ~2000 words (stated twice) | `writer.py:20`, `writer.py:42` |
-| Narrative perspective | third-person limited unless world settings say otherwise | `writer.py:21` |
-| Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:8-23` |
+| Target chapter length | ~2000 words (stated twice) | `writer.py:23`, `writer.py:48` |
+| Narrative perspective | third-person limited unless world settings say otherwise | `writer.py:24` |
+| Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
 | Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:76` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
 | Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:139-151` (+ duplicated in the `select_context` prompt, `specialist.py:197-201`) |
@@ -94,20 +94,23 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 | `BACKEND_DIR` | `%~dp0backend` |
 | `PORT` | `8000` |
 | `REQ_FILE` | `%~dp0requirements.txt` |
+| `DEP_CHECK` | Python one-liner run with `-c`: imports `fastapi, uvicorn, pydantic, httpx, ollama` and exits 1 when the installed `ollama` is older than 0.4 (`importlib.metadata.version`). |
 | Python detection order | `py`, then `python` |
-| Dependency probe | `python -c "import fastapi"` only |
+| Dependency probe | `DEP_CHECK`; on failure `pip install -r %REQ_FILE% -q`, then `DEP_CHECK` again; still failing → error, `pause`, `exit /b 1` (plan 005; v1.0.0 probed only `import fastapi`) |
 | Window title | `NovelForge AI` (launcher), `NovelForge-Backend` (server, minimised) |
 
 ## 3. Dependencies (`app/requirements.txt`)
 
-| Package | Pinned | Actually required? | Notes |
-|---|---|---|---|
-| fastapi | 0.111.0 | yes | Works with much newer versions (0.141.1 observed). |
-| uvicorn[standard] | 0.30.1 | yes | |
-| ollama | 0.3.3 | yes | ⚠ The code needs **≥ 0.4** (attribute-style responses, KI-004). |
-| pydantic | 2.7.1 | yes (v2 API) | 2.7.1 has no wheels for Python ≥ 3.13; pip would try to build from source. |
-| aiofiles | 23.2.1 | no | Not imported. |
-| python-multipart | 0.0.9 | no | No form/file uploads. |
-| httpx | — (missing) | **yes** (imported in `main.py`) | Only present as a transitive dependency of `ollama`. |
+Lower bounds, not exact pins (KI-004, fixed in plan 005; policy in decision D-009). The file's header comment records the verified versions.
+
+| Requirement | Why this bound | Verified 2026-11-22 (Python 3.14.5) |
+|---|---|---|
+| `fastapi>=0.111` | Oldest version the app was written against. | runs on 0.141.1; a fresh install resolves 0.165.0 |
+| `uvicorn[standard]>=0.30` | As above. `[standard]` adds httptools, watchfiles and websockets (all have wheels for 3.14). | runs on 0.52.3; resolves 0.54.0 |
+| `pydantic>=2.9,<3` | v2 API (`model_dump()`), and `ollama>=0.4` itself requires `pydantic>=2.9`. | runs on 2.13.4; resolves 2.14.4 |
+| `httpx>=0.27` | Imported directly by `main.py` (model list and pull). Was missing in v1.0.0. | 0.28.1 |
+| `ollama>=0.4,<1` | Typed responses (`response.message.content`) and `AsyncClient` with this signature exist from 0.4.0 (checked in the 0.4.0 and 0.6.3 sources). | runs on 0.6.3 (isolated `--target` install) |
+
+Removed in plan 005: `aiofiles` (Starlette no longer uses it; the app ran without it) and `python-multipart` (only needed for form or file uploads, which the app does not have). A fresh `pip install --dry-run -r app/requirements.txt` on Python 3.14.5 resolves 23 packages, all as wheels (no compiler needed).
 
 A future "config" improvement (not implemented) would move host/port/Ollama URL/LLM parameters into a single settings module, using environment variables or a `config.json`. If you implement it, update this page and the doc-impact matrix in `docs/ai/RULES.md`.

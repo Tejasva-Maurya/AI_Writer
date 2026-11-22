@@ -81,7 +81,7 @@ Simply **double-click `app/start.bat`** (inside the `app` folder).
 
 The launcher will:
 1. Verify Python is installed
-2. Install backend dependencies (`app/requirements.txt`). ⚠ It only does this when FastAPI is missing, and the pinned versions are stale. See [technical/07 §2](technical/07-setup-and-usage.md#2-installation) for the recommended install.
+2. Check the backend dependencies (`app/requirements.txt`) and install or update them if anything is missing or too old. The first launch needs an internet connection for this. If the install fails, the launcher stops and shows the command to run by hand.
 3. Start the FastAPI backend server on port 8000
 4. Open your browser to `http://127.0.0.1:8000`
 

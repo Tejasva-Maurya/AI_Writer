@@ -86,12 +86,12 @@ Writes are **not atomic** (direct `open(..., "w")`). A crash mid-write can leave
 
 ### 2.4 `app/backend/agents/specialist.py`
 
-Module-level: `try: import ollama` / `except ImportError: ollama = None`.
+Module-level: `try: import ollama` / `except ImportError: ollama = None`. All functions except `_extract_json` are **`async def`** and must be awaited (plan 005, KI-005).
 
 | Function | Signature | Purpose | keep_alive |
 |---|---|---|---|
 | `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:25`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
-| `_call` | `(model, system, user, keep_alive=-1) -> Dict` | `ollama.chat(model, messages=[system,user], keep_alive, options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`. Raises `RuntimeError` if `ollama` is missing. **Synchronous/blocking.** | param |
+| `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`. Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
 | `analyze_plot` | `(plot, novel_meta: dict, model)` | Step 1 (`novel_meta` unused) | -1 |
 | `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | -1 |
 | `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | -1 |
@@ -104,12 +104,12 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`.
 
 ### 2.5 `app/backend/agents/writer.py`
 
-- `WRITER_SYSTEM` (`:8-23`): "master light novel author" persona. Requirements: sensory detail, internal monologue, subtext in dialogue, pacing *tension → action → reflection → new tension*, a chapter-ending hook, show-don't-tell, anime-influenced light-novel prose, **~2000 words**, third-person limited unless the world settings say otherwise, **no chapter numbers/titles/meta-commentary**, start the narrative immediately.
+- `WRITER_SYSTEM` (`:11-26`): "master light novel author" persona. Requirements: sensory detail, internal monologue, subtext in dialogue, pacing *tension → action → reflection → new tension*, a chapter-ending hook, show-don't-tell, anime-influenced light-novel prose, **~2000 words**, third-person limited unless the world settings say otherwise, **no chapter numbers/titles/meta-commentary**, start the narrative immediately.
 - `async def stream_chapter(master_prompt, plot, chapter_number, model) -> AsyncGenerator[Tuple[str,str]]`
   - User prompt = `master_prompt` + `=== YOUR WRITING TASK ===` + chapter number + plot + instructions ("approximately 2000 words … end with a compelling hook. Begin writing now:").
   - `ollama.AsyncClient().chat(..., stream=True, keep_alive=300, options={"num_ctx": 32768, "temperature": 0.8, "top_p": 0.9})`.
   - Yields `("token", chunk.message.content)` for each non-empty chunk. Any exception → yields `("error", str(e))` once.
-- `import ollama` at module top is **unguarded**, so a missing package breaks server start (KI-003).
+- `import ollama` is guarded like the specialist's (`try/except ImportError` → `ollama = None`), so the server starts without the package. `stream_chapter` then yields one `("error", "ollama Python package not installed: …")` and stops. (Unguarded in v1.0.0: KI-003, fixed in plan 005.)
 
 ### 2.6 `app/backend/pipeline/context_builder.py`
 
@@ -293,5 +293,4 @@ There is **no logging framework**. The only diagnostics are uvicorn access logs 
 | `novel_meta` param of `analyze_plot` | `specialist.py:58` |
 | `/static` mount | `main.py:46-47` |
 | `state._profileContext` (written, never read) | `app.js` |
-| `aiofiles`, `python-multipart` pins | `app/requirements.txt` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |
