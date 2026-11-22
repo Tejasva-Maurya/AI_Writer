@@ -1,16 +1,19 @@
 # 09 — Known Issues & Technical Debt
 
-> **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test).
-> **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, set its **Status** to `Fixed in vX.Y.Z` (do not delete the row).
+> **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
+> **Statuses are kept current.** Last updated 2026-11-22, through plan 004. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
+**At a glance:** 32 open · 1 partly fixed (KI-023) · 5 fixed in [Unreleased] (KI-001, KI-002, KI-022, KI-027, KI-036).
+
+### Open (33)
+
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-001 | High | Frontend↔API | Manual character/location create & edit always fail (422: missing `slug`) ✔ | Fixed in Unreleased [plan 003] |
-| KI-002 | High | Frontend | `apiPost` returns `Response`; refine handlers treat it as JSON. World modal can wipe world settings | Fixed in Unreleased [plan 003] |
 | KI-003 | High | Setup | Server fails to start without `ollama`; `app/start.bat` only checks `fastapi` ✔ | Open |
 | KI-004 | High | Setup | `app/requirements.txt` pins are stale/incompatible (ollama 0.3.3 vs ≥0.4 API; pydantic 2.7.1 vs Py3.13+; httpx missing) | Open |
 | KI-005 | Medium | Backend | Synchronous `ollama.chat` blocks the event loop during specialist calls | Open |
@@ -30,12 +33,10 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error | Open |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Open |
-| KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Resolved by plan 002 once the move is committed (Unreleased) |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs | Open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
-| KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) | Open |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
@@ -44,21 +45,32 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
-| KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Open |
+
+### Fixed (5)
+
+Kept for history (IDs are permanent). The titles describe the defect as it was.
+
+| ID | Sev | Area | Title | Status |
+|---|---|---|---|---|
+| KI-001 | High | Frontend↔API | Manual character/location create & edit always fail (422: missing `slug`) ✔ | Fixed in Unreleased [plan 003] |
+| KI-002 | High | Frontend | `apiPost` returns `Response`; refine handlers treat it as JSON. World modal can wipe world settings | Fixed in Unreleased [plan 003] |
+| KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
+| KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
+| KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 
 ---
 
 ## Details
 
-### KI-001 — Manual character/location create & edit always fail (HTTP 422) · High · Verified ✔
+### KI-001 — Manual character/location create & edit always fail (HTTP 422) · High · Verified ✔ · ✅ Fixed in Unreleased (plan 003)
 - **Status: Fixed in Unreleased [plan 003].** Fix option (a): `saveCharacter`/`saveScene` now send `slug: state._editing…Slug || ''`, so the server derives the slug on create and takes the path slug on edit. The API contract is unchanged (a body without `slug` still gets 422). Verified in a sandbox through the UI and with curl. The evidence below describes the v1.0.0 code.
 - **Evidence:** `saveCharacter` builds the payload without `slug` (`app/frontend/app.js:727-741`); `saveScene` likewise (`app.js:862-871`). `Character.slug` and `Scene.slug` are required (`app/backend/models.py:13`, `:32`). Validating that exact payload shape raises `character.slug Field required`. The fallback `if not char.slug` in `main.py:72`/`:105` never runs, because validation fails first. PUT fails the same way: the body is validated before the handler runs.
 - **Impact:** The **+ New Character / + New Location** buttons, card **Edit**, `Alt+N` and profile **Edit** all fail with a toast "Failed to save … 422".
 - **Fix options:** (a) the frontend sends `slug: state._editingCharSlug || ''`; or (b) make `slug: str = ""` in the models (safer, fixes all clients), keeping the server-side derivation. Do the same for scenes. Combine with KI-027.
 
-### KI-002 — Refine handlers mishandle `apiPost` result; world wipe · High
+### KI-002 — Refine handlers mishandle `apiPost` result; world wipe · High · ✅ Fixed in Unreleased (plan 003)
 - **Status: Fixed in Unreleased [plan 003].** `apiPost` now returns `res.json()` like the other helpers. `saveCharacter`/`saveScene` no longer check `res.ok` (`apiPost` already throws on non-2xx). Verified in a sandbox: the Build tabs show the real name, and World Build → World Settings → Save keeps the merged values. The evidence below describes the v1.0.0 code.
 - **Evidence:** `apiPost` returns `res` (`app.js:135`), while `apiGet`/`apiPut` return JSON. `refineCharacter` (`:1528`), `refineScene` (`:1575`) and `refineWorld` (`:1614`) use the return value as parsed data.
 - **Impact:** The status reads "Created: undefined". `state.world` becomes a `Response`, so the world snapshot shows "No world settings yet". **Opening World Settings and saving afterwards overwrites `world_settings.json` with empty values (data loss).**
@@ -139,7 +151,8 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 ### KI-021 — Hard-coded API base · Low
 - `app.js:6`. **Fix:** `const API = '/api'` (same origin). This also removes the need for CORS.
 
-### KI-022 — Committed bytecode · Low
+### KI-022 — Committed bytecode · Low · ✅ Fixed in Unreleased (plan 002)
+- **Status: Fixed in Unreleased [plan 002].** Verified 2026-11-22: after the plan 002 commit, `git ls-tree -r origin/main` lists no `.pyc` file. The pre-existing local `cpython-313` caches are untracked and ignored.
 - At v1.0.0, 14 `.pyc` files under `backend/__pycache__`, `backend/agents/__pycache__`, `backend/managers/__pycache__` and `backend/pipeline/__pycache__` were tracked (committed before `.gitignore` existed).
 - **Resolution (plan 002):** the folders moved with the code into `app/backend/…/__pycache__`, where `.gitignore` (`__pycache__/`) excludes them. When the reorganisation is committed, git records the old tracked copies as deleted and never adds the new ones. No `git rm` needed. Verify after the commit with `git ls-files | grep pyc` (expect nothing).
 
@@ -156,7 +169,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 ### KI-026 — Non-atomic writes; silent skips · Low
 - Managers write in place. A crash mid-write corrupts the file, and `get_all()` then hides it. **Fix:** write to a temp file + `os.replace`, and log skipped files.
 
-### KI-027 — Edit = full replace loses untracked fields · Medium
+### KI-027 — Edit = full replace loses untracked fields · Medium · ✅ Fixed in Unreleased (plan 003)
 - **Status: Fixed in Unreleased [plan 003]** (UI side, by round-tripping all fields). On edit, `saveCharacter`/`saveScene` send `{...existing, ...form}`, where `existing` is the record in `state`. To keep `state.characters` fresh, the `generateChapter` `complete` handler now also reloads characters, because step 7 updates their profiles on disk. `PUT` is still a full replace for other API clients. Verified in a sandbox: edits kept `first/last` = 3/5 and `first_appeared_chapter` = 4.
 - The character modal sends neither `first_appeared_chapter` nor `last_seen_chapter`, so once KI-001 is fixed they will reset to 1 on every edit. Same for the scene's `first_appeared_chapter`. **Fix:** merge the payload into the existing record server-side (PATCH semantics), or round-trip all fields.
 
@@ -186,7 +199,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 ### KI-035 — Desktop-only layout · Low (design limitation)
 - `style.css` has no `@media` rules. Fixed 280 px sidebars make narrow windows unusable.
 
-### KI-036 — Create silently overwrites an existing entity with the same slug · Medium · Verified ✔
+### KI-036 — Create silently overwrites an existing entity with the same slug · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 004)
 - **Status: Fixed in Unreleased [plan 004].**
   - `character_manager.create()` / `scene_manager.create()` open the file with mode `"x"` (exclusive create). They never overwrite and raise `FileExistsError("Character 'x' already exists")`.
   - A `FileExistsError` handler in `main.py` turns this into **409** for `POST /api/characters` and `/api/scenes`. The refine create branches return 409 explicitly.

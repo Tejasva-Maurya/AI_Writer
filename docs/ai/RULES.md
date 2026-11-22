@@ -78,7 +78,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 ## 5. Guardrails — never do these without explicit user approval
 
 - Modify, delete, regenerate or reformat anything in **`data/`** (it is the user's novel). If a test needs data, create temporary entities with an obvious prefix (e.g. `zz_test_…`) and delete them afterwards, or copy `data/` to a temp folder.
-- `git commit`, `git push`, rewrite history, create branches/tags, or run `git rm` (including the committed `__pycache__`, KI-022).
+- `git commit`, `git push`, rewrite history, create branches/tags, or run `git rm`.
 - Add or upgrade dependencies, or change `app/requirements.txt` (then update docs/technical/06 + docs/technical/07 + CHANGELOG).
 - Change public API routes or payload shapes, the SSE contract, or Pydantic field names.
 - Bind the server to anything other than `127.0.0.1`, or widen security exposure.

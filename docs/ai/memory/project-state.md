@@ -11,7 +11,7 @@
 ## Version
 - Released: **1.0.0** (2026-07-13, commits `0f22226`, `dead3e3`). `app/backend/main.py` says `version="1.0.0"`.
 - `[Unreleased]`: documentation set, CHANGELOG, AI governance + hooks (plan 001); repo reorganisation (plan 002). **Pushed** as `14dd6aa`; it was reworded on 2026-11-22 to drop the Claude co-author trailer (was `02d6e6d`, D-008).
-- `[Unreleased]`: plans 003 + 004 committed to local `main` on 2026-11-22, on top of `14dd6aa`, **not pushed**.
+- `[Unreleased]`: plans 003 + 004 committed and **pushed** on 2026-11-22 as `5960228` (via the github-push API; the local SHA was `c02ce8a`, realigned).
   - plan 003: frontend fixes for KI-001, KI-002 and KI-027
   - plan 004: KI-036, so create returns 409 instead of overwriting
 - POST no longer upserts (409). When releasing, decide whether that counts as an API break for SemVer.

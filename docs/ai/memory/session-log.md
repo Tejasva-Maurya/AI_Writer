@@ -37,3 +37,4 @@
   - Recorded the no-attribution rule (RULES §8.7, D-008) and committed plans 003 + 004 locally without any trailer.
 - **Plan:** none (git housekeeping on user request).
 - **Open threads:** Plans 003 + 004 commit not pushed. GitHub's contributor cache may take time to drop Claude.
+  - _(Resolved the same session: pushed as `5960228`, local `main` realigned.)_

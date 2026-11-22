@@ -36,6 +36,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The backend locates `data/` from its new position: the five managers' path helpers and the export route use `Path(__file__).resolve().parents[N] / "data"` (single-line edits; no behaviour change). [plan 002]
 - User guide (formerly `README.md`): corrected the *Architecture* section (it listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json`, "JSON/SQLite"), corrected the storage description (JSON files, not a database), and added a *Documentation* section. [plan 001] [KI-023]
 - `.gitignore`: ignore Claude Code local settings, the hook error log, and the local CodeAssist index (`.codeassist/`). [plan 001]
+- `docs/technical/09`: the summary is split into **Open** and **Fixed** tables, and fixed issues are marked **✅ Fixed** in their headings, so fixed KIs no longer read as open. KI-022 is marked fixed (no bytecode tracked since the plan 002 commit). [KI-022]
 - AI rules: commits and PRs carry no AI `Co-Authored-By` / "Generated with" attribution (`docs/ai/RULES.md` §8, decision D-008). The already-published docs/reorganisation commit was reworded without the trailer (`02d6e6d` → `14dd6aa`, same content).
 
 ### Removed
