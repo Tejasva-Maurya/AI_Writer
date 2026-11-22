@@ -38,13 +38,13 @@ The full traceback is in the SSE `error.detail` field. Watch it with the `curl -
 - Close other GPU-heavy applications.
 
 ### A5. "Failed to save character: … 422 …" when using the New Character / Edit modal
-Known v1.0.0 defect (KI-001): the form does not send a `slug`, which the backend requires. **Workaround:** use the **Character Build** tab (it can also update an existing character), or edit `data/characters/<slug>.json` by hand. Locations have the same issue (use **Scene Build**).
+A v1.0.0 defect (KI-001), **fixed in [Unreleased] (plan 003)**: the form now sends a `slug`, and edits keep the chapter-tracking fields (KI-027). If you still see a 422, your browser is running an old cached `app.js`. Hard-reload the page (`Ctrl+F5`).
 
 ### A6. After World Build, the World Settings modal is empty / my world got wiped
-Known defect (KI-002). The World Build call **did** save correctly on the server, but the page's in-memory copy is broken. **Reload the page before opening World Settings.** If you already saved the empty modal, the world file was overwritten. Restore `data/world_settings.json` from a backup or from git (`git checkout -- data/world_settings.json` if it was committed).
+A v1.0.0 defect (KI-002), **fixed in [Unreleased] (plan 003)**: the World Settings modal now opens with the merged world. If you saved the empty modal while still on 1.0.0, the world file was overwritten. Restore `data/world_settings.json` from a backup or from git (`git checkout -- data/world_settings.json` if it was committed).
 
 ### A7. The Build tab says "✓ Created: undefined"
-Cosmetic side effect of KI-002. The entity was created. It appears in the sidebar after the automatic reload.
+A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. The tab now shows the created name.
 
 ### A8. A model pull says "installed" but the model is not there
 The pull progress stream does not detect Ollama errors (KI-019), and "installed" badges match any tag of the same family (KI-020). Verify with `ollama list`. Pull manually with `ollama pull <exact:tag>`.
@@ -63,6 +63,10 @@ Titles containing `: ? * " < > |` produce an invalid Windows filename (KI-017). 
 
 ### A13. The pipeline panel looks dimmed or a step stays red on the next run
 Cosmetic (KI-024): fade and error styles are not reset between runs. Reload the page.
+
+### A14. "Failed to save character: … 409 … already exists"
+Creating never overwrites an existing character or location (since plan 004, KI-036). The name you typed turns into the same file name (slug) as an existing entry. For example, "Elder Wu", "elder  wu" and "Elder-Wu!" all become `elder_wu`. **Either** give the new one a distinct name, **or** close the form and use **Edit** on the existing card. In the Build tabs, choose it under **Update Existing**. During chapter generation the same situation is handled silently: the existing profile is kept.
+A name made only of symbols (e.g. `???`) gets an empty slug and is saved as `data/characters/.json`, which can't be edited or deleted from the UI (KI-038). Delete that file by hand.
 
 ## Part B — FAQ
 

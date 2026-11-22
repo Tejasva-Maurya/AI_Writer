@@ -86,8 +86,8 @@ curl http://127.0.0.1:8000/api/models
 ## 4. First-run checklist
 
 1. **⚙ Settings** (click the button; ⚠ don't use `Alt+S` for this, KI-006): set title/genre/author. Make sure both model dropdowns show models that are actually installed (the status bar should say "Ollama running — N model(s) installed"). **Save Settings**.
-2. **World Build** tab: describe your world in free text (cultivation realms, magic, factions…) → **Integrate into World Settings**. ⚠ Then **reload the page** before opening the World Settings modal (KI-002).
-3. **Character Build** / **Scene Build** tabs: describe your main cast and key locations → **Refine & Save**. They appear in the sidebars after a moment. (The success message may say "undefined". That is cosmetic, KI-002.)
+2. **World Build** tab: describe your world in free text (cultivation realms, magic, factions…) → **Integrate into World Settings**. The snapshot above the box shows the merged result.
+3. **Character Build** / **Scene Build** tabs: describe your main cast and key locations → **Refine & Save**. They appear in the sidebars after a moment.
 4. **Plot Writing** tab: write your first chapter plot → **▶ Generate Chapter**.
 
 ## 5. Using the application
@@ -127,14 +127,14 @@ Tips:
 
 - **Auto-created** during generation when a new name appears in the plot.
 - **Character Build tab:** free-text description, optional name, optional **Update Existing** (merges into that character: non-empty AI fields overwrite, lists are replaced, name/slug are kept).
-- **Sidebar card:** click or **View** → profile. **Edit** → form modal. **Delete** → confirm.
-  ⚠ In v1.0.0, saving the **New Character** / **Edit** modal fails with a 422 error (KI-001). Use the Character Build tab (create/update) until it is fixed.
+- **Sidebar card:** click or **View** → profile. **Edit** → form modal. **Delete** → confirm. Editing keeps the fields the form doesn't show (first/last chapter).
+- **+ New Character** (or `Alt+N`) → form modal. The file name (slug) is derived from the name. If a character with that slug already exists, saving shows an error ("409 … already exists") and the form stays open: pick a different name, or close it and **Edit** the existing character. Nothing is overwritten. The same applies to the Character Build tab without **Update Existing**.
 - MAIN CAST = `type: main`. SUPPORTING = everything else (`temporary`).
 - Card meta "Ch. A — B" = first appeared / last seen chapter.
 
 ### 5.4 Locations
 
-Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (⚠ same 422 issue). Locations marked as background in a chapter are not sent to the writer.
+Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (a taken name shows the same "already exists" error). Locations marked as background in a chapter are not sent to the writer.
 
 ### 5.5 World
 

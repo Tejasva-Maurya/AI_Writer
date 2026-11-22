@@ -34,7 +34,7 @@
 | POST | `/api/models/pull` | **SSE** pull a model through Ollama | `pullModel` |
 | GET | `/api/export/{fmt}` | Download the novel as `txt` or `md` | `exportNovel` |
 
-Common error shapes: FastAPI `HTTPException` → `{"detail": "message"}`. Validation errors → **422** with `{"detail": [ {loc, msg, type, …} ]}`.
+Common error shapes: FastAPI `HTTPException` → `{"detail": "message"}`. Validation errors → **422** with `{"detail": [ {loc, msg, type, …} ]}`. Create conflicts → **409** `{"detail": "Character 'x' already exists"}` (raised as `FileExistsError` by a manager's `create()` and mapped by an app-wide handler in `main.py`).
 
 ---
 
@@ -64,8 +64,8 @@ Body: `{"meta": NovelMeta}`. Omitted fields take **model defaults**: a body with
 
 ### `POST /api/characters`
 Body: `{"character": Character}`. **`character.slug` is required by the schema.** If it is sent as `""`, the server derives it from the name (`"Elder Wu"` → `elder_wu`).
-**200** `Character`. **422** if `slug` is missing (this is what the v1.0.0 UI sends: KI-001).
-⚠ An existing file with the same slug is **silently overwritten**.
+**200** `Character`. **422** if `slug` is missing. (The v1.0.0 UI omitted it, KI-001. Since plan 003 the UI sends `""` on create.)
+**409** `Character '{slug}' already exists` if a file with that slug exists. Create never overwrites; use `PUT` to change an existing character. On Windows, a slug that differs only in case also conflicts. (Before plan 004 the existing file was silently overwritten, KI-036.)
 
 ### `PUT /api/characters/{slug}`
 Body: `{"character": Character}` (body `slug` required but ignored; the path slug wins).
@@ -83,7 +83,7 @@ curl -X POST http://127.0.0.1:8000/api/characters -H "Content-Type: application/
 ## Scenes (locations)
 
 Same contract as characters, with the body key `scene` and model `Scene`:
-`GET /api/scenes` · `POST /api/scenes` (`{"scene": Scene}`) · `PUT /api/scenes/{slug}` · `DELETE /api/scenes/{slug}`. 404 messages say `Scene '{slug}' not found`.
+`GET /api/scenes` · `POST /api/scenes` (`{"scene": Scene}`) · `PUT /api/scenes/{slug}` · `DELETE /api/scenes/{slug}`. 404 messages say `Scene '{slug}' not found`. POST returns **409** `Scene '{slug}' already exists` for a taken slug.
 
 ## World settings
 
@@ -142,8 +142,8 @@ These are synchronous: the response arrives when the specialist finishes (second
 
 ### `POST /api/refine/character`
 - `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.
-  ⚠ The merge uses plain `setattr` (`main.py:324`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:351`).
-- Otherwise → `Character(**llm_result)` (LLM slug used verbatim) → saved → **200**.
+  ⚠ The merge uses plain `setattr` (`main.py:329`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:356`).
+- Otherwise → `Character(**llm_result)` (LLM slug used verbatim) → created → **200**. If that slug is already taken → **409** `Could not create character: Character 'x' already exists`, and nothing is written (use **Update Existing** / `existing_slug` instead).
 - **500** `Failed to generate character profile` (empty LLM result) · **500** `Could not create character: …` (validation failure, e.g. missing slug, `type:"supporting"`, int `age`). Transport errors (Ollama down) → **500** Internal Server Error.
 
 ### `POST /api/refine/scene`

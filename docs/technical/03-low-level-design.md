@@ -44,7 +44,7 @@ Contents
 | `UpdateSceneRequest` | `scene: Scene` | |
 | `UpdateWorldRequest` | `settings: WorldSettings` | |
 | `UpdateNovelMetaRequest` | `meta: NovelMeta` | |
-| `RefineRequest` *(defined in `main.py:301`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
+| `RefineRequest` *(defined in `main.py:306`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
 
 ### 2.2 `app/backend/main.py`
 
@@ -76,7 +76,7 @@ All five managers follow the same pattern. Directories are created lazily by `en
 
 | Module | Functions | Details |
 |---|---|---|
-| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; **unreadable or invalid files are silently skipped**), `get_by_slug(slug) -> Optional[Character]`, `save(char)`, `delete(slug) -> bool`, `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
+| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; **unreadable or invalid files are silently skipped**), `get_by_slug(slug) -> Optional[Character]`, `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (exclusive `open(…, "x")`: never overwrites, raises `FileExistsError("Character 'x' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool`, `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
 | `scene_manager` | identical API for `Scene` | identical `_slugify` (duplicated code). |
 | `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
 | `world_manager` | `load() -> WorldSettings` (defaults if missing), `save(settings)` | `data/world_settings.json` |
@@ -211,11 +211,11 @@ Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021)
 | Helper | Returns | Error behaviour |
 |---|---|---|
 | `apiGet(path)` | parsed JSON | throws `GET … failed: status` |
-| `apiPost(path, body)` | ⚠ **raw `Response`** (not JSON) | throws with response text |
+| `apiPost(path, body)` | parsed JSON | throws with response text |
 | `apiPut(path, body)` | parsed JSON | throws with response text |
 | `apiDelete(path)` | parsed JSON | throws |
 
-> The asymmetry of `apiPost` is the root cause of KI-002. Every caller that needs the body must call `await res.json()`.
+> All four helpers return parsed JSON and throw on a non-2xx status, so callers don't check `res.ok`. In v1.0.0 `apiPost` returned the raw `Response`, which caused KI-002 (fixed by plan 003). `generateChapter` and `pullModel` call `fetch` directly, because they read an SSE stream.
 
 ### 4.4 Function catalogue
 
@@ -225,8 +225,8 @@ Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021)
 | Loaders / renderers | `loadNovelMeta`/`renderNovelMeta`, `loadCharacters`/`renderCharacters`, `loadScenes`/`renderScenes`, `loadWorld`, `loadChapters`/`renderChapterHistory`/`updateChapterHint`, `renderCardList`, `createEntityCard` |
 | Chapter output | `viewChapter`, `showChapterOutput`, `formatChapterText` (splits on `\n\n+`, one `<p>` per paragraph via `textContent`) |
 | Generation | `generateChapter`, `parseSSEStream` (buffered line splitting, ignores malformed lines and `[DONE]`), `resetPipeline`, `activatePipelineStep`, `completePipelineStep`, `completePipeline` (fades the panel to 0.4 opacity after 2 s; nothing restores it, so later runs show a dimmed panel, KI-024), `updateProgress`, `setStepError` (inline red styles that `resetPipeline` also never clears, KI-024), `addNewEntityTag` |
-| Character | `openCharacterModal(slug?)`, `saveCharacter`, `deleteCharacter`, `viewCharacterProfile` |
-| Scene | `openSceneModal(slug?)`, `saveScene`, `deleteScene`, `viewSceneProfile` |
+| Character | `openCharacterModal(slug?)`, `saveCharacter` (create sends `slug: ''` and the server derives it; edit sends `{...existing, ...form}` so the fields the modal doesn't show are kept), `deleteCharacter`, `viewCharacterProfile` |
+| Scene | `openSceneModal(slug?)`, `saveScene` (same payload rules as `saveCharacter`), `deleteScene`, `viewSceneProfile` |
 | World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal`, `saveSettings`, `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
 | Chapter modal | `openChapterViewModal` |
 | Export | `exportNovel(format)` |
@@ -242,7 +242,7 @@ Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021)
 | Binding | Where | Action |
 |---|---|---|
 | `#btn-generate` click, `Ctrl+Enter` in `#plot-input` | `bindStaticEvents` | `generateChapter()` |
-| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1382-1403` | Generate / new character / settings (⚠ without model load, KI-006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
+| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1388-1409` | Generate / new character / settings (⚠ without model load, KI-006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
 | `Escape` | `bindStaticEvents` | Close the active modal |
 | Click on an overlay background, `.modal-close`, or `.btn-cancel[data-modal]` | delegated on `document` | Close modal |
 | Click anywhere | `document` | Close the export dropdown |
@@ -277,7 +277,7 @@ Layout: fixed header (64 px), then `.app-layout` as a fixed flex row filling the
 | Specialist | Never raises on bad JSON (`{}`); raises on transport errors. | Type errors surface later in the pipeline. |
 | Writer | Converts any exception into an `error` tuple. | — |
 | Pipeline | Global try/except → `error` SSE with traceback. | Partial writes (step-3 profiles) are not rolled back. |
-| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. | No logging. Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
+| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the CORS setup in `main.py`), which catches a manager's `create()` conflict. Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | No logging. Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
 | Frontend | try/catch around each action → toast. Loaders fall back to empty state. | `warning` SSE ignored. Error styling on pipeline steps is never reset. |
 
 There is **no logging framework**. The only diagnostics are uvicorn access logs in the backend window, SSE `error.detail` tracebacks (not shown in the UI) and browser `console.*`.
@@ -291,7 +291,7 @@ There is **no logging framework**. The only diagnostics are uvicorn access logs 
 | `update_predictions` result | `chapter_pipeline.py:160` |
 | `featured_scene_slugs` alias, `scene_profiles` param | `chapter_pipeline.py:191`, `specialist.py:235` |
 | `novel_meta` param of `analyze_plot` | `specialist.py:58` |
-| `/static` mount | `main.py:41-42` |
+| `/static` mount | `main.py:46-47` |
 | `state._profileContext` (written, never read) | `app.js` |
 | `aiofiles`, `python-multipart` pins | `app/requirements.txt` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |

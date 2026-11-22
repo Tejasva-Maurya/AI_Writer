@@ -78,7 +78,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
             for char_data in profiles.get("characters", []):
                 try:
                     char = Character(**char_data)
-                    character_manager.save(char)
+                    character_manager.create(char)
                     yield _sse("new_character", name=char.name, slug=char.slug)
                 except Exception as e:
                     yield _sse("warning", message=f"Could not save character profile: {e}")
@@ -86,7 +86,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
             for scene_data in profiles.get("scenes", []):
                 try:
                     scene = Scene(**scene_data)
-                    scene_manager.save(scene)
+                    scene_manager.create(scene)
                     yield _sse("new_scene", name=scene.name, slug=scene.slug)
                 except Exception as e:
                     yield _sse("warning", message=f"Could not save scene profile: {e}")

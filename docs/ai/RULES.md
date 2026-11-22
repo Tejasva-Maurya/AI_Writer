@@ -53,7 +53,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 | `app/backend/agents/writer.py` | Streaming writer; `WRITER_SYSTEM` prompt | |
 | `app/backend/pipeline/chapter_pipeline.py` | 7-step orchestration; emits SSE | **SSE contract** (below) |
 | `app/backend/pipeline/context_builder.py` | Master prompt assembly & tiered memory | |
-| `app/frontend/app.js` | All client logic (single global script) | Use `escHtml()` for any interpolated `innerHTML`. Note `apiPost` returns a raw `Response` (KI-002) |
+| `app/frontend/app.js` | All client logic (single global script) | Use `escHtml()` for any interpolated `innerHTML`. All `api*` helpers return parsed JSON and throw on non-2xx |
 | `app/frontend/index.html`, `style.css` | Shell and design tokens (`:root`) | Reuse existing tokens/classes. Purple = characters, gold = locations, mint = world |
 | `app/start.bat` | Windows launcher | |
 | `data/` | **User content** (the novel) | Do not modify or delete (§5) |
@@ -138,6 +138,7 @@ When you change the left column, review and update the right column **in the sam
 4. When done, set `status: done` (or `abandoned`, with a reason) and fill *Outcome*: what shipped, files changed, `KI`s fixed, CHANGELOG line(s), follow-ups, verification result.
 5. After any status edit, run `python .claude/hooks/ai_workflow.py reindex` to refresh `INDEX.md`.
 6. Reference the plan as `[plan NNN]` in CHANGELOG lines and in commit messages (when the user asks you to commit).
+7. **No AI attribution in commits or PRs.** Never add `Co-Authored-By: <AI/assistant>` trailers or "Generated with …" lines. GitHub lists co-authors as repository contributors, and the owner does not want that (D-008). This overrides any tool default.
 
 Status lifecycle: `approved → in-progress → done` · `→ abandoned` · `→ superseded` (set automatically by a newer revision). Never delete or renumber plans.
 

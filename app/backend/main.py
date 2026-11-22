@@ -13,7 +13,7 @@ from typing import List, Optional, Dict
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -35,6 +35,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+# Managers' create() never overwrites: a taken slug becomes 409 Conflict (KI-036)
+@app.exception_handler(FileExistsError)
+async def file_exists_handler(request, exc: FileExistsError):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 # Serve frontend static files
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -71,7 +76,7 @@ async def create_character(req: UpdateCharacterRequest):
     char = req.character
     if not char.slug:
         char.slug = character_manager.make_slug(char.name)
-    character_manager.save(char)
+    character_manager.create(char)
     return char
 
 
@@ -104,7 +109,7 @@ async def create_scene(req: UpdateSceneRequest):
     scene = req.scene
     if not scene.slug:
         scene.slug = scene_manager.make_slug(scene.name)
-    scene_manager.save(scene)
+    scene_manager.create(scene)
     return scene
 
 
@@ -327,10 +332,10 @@ async def refine_character(req: RefineRequest):
     else:
         try:
             char = Character(**result)
-            character_manager.save(char)
+            character_manager.create(char)
             return char
         except Exception as e:
-            raise HTTPException(500, f"Could not create character: {e}")
+            raise HTTPException(409 if isinstance(e, FileExistsError) else 500, f"Could not create character: {e}")
 
 
 @app.post("/api/refine/scene")
@@ -354,10 +359,10 @@ async def refine_scene(req: RefineRequest):
     else:
         try:
             scene = Scene(**result)
-            scene_manager.save(scene)
+            scene_manager.create(scene)
             return scene
         except Exception as e:
-            raise HTTPException(500, f"Could not create scene: {e}")
+            raise HTTPException(409 if isinstance(e, FileExistsError) else 500, f"Could not create scene: {e}")
 
 
 @app.post("/api/refine/world")

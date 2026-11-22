@@ -49,11 +49,11 @@ Notes:
 
 ## W2 — Frontend boot
 
-1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:45-50`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:53-60`).
-2. `DOMContentLoaded` listener #1 (`app.js:1419`):
+1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:50-55`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:58-65`).
+2. `DOMContentLoaded` listener #1 (`app.js:1425`):
    1. `checkConnection()` → `fetch /api/novel-meta` with a 3 s timeout. On a network failure it shows the toast *"⚠ Cannot connect to backend…"* for 8 s.
    2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `updateChapterHint()`.
-3. `DOMContentLoaded` listener #2 (`app.js:1854`) binds the mode tabs, the three refine buttons, **Refresh models**, and a **second** click listener on **⚙ Settings** that loads the Ollama models.
+3. `DOMContentLoaded` listener #2 (`app.js:1860`) binds the mode tabs, the three refine buttons, **Refresh models**, and a **second** click listener on **⚙ Settings** that loads the Ollama models.
 4. Each loader stores its result in `state.*` and renders: sidebars (character/scene cards), header title, chapter count badge, history pills, "CHAPTER N" label.
 5. If a loader fails it logs `console.warn` and falls back to empty data. The UI stays usable.
 
@@ -66,7 +66,7 @@ Notes:
 3. Computes `chapterNumber = state.chapters.length + 1` (⚠ the count of chapters, not max+1, KI-008) and `POST`s `/api/generate-chapter` with `{plot, chapter_number}`.
 4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:561-600`). Each JSON event is dispatched by its `type` (see W3.4).
 
-### W3.2 Backend entry (`main.py:157-174`)
+### W3.2 Backend entry (`main.py:162-179`)
 
 - Loads `NovelMeta` from `data/novel_meta.json` to get the model names.
 - `chapter_number = req.chapter_number or chapter_manager.get_next_number()`. The frontend always sends a number, so the backend fallback is effectively unused.
@@ -78,7 +78,7 @@ Notes:
 |---|---|---|---|---|---|---|
 | 1 | Analyze Plot | `:44-55` | `specialist.analyze_plot` (spec, -1) | plot | `tone`, `estimated_chapters`, `entity_mentions{characters[],locations[]}`, `key_events`, `chapter_focus` (only tone, estimated_chapters, entity_mentions are used) | `status{step:1}` ×2. `multi_chapter` if `estimated_chapters > 1` |
 | 2 | Extract Entities | `:57-70` | `specialist.resolve_entities` (spec, -1) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` | `status{step:2}` ×2 |
-| 3 | Build Profiles | `:72-94` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects and **saves them** to `data/` | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure |
+| 3 | Build Profiles | `:72-94` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects and **creates their files** in `data/` with `create()`, which never overwrites. A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
 | — | (reload) | `:96-100` | — | — | Re-reads all characters and scenes into `chars_dict` / `scenes_dict` keyed by slug | — |
 | 4 | Optimize Context | `:102-153` | `specialist.select_context` (spec, -1). **Skipped when no resolved entity exists on disk** | involved entities with importance, chapter numbers, plot | `character_detail{slug: full\|compressed\|skip}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`. Missing keys are filled by hard-coded fallback rules (below) | `status{step:4}` ×2 |
 | 5 | Prepare Model | `:155-161` | `specialist.predict_updates` (spec, **0 → unloads specialist**) | plot, primary char slugs, main scene slugs | Result stored in `update_predictions` and **never used** (KI-012) | `status{step:5}` ×2 |
@@ -120,7 +120,7 @@ Primary characters with no update entry still get `last_seen_chapter = N`.
 | `warning` | `message` | Step 3 profile validation failure | **No handler: silently ignored** (KI-018) |
 | `token` | `content` | Step 6, per chunk | Appends to the current `<p>`. Splits paragraphs on `\n\n`. Moves the blinking cursor |
 | `error` | `message`, `detail?` | Writer error or uncaught exception | Error toast, hides the cursor, paints the active step red |
-| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, reloads chapters, clears the plot textarea, success toast |
+| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, reloads chapters **and characters** (step 7 updated their profiles on disk, and the Edit modal reads `state.characters`), clears the plot textarea, success toast |
 
 Wire format: each event is one line `data: {json}\n\n` (`chapter_pipeline.py:20-23`). No `event:` or `id:` fields are used.
 
@@ -191,13 +191,14 @@ sequenceDiagram
 | Specialist returns non-JSON | `_extract_json` returns `{}`. Downstream `.get()` defaults apply: tone "action", no entities, empty summaries. Generation continues with less context. |
 | Specialist returns a wrong type (e.g. `"estimated_chapters": "2"`) | `TypeError` on `>` comparison → whole pipeline aborts (KI-015). |
 | New entity JSON fails Pydantic validation (e.g. `type: "supporting"`) | `warning` event (ignored by the UI). Entity not saved. Pipeline continues. |
+| A "new" entity's profile reuses an existing slug (the specialist missed the match in step 2) | `warning` event "Could not save character profile: Character 'x' already exists". The existing profile is kept unchanged and still used for context. Pipeline continues. (Before plan 004 it was overwritten, KI-036.) |
 | Writer error | `error` event "Writer error: …". Pipeline returns **before saving**. Streamed text is lost on the server; the browser still shows it. |
 | Browser tab closed mid-stream | Starlette stops iterating the generator. Whatever was not yet saved is lost. |
 
 ## W4 — Character / Scene build (refine)
 
-Frontend: `refineCharacter()` (`app.js:1509-1551`) / `refineScene()` (`app.js:1556-1596`).
-Backend: `refine_character` (`main.py:307-333`) / `refine_scene` (`main.py:336-360`).
+Frontend: `refineCharacter()` (`app.js:1515-1557`) / `refineScene()` (`app.js:1562-1602`).
+Backend: `refine_character` (`main.py:312-338`) / `refine_scene` (`main.py:341-365`).
 
 ```mermaid
 sequenceDiagram
@@ -217,10 +218,10 @@ sequenceDiagram
         API-->>UI: 200 merged profile
     else create
         API->>API: Character(**result)  (LLM-provided slug used verbatim)
-        API->>FS: save(new)
-        API-->>UI: 200 new profile (500 if validation fails)
+        API->>FS: create(new)  (exclusive, never overwrites)
+        API-->>UI: 200 new profile (500 if validation fails, 409 if the slug exists)
     end
-    UI->>UI: ⚠ treats Response object as JSON (KI-002): toast shows "undefined"
+    UI->>UI: status + toast "Created/Updated: name" (apiPost returns parsed JSON)
     UI->>API: GET /api/characters|scenes (sidebar reload)
 ```
 
@@ -232,39 +233,38 @@ Merge semantics for "Update Existing":
 
 ## W5 — World build (refine + merge)
 
-Frontend `refineWorld()` (`app.js:1601-1633`) → `POST /api/refine/world` (`main.py:363-387`).
+Frontend `refineWorld()` (`app.js:1607-1639`) → `POST /api/refine/world` (`main.py:368-392`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
-2. Merge into the existing world (`main.py:373-385`):
+2. Merge into the existing world (`main.py:378-390`):
    - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): append each truthy item that is not already present (exact-string dedupe, order kept).
    - **String fields:** replaced when the new value is non-empty.
    - Unknown keys are ignored.
 3. Saves `data/world_settings.json` and returns the merged world.
-4. ⚠ The frontend stores the raw `Response` object in `state.world` (KI-002). The world snapshot then appears empty, and **opening World Settings and pressing Save afterwards overwrites the world with blanks** (data loss). Reload the page after a World Build to avoid this.
+4. The frontend stores the returned world in `state.world` and redraws the snapshot, so the World Settings modal opens with the merged values. (In v1.0.0 it stored the raw `Response`, so saving the modal afterwards wiped the world. KI-002, fixed by plan 003.)
 
 ## W6 — Manual CRUD (characters / locations)
 
 | Action | UI | Request | Backend behaviour |
 |---|---|---|---|
-| Create | **+ New Character / + New Location** → modal → Save | `POST /api/characters` `{character:{…}}` / `POST /api/scenes` `{scene:{…}}` | Generates a slug from the name when it is empty (`make_slug` → lowercase, `_` separators), then saves. |
-| Edit | Card **Edit** (or profile modal **Edit**) → Save | `PUT /api/characters/{slug}` / `PUT /api/scenes/{slug}` | 404 if the file is missing. Forces `slug` = path slug. **Full replace** of the file. |
+| Create | **+ New Character / + New Location** → modal → Save | `POST /api/characters` `{character:{slug:"", …}}` / `POST /api/scenes` `{scene:{slug:"", …}}` | Generates a slug from the name when it is empty (`make_slug` → lowercase, `_` separators), then creates the file. **409** if that slug already exists. The UI shows the error and keeps the modal open, so the user can rename. |
+| Edit | Card **Edit** (or profile modal **Edit**) → Save | `PUT /api/characters/{slug}` / `PUT /api/scenes/{slug}` with `{...existing record from state, ...form fields}` | 404 if the file is missing. Forces `slug` = path slug. **Full replace** of the file, but the UI sends every field, so the ones the modal doesn't show (`first_appeared_chapter`, `last_seen_chapter`) are kept. |
 | Delete | Card **Delete** → `confirm()` | `DELETE /api/characters/{slug}` / `/api/scenes/{slug}` | Deletes the file. 404 if missing. |
 | View | Click card / **View** | (no request: uses `state`) | Read-only profile modal. |
 
-> ⚠ **v1.0.0: Create and Edit both fail with HTTP 422.** The frontend payload has no `slug`, and `slug` is a required field in the Pydantic model. Verified by validating the exact payload shape against `models.py` (KI-001). Delete and View work.
-> Even after KI-001 is fixed, an edit is a full replace. Fields the modal does not show (`first_appeared_chapter`, `last_seen_chapter`) would be **reset to defaults (1)**, because the modal does not send them.
+> History: in v1.0.0, Create and Edit both failed with HTTP 422, because the payload had no `slug` (KI-001). Plan 003 fixed this in the frontend, together with the reset of the chapter-tracking fields on edit (KI-027). The API contract is unchanged: `slug` is still a required body field.
 
 ## W7 — World settings & novel settings editing
 
-- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:960-1007`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
-- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1012-1045`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`.
+- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:966-1013`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
+- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1018-1051`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`.
   ⚠ `total_chapters` and `created_at` are not sent, so they reset to `0` and `""` (KI-007). Opening Settings with **Alt+S** skips model loading, which can save empty model names (KI-006).
-- **Inline title edit** (`initTitleEdit`, `app.js:1226-1265`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
+- **Inline title edit** (`initTitleEdit`, `app.js:1232-1271`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
 
 ## W8 — Model management
 
 1. Opening **⚙ Settings** (button click only) → `loadModels()` → `GET /api/models` (cached in `_cachedModels` until **↻ Refresh**).
-2. Backend (`main.py:231-260`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
+2. Backend (`main.py:236-265`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
    ⚠ "Installed" matches **any tag in the same family**, so `gemma3:4b` installed marks `gemma3:12b` as installed (KI-020).
 3. The UI fills both `<select>`s (installed models + current selections, the latter tagged "(not installed)") and renders the model browser cards with **Set Writer / Set Specialist** (installed) or **⬇ Pull** (not installed).
 4. **Pull** → `POST /api/models/pull {model}` → the backend streams `POST /api/pull` from Ollama, re-emitting `data: {status, percent, total, completed}`, then `{status:"success", model}` or `{status:"error", message}`.
@@ -281,7 +281,7 @@ Frontend `refineWorld()` (`app.js:1601-1633`) → `POST /api/refine/world` (`mai
 ## W10 — Export
 
 1. `exportNovel(fmt)` creates a temporary `<a href="/api/export/{fmt}">` and clicks it.
-2. Backend (`main.py:190-212`) loads all chapters with text, sorted by number, and builds:
+2. Backend (`main.py:195-217`) loads all chapters with text, sorted by number, and builds:
    - **md:** `# {title}` then `## Chapter {n}: {title}` + text per chapter.
    - **txt:** `{title}` + `====` underline, then `Chapter {n}: {title}` + 40 dashes + text.
 3. Writes the result to `data/{title with spaces→_}.{fmt}` (a side effect that stays on disk), then returns it as a `FileResponse` download.

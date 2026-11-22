@@ -29,7 +29,7 @@ Besides chapter generation it offers:
 | Chapter history / reader | Bottom history bar, **Full View** modal | `GET /api/chapters`, `GET /api/chapters/{n}` |
 | Export whole novel as `.txt` / `.md` | Header → **Export** | `GET /api/export/{fmt}` |
 
-> ⚠ Some of these flows have verified defects in v1.0.0 (for example, manual character/location save is rejected with HTTP 422). See [09 — Known Issues](09-known-issues-and-tech-debt.md) before relying on a flow.
+> ⚠ Some of these flows have verified defects (for example, a Build tab's **Update Existing** can save an invalid AI value that makes the entity unloadable, KI-016). See [09 — Known Issues](09-known-issues-and-tech-debt.md) before relying on a flow.
 
 ## 2. Key characteristics (design constraints)
 
@@ -129,7 +129,7 @@ flowchart TB
 ### Dependency rules (as implemented)
 
 1. `models.py` depends on nothing in the project. Every other module imports it.
-2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:210` writes export files into `data/` directly.
+2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:215` writes export files into `data/` directly.
 3. `agents/*` depend on `models` and the `ollama` library. They never touch disk.
 4. `pipeline/*` depends on managers, agents and models.
 5. `main.py` depends on everything. The refine endpoints import `agents.specialist` lazily, inside the handler.
@@ -192,7 +192,7 @@ AI_Writer/
 │   │       └── context_builder.py  (145 LOC) Builds the writer's master prompt (tiered memory)
 │   ├── frontend/
 │   │   ├── index.html         (830 LOC) App shell: header, 3-column layout, 4 mode tabs, pipeline UI, 6 modals
-│   │   ├── app.js            (1884 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
+│   │   ├── app.js            (1890 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
 │   │   └── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
 │   ├── start.bat                        Windows launcher (double-click)
 │   └── requirements.txt                 Python dependencies (⚠ stale pins, KI-004)
@@ -216,11 +216,11 @@ AI_Writer/
 └── .gitignore
 ```
 
-How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:40`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
+How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:45`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
 
 ## 8. Process & runtime model
 
-- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:390-392`).
+- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:395-397`).
 - **Async, with blocking parts.** Route handlers are `async def`. The specialist uses the **synchronous** `ollama.chat`, so each specialist call blocks the event loop. While one runs, the server cannot answer other requests (KI-005). Writer streaming uses `ollama.AsyncClient` and does not block.
 - **No background jobs, queues or locks.** A generation lives exactly as long as its HTTP response stream. Two generations at once are not prevented on the server; the frontend blocks a second one only within the same tab (`state.isGenerating`).
 - **State.** All durable state is in `data/`. The server keeps no in-memory state between requests, apart from the module-level constant `RECOMMENDED_MODELS`.

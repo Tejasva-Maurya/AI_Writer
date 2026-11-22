@@ -62,3 +62,14 @@ def get_as_dict() -> Dict[str, Character]:
 
 def make_slug(name: str) -> str:
     return _slugify(name)
+
+
+def create(char: Character):
+    """Save a new character. Never overwrites: raises FileExistsError if the slug is taken (KI-036)."""
+    ensure_dir()
+    path = _data_dir() / f"{char.slug}.json"
+    try:
+        with open(path, "x", encoding="utf-8") as f:
+            json.dump(char.model_dump(), f, indent=2, ensure_ascii=False)
+    except FileExistsError:
+        raise FileExistsError(f"Character '{char.slug}' already exists") from None

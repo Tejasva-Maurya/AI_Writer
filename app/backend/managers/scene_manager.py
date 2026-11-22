@@ -62,3 +62,14 @@ def get_as_dict() -> Dict[str, Scene]:
 
 def make_slug(name: str) -> str:
     return _slugify(name)
+
+
+def create(scene: Scene):
+    """Save a new scene. Never overwrites: raises FileExistsError if the slug is taken (KI-036)."""
+    ensure_dir()
+    path = _data_dir() / f"{scene.slug}.json"
+    try:
+        with open(path, "x", encoding="utf-8") as f:
+            json.dump(scene.model_dump(), f, indent=2, ensure_ascii=False)
+    except FileExistsError:
+        raise FileExistsError(f"Scene '{scene.slug}' already exists") from None

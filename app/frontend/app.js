@@ -132,7 +132,7 @@ async function apiPost(path, body) {
     const text = await res.text();
     throw new Error(`POST ${path} failed: ${res.status} — ${text}`);
   }
-  return res;
+  return res.json();
 }
 
 async function apiPut(path, body) {
@@ -525,7 +525,7 @@ async function generateChapter() {
           title: data.title,
           word_count: data.word_count,
         };
-        await loadChapters();
+        await Promise.all([loadChapters(), loadCharacters()]); // step 7 updated character profiles
         showToast(`✓ Chapter ${data.chapter_number} complete — ${data.word_count?.toLocaleString()} words`, 'success');
         DOM.plotInput.value = '';
       },
@@ -724,7 +724,11 @@ async function saveCharacter() {
   const name = $('char-name').value.trim();
   if (!name) { showToast('Character name is required.', 'error'); return; }
 
+  // Edit keeps fields the modal does not show (chapter tracking). Create sends slug '' and the server derives it.
+  const existing = state._editingCharSlug ? state.characters.find(c => c.slug === state._editingCharSlug) : null;
   const character = {
+    ...existing,
+    slug:              state._editingCharSlug || '',
     name,
     type:              $('char-type').value,
     age:               $('char-age').value.trim() || null,
@@ -749,8 +753,7 @@ async function saveCharacter() {
       await apiPut(`/characters/${state._editingCharSlug}`, { character });
       showToast(`Character "${name}" updated.`, 'success');
     } else {
-      const res = await apiPost('/characters', { character });
-      if (!res.ok) throw new Error('Create failed');
+      await apiPost('/characters', { character });
       showToast(`Character "${name}" created.`, 'success');
     }
     closeModal('modal-character');
@@ -859,7 +862,11 @@ async function saveScene() {
   const name = $('scene-name').value.trim();
   if (!name) { showToast('Location name is required.', 'error'); return; }
 
+  // Edit keeps fields the modal does not show (first_appeared_chapter). Create sends slug '' and the server derives it.
+  const existing = state._editingSceneSlug ? state.scenes.find(s => s.slug === state._editingSceneSlug) : null;
   const scene = {
+    ...existing,
+    slug:               state._editingSceneSlug || '',
     name,
     scene_type:         $('scene-type').value.trim(),
     description:        $('scene-description').value.trim(),
@@ -879,8 +886,7 @@ async function saveScene() {
       await apiPut(`/scenes/${state._editingSceneSlug}`, { scene });
       showToast(`Location "${name}" updated.`, 'success');
     } else {
-      const res = await apiPost('/scenes', { scene });
-      if (!res.ok) throw new Error('Create failed');
+      await apiPost('/scenes', { scene });
       showToast(`Location "${name}" created.`, 'success');
     }
     closeModal('modal-scene');

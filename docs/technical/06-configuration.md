@@ -22,13 +22,13 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:58` (`--host`), `main.py:392` | Edit both. Do **not** bind `0.0.0.0` without adding auth (no auth + CORS `*`). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:392`, **`app/frontend/app.js:6`** (`API`) | Change **all three** together. The frontend talks to an absolute URL. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:58` (`--host`), `main.py:397` | Edit both. Do **not** bind `0.0.0.0` without adding auth (no auth + CORS `*`). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:397`, **`app/frontend/app.js:6`** (`API`) | Change **all three** together. The frontend talks to an absolute URL. |
 | Frontend API base | `http://127.0.0.1:8000/api` | `app.js:6` | Opening the UI as `http://localhost:8000` makes API calls cross-origin (they work only because CORS is `*`). |
-| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:238`, `main.py:275` | Edit the source. |
+| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:243`, `main.py:280` | Edit the source. |
 | Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
 | CORS | `allow_origins=["*"]`, all methods/headers | `main.py:32-37` | Restrict to `http://127.0.0.1:8000` if hardening. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:58`, `main.py:392` | — |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:58`, `main.py:397` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:64-72` | — |
 
 ### 2.2 LLM parameters
@@ -60,7 +60,7 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 ### 2.4 Model catalogue (shown in Settings)
 
-`RECOMMENDED_MODELS` (`main.py:222-229`):
+`RECOMMENDED_MODELS` (`main.py:227-234`):
 
 | Model | Size (as listed) | Quality | Note |
 |---|---|---|---|
@@ -80,12 +80,12 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 
 | Constant | Value | Location |
 |---|---|---|
-| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1270`, `app.js:1412` |
-| Connection check timeout | 3000 ms | `app.js:1410` |
+| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1276`, `app.js:1418` |
+| Connection check timeout | 3000 ms | `app.js:1416` |
 | Sidebar reload delay after a new entity | 300 ms | `app.js:472,478` |
 | Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:657-659` |
-| Refine status auto-clear | 5000 ms | `app.js:1549` etc. |
-| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173`, `app.js:1017-1018` |
+| Refine status auto-clear | 5000 ms | `app.js:1555` etc. |
+| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173`, `app.js:1023-1024` |
 
 ### 2.6 Launcher (`app/start.bat`)
 

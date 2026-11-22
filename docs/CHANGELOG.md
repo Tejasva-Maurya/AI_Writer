@@ -36,9 +36,20 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The backend locates `data/` from its new position: the five managers' path helpers and the export route use `Path(__file__).resolve().parents[N] / "data"` (single-line edits; no behaviour change). [plan 002]
 - User guide (formerly `README.md`): corrected the *Architecture* section (it listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json`, "JSON/SQLite"), corrected the storage description (JSON files, not a database), and added a *Documentation* section. [plan 001] [KI-023]
 - `.gitignore`: ignore Claude Code local settings, the hook error log, and the local CodeAssist index (`.codeassist/`). [plan 001]
+- AI rules: commits and PRs carry no AI `Co-Authored-By` / "Generated with" attribution (`docs/ai/RULES.md` §8, decision D-008). The already-published docs/reorganisation commit was reworded without the trailer (`02d6e6d` → `14dd6aa`, same content).
 
 ### Removed
 - Compiled `__pycache__/*.pyc` files are no longer tracked: they moved with the code into `app/backend/`, where `.gitignore` excludes them, so committing the move drops the old tracked copies. [plan 002] [KI-022]
+
+### Fixed
+- Saving a character or location from the **+ New Character / + New Location** and **Edit** modals no longer fails with HTTP 422: the form now sends the `slug` (empty on create, so the server derives it from the name). [plan 003] [KI-001]
+- The Character/Scene Build tabs now show the created name instead of "undefined". After a **World Build**, the World Settings modal opens with the merged world, and saving it no longer wipes `world_settings.json`. (`apiPost` in `app/frontend/app.js` now returns parsed JSON.) [plan 003] [KI-002]
+- Editing a character or location keeps the fields the form doesn't show (first/last chapter). The character list also reloads after each generated chapter, so an edit can't write back outdated profile values. [plan 003] [KI-027]
+- Creating a character or location can no longer overwrite an existing one with the same slug (e.g. "Elder Wu" vs "elder wu"):
+  - **API:** `POST /api/characters` and `/api/scenes` and the Build tabs' create path now return **409 Conflict** ("… already exists"). They previously replaced the file with 200. The UI shows the error and keeps the form open.
+  - **Pipeline:** step 3 keeps the existing profile and emits a `warning`.
+  - **Implementation:** new `create()` in the character/scene managers, using an exclusive file open.
+  - [plan 004] [KI-036]
 
 ---
 
