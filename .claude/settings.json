@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" save-plan || python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" save-plan || python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" save-plan",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" stop-check || python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" stop-check || python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ai_workflow.py\" stop-check",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,188 @@
+# 04 — API Reference
+
+> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. CORS is open (`*`).
+> FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
+
+## Endpoint index
+
+| Method | Path | Purpose | Frontend caller |
+|---|---|---|---|
+| GET | `/` | App HTML | browser |
+| GET | `/style.css`, `/app.js` | Static assets | `index.html` |
+| GET | `/static/{file}` | Static mount of `app/frontend/` (unused) | — |
+| GET | `/api/health` | Liveness | `app/start.bat` |
+| GET | `/api/novel-meta` | Read novel metadata | `loadNovelMeta`, `checkConnection` |
+| PUT | `/api/novel-meta` | Replace novel metadata | `saveSettings`, `initTitleEdit` |
+| GET | `/api/characters` | List characters | `loadCharacters` |
+| POST | `/api/characters` | Create character | `saveCharacter` (create) |
+| PUT | `/api/characters/{slug}` | Replace character | `saveCharacter` (edit) |
+| DELETE | `/api/characters/{slug}` | Delete character | `deleteCharacter` |
+| GET | `/api/scenes` | List scenes | `loadScenes` |
+| POST | `/api/scenes` | Create scene | `saveScene` (create) |
+| PUT | `/api/scenes/{slug}` | Replace scene | `saveScene` (edit) |
+| DELETE | `/api/scenes/{slug}` | Delete scene | `deleteScene` |
+| GET | `/api/world` | Read world settings | `loadWorld` |
+| PUT | `/api/world` | Replace world settings | `saveWorld` |
+| GET | `/api/chapters` | List chapters (no text) | `loadChapters` |
+| GET | `/api/chapters/{number}` | Get one chapter (with text) | `viewChapter`, `openChapterViewModal` |
+| POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline | `generateChapter` |
+| POST | `/api/refine/character` | LLM: description → character (create or merge) | `refineCharacter` |
+| POST | `/api/refine/scene` | LLM: description → scene (create or merge) | `refineScene` |
+| POST | `/api/refine/world` | LLM: description → merged world settings | `refineWorld` |
+| GET | `/api/models` | Installed + recommended Ollama models | `loadModels` |
+| POST | `/api/models/pull` | **SSE** pull a model through Ollama | `pullModel` |
+| GET | `/api/export/{fmt}` | Download the novel as `txt` or `md` | `exportNovel` |
+
+Common error shapes: FastAPI `HTTPException` → `{"detail": "message"}`. Validation errors → **422** with `{"detail": [ {loc, msg, type, …} ]}`.
+
+---
+
+## Health
+
+### `GET /api/health`
+**200** `{"status": "ok", "timestamp": "2026-11-22T18:40:00.123456"}`
+
+## Novel metadata
+
+### `GET /api/novel-meta`
+**200** `NovelMeta`:
+```json
+{"title":"Untitled Novel","genre":"","author":"","total_chapters":1,
+ "writer_model":"gemma3:12b","specialist_model":"phi4-mini:3.8b","created_at":""}
+```
+Returns model defaults if `data/novel_meta.json` is missing.
+
+### `PUT /api/novel-meta`
+Body: `{"meta": NovelMeta}`. Omitted fields take **model defaults**: a body without `total_chapters` resets it to 0.
+**200** echoes `meta`. Full replace of `data/novel_meta.json`.
+
+## Characters
+
+### `GET /api/characters`
+**200** `Character[]` sorted by `name`. Files that fail to parse are skipped silently.
+
+### `POST /api/characters`
+Body: `{"character": Character}`. **`character.slug` is required by the schema.** If it is sent as `""`, the server derives it from the name (`"Elder Wu"` → `elder_wu`).
+**200** `Character`. **422** if `slug` is missing (this is what the v1.0.0 UI sends: KI-001).
+⚠ An existing file with the same slug is **silently overwritten**.
+
+### `PUT /api/characters/{slug}`
+Body: `{"character": Character}` (body `slug` required but ignored; the path slug wins).
+**200** `Character` · **404** `Character '{slug}' not found` · **422** invalid body.
+
+### `DELETE /api/characters/{slug}`
+**200** `{"success": true}` · **404** if missing.
+
+Example:
+```bash
+curl -X POST http://127.0.0.1:8000/api/characters -H "Content-Type: application/json" \
+  -d '{"character":{"name":"Elder Wu","slug":"","type":"temporary","micro_summary":"Strict outer-sect elder"}}'
+```
+
+## Scenes (locations)
+
+Same contract as characters, with the body key `scene` and model `Scene`:
+`GET /api/scenes` · `POST /api/scenes` (`{"scene": Scene}`) · `PUT /api/scenes/{slug}` · `DELETE /api/scenes/{slug}`. 404 messages say `Scene '{slug}' not found`.
+
+## World settings
+
+### `GET /api/world` → **200** `WorldSettings` (defaults if missing)
+### `PUT /api/world`
+Body: `{"settings": WorldSettings}` → **200** echoes settings. Full replace.
+
+## Chapters
+
+### `GET /api/chapters`
+**200** `Chapter[]` sorted by `chapter_number`, with **`full_text` set to `""`** (summaries and metadata are kept). No `response_model` is declared.
+
+### `GET /api/chapters/{number}`
+**200** full `Chapter` including `full_text` · **404** `Chapter {n} not found` · **422** if `number` is not an int.
+
+## Generation
+
+### `POST /api/generate-chapter` — **SSE**
+Body:
+```json
+{"plot": "Xiao Fan discovers a hidden technique in the cave…", "chapter_number": 3}
+```
+`chapter_number` is optional (default: highest existing + 1). Passing an existing number **overwrites** that chapter.
+
+Response: `200`, `Content-Type: text/event-stream`, headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`.
+The body is a sequence of `data: {json}\n\n` lines. The full event contract is in [02 §W3.4](02-workflows.md#w34-sse-event-contract-backend--frontend). Example stream:
+
+```text
+data: {"type": "status", "step": 1, "message": "Analyzing plot..."}
+
+data: {"type": "status", "step": 1, "message": "Plot analyzed. Tone: tense. Entities found: 3"}
+
+data: {"type": "status", "step": 2, "message": "Resolving characters and scenes..."}
+
+data: {"type": "new_character", "name": "Elder Wu", "slug": "elder_wu"}
+
+data: {"type": "token", "content": "Thunder rolled across"}
+
+data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
+       "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
+```
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:249`). Writer errors carry `message` only (`chapter_pipeline.py:182`).
+
+Consuming it from a shell:
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/generate-chapter -H "Content-Type: application/json" -d '{"plot":"A storm hits the lab."}'
+```
+
+## Refinement (LLM builders)
+
+Common body (`RefineRequest`):
+```json
+{"description": "rough free text", "name": "optional name hint", "existing_slug": "optional slug to merge into"}
+```
+These are synchronous: the response arrives when the specialist finishes (seconds to minutes). The specialist stays loaded (`keep_alive=-1`).
+
+### `POST /api/refine/character`
+- `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.
+  ⚠ The merge uses plain `setattr` (`main.py:324`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:351`).
+- Otherwise → `Character(**llm_result)` (LLM slug used verbatim) → saved → **200**.
+- **500** `Failed to generate character profile` (empty LLM result) · **500** `Could not create character: …` (validation failure, e.g. missing slug, `type:"supporting"`, int `age`). Transport errors (Ollama down) → **500** Internal Server Error.
+
+### `POST /api/refine/scene`
+Same as above for `Scene`.
+
+### `POST /api/refine/world`
+`name`/`existing_slug` are ignored. The merge rules (list union, non-empty string overwrite) are in [02 §W5](02-workflows.md#w5--world-build-refine--merge).
+**200** merged `WorldSettings` · **500** `Failed to refine world description`.
+
+## Model management
+
+### `GET /api/models`
+```json
+{
+  "installed": ["gemma3:12b", "phi4-mini:3.8b"],
+  "recommended": [
+    {"name":"gemma3:12b","size":"~7 GB","quality":"Best","note":"Recommended writer","installed":true},
+    {"name":"llama3.1:8b","size":"~5 GB","quality":"Great","note":"Fast, good quality","installed":false}
+  ],
+  "ollama_running": true,
+  "ollama_error": null
+}
+```
+If Ollama is unreachable: `installed: []`, `ollama_running: false`, `ollama_error: "Cannot reach Ollama: …"` (still **200**).
+⚠ `installed` on recommended entries is true if **any** installed tag shares the family prefix (KI-020).
+
+### `POST /api/models/pull` — **SSE**
+Body `{"model": "llama3.1:8b"}` (**400** `model name required` if empty). The body is an untyped `dict`.
+Events (no `type` field; keyed by `status`):
+```text
+data: {"status": "pulling manifest", "percent": 0, "total": 0, "completed": 0}
+data: {"status": "pulling 8eeb52dfb3bb", "percent": 42, "total": 4920000000, "completed": 2066400000}
+data: {"status": "success", "model": "llama3.1:8b"}
+data: {"status": "error", "message": "…"}      ← only on transport exceptions
+```
+⚠ Ollama-side errors are not detected, so the stream can end with `success` even when the pull failed (KI-019).
+
+## Export
+
+### `GET /api/export/{fmt}`
+`fmt` ∈ `txt` | `md` (**400** otherwise). **200** file download (`Content-Disposition` filename `{title with spaces→_}.{fmt}`).
+Side effect: the same file is written to `data/` and left there.
