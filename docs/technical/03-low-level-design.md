@@ -33,10 +33,10 @@ Contents
 
 | Class | Fields (type = default) | Notes |
 |---|---|---|
-| `CharacterType(str, Enum)` | `MAIN="main"`, `TEMPORARY="temporary"` | Any other value fails validation. |
-| `Character` | `name: str` (required), `slug: str` (**required**), `type: CharacterType = TEMPORARY`, `age: Optional[str]=None`, `appearance=""`, `personality=""`, `speech_style=""`, `abilities: List[str]=[]`, `cultivation_level: Optional[str]=None`, `backstory=""`, `relationships: Dict[str,str]={}`, `habits: List[str]=[]`, `arc_notes=""`, `first_appeared_chapter: int=1`, `last_seen_chapter: int=1`, `micro_summary=""` | `age` must be a string. An LLM returning `17` (int) **fails validation**, because Pydantic v2 does not coerce int→str (verified). Same for `type` values other than `main`/`temporary` (e.g. `"supporting"`, verified). |
-| `Scene` | `name` (req), `slug` (**req**), `scene_type=""`, `description=""`, `atmosphere=""`, `textures=""`, `known_inhabitants: List[str]=[]`, `significance=""`, `first_appeared_chapter: int=1`, `micro_summary=""` | |
-| `WorldSettings` | `world_name=""`, `genre_tags=[]`, `magic_system=""`, `cultivation_system=""`, `professions=[]`, `hierarchy_levels=[]`, `factions=[]`, `rules_of_the_world=""`, `lore_notes=""` | All optional. |
+| `CharacterType(str, Enum)` | `MAIN="main"`, `TEMPORARY="temporary"` | Input is mapped by `as_character_type`: "main"/"main character"/"protagonist" (any case) → `main`, everything else → `temporary`. |
+| `Character` | `name: str` (required), `slug: str` (**required**), `type: CharacterType = TEMPORARY`, `age: Optional[str]=None`, `appearance=""`, `personality=""`, `speech_style=""`, `abilities: List[str]=[]`, `cultivation_level: Optional[str]=None`, `backstory=""`, `relationships: Dict[str,str]={}`, `habits: List[str]=[]`, `arc_notes=""`, `first_appeared_chapter: int=1`, `last_seen_chapter: int=1`, `micro_summary=""` | Values are coerced before validation (`models.py` helpers, plan 009): text fields accept numbers, lists (`"a, b"`) and dicts (`"k: v"`), `None` → `""`; `age`/`cultivation_level` `None`/`"null"`/`"none"` → null, numbers → text; list fields accept a single string or mixed items; `relationships` values → text; chapter numbers accept numeric text, anything else → 1; `type` reading "main" (any case) → `main`, anything else → `temporary`. `name`/`slug` stay required. `validate_assignment=True`, so attribute assignment is validated too. Before plan 009, an int `age` or a `type` like `"supporting"` failed validation (KI-016). |
+| `Scene` | `name` (req), `slug` (**req**), `scene_type=""`, `description=""`, `atmosphere=""`, `textures=""`, `known_inhabitants: List[str]=[]`, `significance=""`, `first_appeared_chapter: int=1`, `micro_summary=""` | Same coercion and `validate_assignment` as `Character`. |
+| `WorldSettings` | `world_name=""`, `genre_tags=[]`, `magic_system=""`, `cultivation_system=""`, `professions=[]`, `hierarchy_levels=[]`, `factions=[]`, `rules_of_the_world=""`, `lore_notes=""` | All optional. Text and list fields are coerced like `Character`'s. |
 | `Chapter` | `chapter_number: int` (req), `title=""`, `plot_input=""`, `full_text=""`, `micro_summary=""`, `short_summary=""`, `full_summary=""`, `characters_featured: List[str]=[]` (slugs), `scenes_featured: List[str]=[]` (slugs), `word_count: int=0`, `created_at=""` (ISO string) | |
 | `NovelMeta` | `title="Untitled Novel"`, `genre=""`, `author=""`, `total_chapters: int=0`, `writer_model="gemma3:12b"`, `specialist_model="phi4-mini:3.8b"`, `created_at=""` | `created_at` is never set by any code path. |
 | `GenerateChapterRequest` | `plot: str`, `chapter_number: Optional[int]=None` | |
@@ -68,9 +68,9 @@ Contents
 | `get_models()` | 234-263 | `httpx` GET `http://localhost:11434/api/tags` (5 s). Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. |
 | `pull_model(body: dict)` | 266-300 | Untyped body. `model` is required (400). Streams Ollama `/api/pull` progress as SSE. |
 | `RefineRequest` | 304-307 | Request body of the three refine routes. |
-| `refine_character` / `refine_scene` | 310-369 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
-| `refine_world` | 372-396 | See 02-W5. |
-| `__main__` | 399-401 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
+| `refine_character` / `refine_scene` | 310-379 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
+| `refine_world` | 382-409 | See 02-W5. |
+| `__main__` | 412-414 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
 
 ### 2.3 `app/backend/managers/*`
 
@@ -93,7 +93,7 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`. All fu
 | Function | Signature | Purpose | keep_alive |
 |---|---|---|---|
 | `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:25`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
-| `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`. Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
+| `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, format="json", options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`, returned only if it is a dict, else `{}` (plan 009, KI-015). `format="json"` is Ollama's JSON mode (KI-016). Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
 | `analyze_plot` | `(plot, model)` | Step 1 (the unused `novel_meta` argument was removed in plan 008) | -1 |
 | `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | -1 |
 | `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | -1 |
@@ -170,7 +170,7 @@ All specialist calls use the system message "…Output ONLY valid JSON…" and a
 |---|---|---|---|
 | `analyze_plot` | `{estimated_chapters:int, tone, pacing, entity_mentions:{characters[],locations[]}, key_events[], chapter_focus}` | `tone`, `estimated_chapters`, `entity_mentions` | tone ∈ action/dark/romantic/comedic/tense/mysterious/epic |
 | `resolve_entities` | `{characters:[{name,slug,status,importance}], scenes:[…]}` | all | status ∈ existing/new. Char importance ∈ primary/secondary. Scene importance ∈ main/background. Asks for **snake_case** slugs for new entities. |
-| `profile_new_entities` | `{characters:[Character…], scenes:[Scene…]}` | all → `Character(**)`/`Scene(**)` | The template hard-codes `"type": "main"` and `"age": "17"`, so most auto-profiled characters come out as MAIN. |
+| `profile_new_entities` | `{characters:[Character…], scenes:[Scene…]}` | all → `Character(**)`/`Scene(**)` (coerced; non-list / non-dict entries skipped) | The template defaults to `"type": "temporary"` with the rule "main only for a central, recurring character" and `"age": "age as text, or null"` (plan 009; before, it hard-coded `"main"` and `"17"`, KI-016). |
 | `post_write_update` | `{chapter_title, micro_summary (15-20 words), short_summary (80-100), full_summary (180-220), character_updates:{slug:{arc_notes, cultivation_level, new_abilities[], relationship_updates{}}}, scene_updates:{slug:{new_significance}}}` | all (`scene_updates` only for featured scenes, non-empty text) | Prompt has `CHARACTER PROFILES` and `SCENE PROFILES` blocks and the `CHAPTER TEXT:` excerpt. |
 | `refine_character` | full `Character` shape (`first_appeared_chapter: 0`, `last_seen_chapter: 0`) | all | — |
 | `refine_scene` | full `Scene` shape | all | scene_type hint list |
@@ -226,7 +226,7 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Boot | `init`, `checkConnection`, `bindStaticEvents`, `bindModeTabs` |
 | Loaders / renderers | `loadNovelMeta`/`renderNovelMeta`, `loadCharacters`/`renderCharacters`, `loadScenes`/`renderScenes`, `loadWorld`, `loadChapters`/`renderChapterHistory`/`updateChapterHint`/`nextChapterNumber` (highest `chapter_number` + 1, the backend's rule), `renderCardList`, `createEntityCard` |
 | Chapter output | `viewChapter`, `showChapterOutput`, `formatChapterText` (splits on `\n\n+`, one `<p>` per paragraph via `textContent`) |
-| Generation | `generateChapter`, `parseSSEStream` (buffered line splitting, ignores malformed lines and `[DONE]`), `resetPipeline`, `activatePipelineStep`, `completePipelineStep`, `completePipeline` (fades the panel to 0.4 opacity after 2 s; nothing restores it, so later runs show a dimmed panel, KI-024), `updateProgress`, `setStepError` (inline red styles that `resetPipeline` also never clears, KI-024), `addNewEntityTag` |
+| Generation | `generateChapter` (its SSE handler map shows `warning` events as warning toasts, plan 009, KI-018), `parseSSEStream` (buffered line splitting, ignores malformed lines and `[DONE]`), `resetPipeline`, `activatePipelineStep`, `completePipelineStep`, `completePipeline` (fades the panel to 0.4 opacity after 2 s; nothing restores it, so later runs show a dimmed panel, KI-024), `updateProgress`, `setStepError` (inline red styles that `resetPipeline` also never clears, KI-024), `addNewEntityTag` |
 | Character | `openCharacterModal(slug?)`, `saveCharacter` (create sends `slug: ''` and the server derives it; edit sends `{...existing, ...form}` so the fields the modal doesn't show are kept), `deleteCharacter`, `viewCharacterProfile` |
 | Scene | `openSceneModal(slug?)`, `saveScene` (same payload rules as `saveCharacter`), `deleteScene`, `viewSceneProfile` |
 | World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal` (fills the model selects from `state.novelMeta`, then `loadModels()` → `populateModelSelects` + `renderModelBrowser`), `saveSettings` (sends `{...state.novelMeta, …form}`; an empty select keeps the stored model), `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
@@ -244,7 +244,7 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Binding | Where | Action |
 |---|---|---|
 | `#btn-generate` click, `Ctrl+Enter` in `#plot-input` | `bindStaticEvents` | `generateChapter()` |
-| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1401-1422` | Generate / new character / settings (loads models like the button since plan 006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
+| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1407-1428` | Generate / new character / settings (loads models like the button since plan 006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
 | `Escape` | `bindStaticEvents` | Close the active modal |
 | Click on an overlay background, `.modal-close`, or `.btn-cancel[data-modal]` | delegated on `document` | Close modal |
 | Click anywhere | `document` | Close the export dropdown |
@@ -290,7 +290,7 @@ There is **no logging framework**. The only diagnostics are uvicorn access logs 
 |---|---|
 | `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
 | `chapter_manager.get_recent_n` | `chapter_manager.py:53` |
-| `featured_scene_slugs` alias | `chapter_pipeline.py:197` |
+| `featured_scene_slugs` alias | `chapter_pipeline.py:207` |
 | `/static` mount | `main.py:42-43` |
 | `state._profileContext` (written, never read) | `app.js` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |

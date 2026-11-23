@@ -83,3 +83,16 @@
   - Verified with the real ollama client (0.4.0 and 0.6.3) against a logging fake Ollama: unload body `{model, stream:false, keep_alive:0}`; per chapter 6 → 4 generations; the summariser prompt now contains the ending; the scene update was applied, the non-featured and malformed ones were ignored; a failed unload gives a `warning` and the chapter completes.
 - **Plan:** 008 (done).
 - **Open threads:** Committed and pushed in the same session. Real Ollama/VRAM behaviour not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-015, KI-016, KI-018 (plan 009)
+- **Goal:** Stop wrong-typed LLM output from crashing the pipeline, dropping or corrupting entities, and hiding warnings.
+- **Outcome:**
+  - `models.py`: coercion helpers as `BeforeValidator` annotated types for Character, Scene and WorldSettings, plus `validate_assignment` on Character/Scene.
+  - `_call` returns dicts only, with `format="json"`.
+  - The pipeline coerces step 1/3/7 values; character updates are validated with a warning on failure.
+  - Refine merges are validated before saving; the world merge reads list fields as lists.
+  - `app.js` shows `warning` events.
+  - The real `data/` files round-trip identical (read-only check).
+  - Old vs new with a hostile stub: list analysis, `"2"` chapters and a null title crashed old (the last one lost a streamed chapter), while new completes. The merge made a character vanish on old but not on new. The legacy broken file is skipped by old and listed by new. A warning toast was verified in the UI.
+- **Plan:** 009 (done).
+- **Open threads:** Committed and pushed in the same session. Real model behaviour with `format="json"` not exercised.

@@ -49,10 +49,11 @@ async def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dic
             {"role": "user", "content": user}
         ],
         keep_alive=keep_alive,
+        format="json",  # Ollama JSON mode: the reply is a JSON document (KI-016)
         options={"num_ctx": 8192, "temperature": 0.1}
     )
-    content = response.message.content
-    return _extract_json(content)
+    parsed = _extract_json(response.message.content)
+    return parsed if isinstance(parsed, dict) else {}  # callers always get a dict (KI-015)
 
 
 async def analyze_plot(plot: str, model: str) -> Dict:
@@ -129,6 +130,7 @@ FIRST APPEARED: Chapter {chapter_number}
 
 NEW CHARACTERS TO PROFILE: {json.dumps(new_chars)}
 NEW SCENES TO PROFILE: {json.dumps(new_scenes)}
+Character type: "main" only for a central, recurring character; otherwise "temporary".
 
 Return ONLY this JSON structure:
 {{
@@ -136,8 +138,8 @@ Return ONLY this JSON structure:
     {{
       "name": "Full Name",
       "slug": "snake_case_slug",
-      "type": "main",
-      "age": "17",
+      "type": "temporary",
+      "age": "age as text, or null",
       "appearance": "2-3 sentence description",
       "personality": "2-3 sentence description",
       "speech_style": "how they talk and communicate",

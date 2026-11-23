@@ -18,15 +18,16 @@
 - `[Unreleased]`: plan 006 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-006 (Alt+S Settings), KI-007 (Settings save kept fields) and KI-008 (backend numbers chapters highest + 1), all in `app/frontend/app.js`.
 - `[Unreleased]`: plan 007 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-009 (server-derived slugs, step-2 dedupe), KI-010 (slug validation stops path traversal; CORS removed; TrustedHost), KI-011 (escaped HTML), plus KI-021 and KI-038.
 - `[Unreleased]`: plan 008 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-012 (explicit unload at step 5), KI-013 (deterministic step 4, scene updates applied, dead args removed) and KI-014 (summariser sees the whole chapter).
+- `[Unreleased]`: plan 009 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-015 (type-safe pipeline), KI-016 (model coercion, validated merges, `format=json`) and KI-018 (warning toasts).
 - POST no longer upserts (409) and now normalises slugs; the API is same-origin only. When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–008 are done (see `docs/ai/plans/INDEX.md`). No active plan. Everything is committed and pushed.
+- Plans 003–009 are done (see `docs/ai/plans/INDEX.md`). No active plan. Everything is committed and pushed.
 
 ## Suggested next up (from `docs/technical/09`, by impact)
 1. KI-016: refine merge saves unvalidated LLM values (entity becomes unloadable).
-2. KI-015 (type-unsafe LLM fields, e.g. `estimated_chapters` as text crashes step 1) and KI-018 (`warning` events ignored by the UI; step 5 can now emit one).
+2. KI-031 (no concurrency guard or cancel for generations) and KI-019 (model pull reports success on Ollama errors).
 3. KI-019 (false-success model pulls) and KI-031 (no concurrency guard or cancel for generations).
 4. Quick Low fixes: KI-037 (cursor never hides, a one-line CSS fix), KI-018 (`warning` events ignored), KI-024 (pipeline panel styles not reset).
 

@@ -49,7 +49,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 | `app/backend/main.py` | All HTTP routes, static serving, refine endpoints, model mgmt, export | Route changes → update docs/technical/04 + frontend callers |
 | `app/backend/models.py` | Pydantic schemas = **on-disk JSON schema** = API schema | New fields **must have defaults** (existing `data/*.json` must keep loading). Never rename/remove fields without a migration plan |
 | `app/backend/managers/*.py` | The **only** code that reads/writes `data/` (exception: export in `main.py`) | Keep one module per entity, same function names |
-| `app/backend/agents/specialist.py` | Specialist LLM calls; JSON-only prompts; `_extract_json` | Consumers must tolerate `{}` and wrong types |
+| `app/backend/agents/specialist.py` | Specialist LLM calls; JSON-only prompts (`format="json"`); `_extract_json`; `_call` always returns a dict | Consumers must tolerate `{}` and wrong types: coerce with `models.as_text`/`as_str_list`/`as_int`, and build entities through the models (they coerce, plan 009) |
 | `app/backend/agents/writer.py` | Streaming writer; `WRITER_SYSTEM` prompt | |
 | `app/backend/pipeline/chapter_pipeline.py` | 7-step orchestration; emits SSE | **SSE contract** (below) |
 | `app/backend/pipeline/context_builder.py` | Master prompt assembly & tiered memory | |

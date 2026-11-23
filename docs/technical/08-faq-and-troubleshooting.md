@@ -21,7 +21,6 @@
 | `model "xyz" not found` / 404 | Selected model not pulled | `ollama pull xyz`, or choose an installed model in Settings |
 | `'dict' object has no attribute 'message'` | ollama-python < 0.4 installed | `pip install -r app/requirements.txt` (upgrades it; `start.bat` does this automatically) |
 | `ollama Python package not installed: run pip install -r app/requirements.txt` | `ollama` package missing (the server still starts) | Run that command, then restart the backend |
-| `'>' not supported between instances of 'str' and 'int'` | Specialist returned `estimated_chapters` as text (KI-015) | Retry, or use a stronger specialist model |
 | model name is empty (`model is required`) | Settings were saved with empty model fields by v1.0.0 (KI-006, fixed in plan 006) | Open Settings, pick both models, Save |
 
 The full traceback is in the SSE `error.detail` field. Watch it with the `curl -N` command in [07 §7](07-setup-and-usage.md#7-developer-quick-reference) or in the browser DevTools → Network → the `generate-chapter` response.
@@ -50,10 +49,10 @@ A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. T
 The pull progress stream does not detect Ollama errors (KI-019), and "installed" badges match any tag of the same family (KI-020). Verify with `ollama list`. Pull manually with `ollama pull <exact:tag>`.
 
 ### A9. A character/location I added by hand doesn't show up
-`get_all()` silently skips files that are invalid JSON or fail validation (missing `name`/`slug`, `type` not `main`/`temporary`, non-string `age`). Validate the file. The fastest check is to start Python in `app/backend/` and run `Character(**json.load(open(path)))`.
+`get_all()` silently skips files that are invalid JSON or have no `name`/`slug`. Wrong-typed values (an unknown `type`, a numeric `age`, a string for a list) are coerced since plan 009, so such files load again. Validate the file: start Python in `app/backend/` and run `Character(**json.load(open(path)))`.
 
 ### A10. The same character exists twice with different slugs
-Slugs come from two sources: `make_slug()` gives `xiao_fan`, while LLM-generated slugs vary (e.g. `xiao-fan-scientist-inventor`). Entity resolution is done by the LLM and can miss a match (KI-009). Merge them by hand: keep one file, delete the other, and fix `characters_featured` in chapters if you care about those tags.
+Since plan 007 new slugs are always `make_slug(name)`, the pipeline maps the specialist's matches onto existing slugs, and creating an equivalent slug (`xiao-fan` vs `xiao_fan`) is refused, so new duplicates should not appear. Duplicates created by older versions remain: merge them by hand (keep one file, delete the other, and fix `characters_featured` in the chapters that used the deleted slug).
 
 ### A11. Chapter numbers look wrong / a chapter was overwritten
 Since plan 006 the backend numbers new chapters as *highest existing number + 1*, so a gap (e.g. `002.json` deleted while `003.json` exists) just stays a gap, and nothing is overwritten. Chapters overwritten before that came from v1.0.0, which used *count + 1* (KI-008); restore them from a backup.
@@ -63,6 +62,9 @@ Titles containing `: ? * " < > |` produce an invalid Windows filename (KI-017). 
 
 ### A13. The pipeline panel looks dimmed or a step stays red on the next run
 Cosmetic (KI-024): fade and error styles are not reset between runs. Reload the page.
+
+### A13b. A yellow ⚠ toast appears during generation
+It is a pipeline `warning` (shown since plan 009, KI-018): something non-fatal failed and the chapter continued. Typical messages: "Could not save character profile: …" (the specialist returned a profile without a name), "Could not update character '…'" (an update the model couldn't validate; the character keeps its old values), "Could not unload the specialist model: …" (Ollama didn't confirm the unload; watch VRAM). The same text is in the browser console.
 
 ### A14. "Failed to save character: … 409 … already exists"
 Creating never overwrites an existing character or location (since plan 004, KI-036). The name you typed turns into the same file name (slug) as an existing entry. For example, "Elder Wu", "elder  wu" and "Elder-Wu!" all become `elder_wu`. **Either** give the new one a distinct name, **or** close the form and use **Edit** on the existing card. In the Build tabs, choose it under **Update Existing**. During chapter generation the same situation is handled silently: the existing profile is kept.

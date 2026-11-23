@@ -25,6 +25,7 @@ data/
 | Atomicity | Updates (`save`) overwrite the file directly, with no temp file and no locking. Creating a character or scene (`create`) uses an exclusive `open(…, "x")`, so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
 | Corruption handling | List operations skip unreadable/invalid files **silently**. Single-item reads raise (→ 500). |
 | Versioning / migrations | None. Files are validated against the current Pydantic model on read, so **adding a required field or renaming a field breaks every existing file**. Always add new fields with defaults. |
+| Type coercion | Characters, scenes and world settings coerce wrong-typed values on read and write (`models.py`, plan 009): text fields accept numbers/lists/dicts, list fields a single string, chapter numbers numeric text (else 1), `type` anything ("main" → main, else temporary). Files saved with such values by older versions **load again** (they used to be skipped silently) and are written back valid on their next save. Already-valid files load unchanged (verified on the real `data/` files). Only a missing `name`/`slug` or invalid JSON still makes a file unloadable. |
 | One novel per folder | To keep several novels, keep separate copies of `data/` (see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). |
 
 ## 2. Entities
@@ -35,8 +36,8 @@ data/
 |---|---|---|---|---|
 | `name` | str | **required** | UI, LLM (step 3, refine) | Display. Entity resolution (step 2). |
 | `slug` | str | **required** | `make_slug()` (manual create, `""` → derived), **LLM verbatim** (step 3, refine) | Filename, references (`characters_featured`, `character_detail` keys) |
-| `type` | `"main"` \| `"temporary"` | `"temporary"` | UI select, LLM | Sidebar section (MAIN CAST vs SUPPORTING). Compressed-prompt label. |
-| `age` | str \| null | null | UI, LLM | Prompt (`Age:`). ⚠ an int value fails validation. |
+| `type` | `"main"` \| `"temporary"` | `"temporary"` | UI select, LLM | Sidebar section (MAIN CAST vs SUPPORTING). Compressed-prompt label. Any value reading "main" → `main`; anything else (e.g. `"supporting"`) → `temporary` (plan 009). |
+| `age` | str \| null | null | UI, LLM | Prompt (`Age:`). Numbers are stored as text (`17` → `"17"`), `"null"`/`"none"` → null (plan 009). |
 | `appearance` | str | "" | UI, LLM | Prompt |
 | `personality` | str | "" | UI, LLM | Prompt. Fallback for the compressed line (`[:80]`). |
 | `speech_style` | str | "" | UI, LLM | Prompt (`Speech:`) |

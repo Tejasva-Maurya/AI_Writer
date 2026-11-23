@@ -53,21 +53,21 @@ Notes:
 ## W2 — Frontend boot
 
 1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:46-51`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:54-61`).
-2. `DOMContentLoaded` listener #1 (`app.js:1438`):
+2. `DOMContentLoaded` listener #1 (`app.js:1444`):
    1. `checkConnection()` → `fetch /api/novel-meta` with a 3 s timeout. On a network failure it shows the toast *"⚠ Cannot connect to backend…"* for 8 s.
    2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `updateChapterHint()`.
-3. `DOMContentLoaded` listener #2 (`app.js:1877`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
+3. `DOMContentLoaded` listener #2 (`app.js:1883`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
 4. Each loader stores its result in `state.*` and renders: sidebars (character/scene cards), header title, chapter count badge, history pills, "CHAPTER N" label.
 5. If a loader fails it logs `console.warn` and falls back to empty data. The UI stays usable.
 
 ## W3 — Chapter generation (the 7-step pipeline)
 
-### W3.1 Trigger (frontend: `generateChapter()`, `app.js:420-562`)
+### W3.1 Trigger (frontend: `generateChapter()`, `app.js:420-568`)
 
 1. Validates that the plot textarea is not empty and that no generation is running (`state.isGenerating`).
 2. Disables the button, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
 3. `POST`s `/api/generate-chapter` with `{plot}` only. The backend numbers the chapter itself (`get_next_number()`: highest existing number + 1, read from disk), so a gap or a stale page can't overwrite a chapter. The UI shows `nextChapterNumber()` (the same rule over `state.chapters`) while streaming and takes the real number from the `complete` event. (Before plan 006 it sent `count + 1`, which overwrote chapters after a gap: KI-008.)
-4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:567-606`). Each JSON event is dispatched by its `type` (see W3.4).
+4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:573-612`). Each JSON event is dispatched by its `type` (see W3.4).
 
 ### W3.2 Backend entry (`main.py:160-177`)
 
@@ -79,22 +79,22 @@ Notes:
 
 | Step | UI label | Code | LLM call (model, keep_alive) | Input | Output / side effects | SSE emitted |
 |---|---|---|---|---|---|---|
-| 1 | Analyze Plot | `:67-78` | `specialist.analyze_plot` (spec, -1) | plot | `tone`, `estimated_chapters`, `entity_mentions{characters[],locations[]}`, `key_events`, `chapter_focus` (only tone, estimated_chapters, entity_mentions are used) | `status{step:1}` ×2. `multi_chapter` if `estimated_chapters > 1` |
-| 2 | Extract Entities | `:80-93` | `specialist.resolve_entities` (spec, -1) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` The result is then canonicalised server-side (`_canonical_entities`, plan 007): matches by slug or name (ignoring case and `-`/`_`) become `existing` with the real slug, everything else `new` with `slug = make_slug(name)`; nameless entries and repeats are dropped. | `status{step:2}` ×2 |
-| 3 | Build Profiles | `:95-117` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects with `slug = make_slug(profile name)` (never the LLM's slug) and **creates their files** in `data/` with `create()`, which never overwrites (also not an equivalent slug). A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
-| — | (reload) | `:119-123` | — | — | Re-reads all characters and scenes into `chars_dict` / `scenes_dict` keyed by slug | — |
-| 4 | Optimize Context | `:125-157` | **none** (deterministic since plan 008; the old `select_context` prompt only restated these rules, KI-013) | resolved entities with importance, all chapters | `character_detail{slug: full\|compressed}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`, built by the rules below | `status{step:4}` ×2 |
-| 5 | Prepare Model | `:159-167` | `specialist.unload` → `AsyncClient.generate(model, keep_alive=0)`: Ollama's unload request, **no generation** (plan 008, KI-012) | specialist model name | Specialist leaves VRAM before the writer loads. Best-effort: a failure becomes a `warning` and the run continues | `status{step:5}` ×2, `warning{message}` if the unload fails |
-| — | (prompt) | `:169-179` | — | world + dicts + chapters + detail maps | `master_prompt` string (see [03 §2.6](03-low-level-design.md#26-appbackendpipelinecontext_builderpy)) | — |
-| 6 | Write Chapter | `:181-192` | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())` | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
-| 7 | Summarize & Save | `:194-261` | `specialist.post_write_update` (spec, **0**) | the **whole chapter**, or its opening + ending when it exceeds ~5000 tokens (`_chapter_excerpt`, plan 008, KI-014), primary character briefs, featured (main) scene briefs | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates a featured scene's `significance` from `scene_updates` (non-empty text only, KI-013). Updates `novel_meta.total_chapters = max(old, n)` | `status{step:7}`, `complete{…}` |
-| ✖ | — | `:263-265` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk.** | `error{message, detail: traceback}` |
+| 1 | Analyze Plot | `:67-82` | `specialist.analyze_plot` (spec, -1) | plot | `tone`, `estimated_chapters`, `entity_mentions{characters[],locations[]}`, `key_events`, `chapter_focus` (only tone, estimated_chapters, entity_mentions are used; each is coerced: `estimated_chapters` numeric text → int, else 1; `tone` → text, else "action"; `entity_mentions` lists of strings only, plan 009, KI-015) | `status{step:1}` ×2. `multi_chapter` if `estimated_chapters > 1` |
+| 2 | Extract Entities | `:84-97` | `specialist.resolve_entities` (spec, -1) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` The result is then canonicalised server-side (`_canonical_entities`, plan 007): matches by slug or name (ignoring case and `-`/`_`) become `existing` with the real slug, everything else `new` with `slug = make_slug(name)`; nameless entries and repeats are dropped. | `status{step:2}` ×2 |
+| 3 | Build Profiles | `:99-127` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects with `slug = make_slug(profile name)` (never the LLM's slug) and **creates their files** in `data/` with `create()`, which never overwrites (also not an equivalent slug). A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
+| — | (reload) | `:129-133` | — | — | Re-reads all characters and scenes into `chars_dict` / `scenes_dict` keyed by slug | — |
+| 4 | Optimize Context | `:135-167` | **none** (deterministic since plan 008; the old `select_context` prompt only restated these rules, KI-013) | resolved entities with importance, all chapters | `character_detail{slug: full\|compressed}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`, built by the rules below | `status{step:4}` ×2 |
+| 5 | Prepare Model | `:169-177` | `specialist.unload` → `AsyncClient.generate(model, keep_alive=0)`: Ollama's unload request, **no generation** (plan 008, KI-012) | specialist model name | Specialist leaves VRAM before the writer loads. Best-effort: a failure becomes a `warning` and the run continues | `status{step:5}` ×2, `warning{message}` if the unload fails |
+| — | (prompt) | `:179-189` | — | world + dicts + chapters + detail maps | `master_prompt` string (see [03 §2.6](03-low-level-design.md#26-appbackendpipelinecontext_builderpy)) | — |
+| 6 | Write Chapter | `:191-202` | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())` | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
+| 7 | Summarize & Save | `:204-280` | `specialist.post_write_update` (spec, **0**) | the **whole chapter**, or its opening + ending when it exceeds ~5000 tokens (`_chapter_excerpt`, plan 008, KI-014), primary character briefs, featured (main) scene briefs | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates a featured scene's `significance` from `scene_updates` (non-empty text only, KI-013). Updates `novel_meta.total_chapters = max(old, n)` | `status{step:7}`, `complete{…}` |
+| ✖ | — | `:282-284` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk.** | `error{message, detail: traceback}` |
 
 #### Step 4 rules (deterministic)
 
-- **Characters:** `importance == "primary"` → `full`, otherwise → `compressed` (`:132-135`).
-- **Scenes:** `importance == "main"` → `full`, otherwise → `skip` (`:136-139`).
-- **Chapter tiers**, relative to the chapter being written `N`, for each existing chapter `n` (`:161-174`):
+- **Characters:** `importance == "primary"` → `full`, otherwise → `compressed` (`:142-145`).
+- **Scenes:** `importance == "main"` → `full`, otherwise → `skip` (`:146-149`).
+- **Chapter tiers**, relative to the chapter being written `N`, for each existing chapter `n` (`:171-184`):
 
 | `N − n` | Tier | What goes into the prompt |
 |---|---|---|
@@ -105,22 +105,22 @@ Notes:
 
 > When regenerating chapter *k* with chapters after *k* already on disk, those **later** chapters are also included in "STORY SO FAR" (as `micro`, because `N − n ≤ 0`). The current chapter's old version is included too.
 
-#### Post-write character update rules (`:218-239`)
+#### Post-write character update rules
 
 For every slug in `post_data.character_updates` that exists:
-`last_seen_chapter = N`. Non-empty `arc_notes` replaces the old value. Non-empty `cultivation_level` replaces the old value. `new_abilities` is merged as a set (**order is lost**). `relationship_updates` is merged into the relationships dict. Then the character is saved.
-Primary characters with no update entry still get `last_seen_chapter = N`.
+`last_seen_chapter = N`. Non-empty `arc_notes` replaces the old value. Non-empty `cultivation_level` replaces the old value. `new_abilities` (a list, or one string) is appended without duplicates, keeping order. `relationship_updates` (a dict) is merged into the existing relationships. All changes are validated together (`Character(**…)`, coercing types); if that fails, a `warning` is sent and the character keeps its old values. Non-dict `character_updates` or entries are ignored (plan 009, KI-015/KI-016). Chapter title and summaries are coerced to text, and an empty title becomes `Chapter N`, so a bad reply can no longer lose the chapter.
+Primary characters with no (successful) update still get `last_seen_chapter = N`.
 `scene_updates` returned by the LLM update the featured scenes' `significance` (only scenes marked `main` in this chapter, only non-empty text; anything else is ignored). Before plan 008 they were ignored (KI-013).
 
 ### W3.4 SSE event contract (backend → frontend)
 
-| `type` | Payload fields | Emitted at | Frontend handler (`app.js:465-550`) |
+| `type` | Payload fields | Emitted at | Frontend handler (`app.js:465-556`) |
 |---|---|---|---|
 | `status` | `step` (1–7), `message` | Start/end of each step | Marks the previous step done, the current one active, writes `message` to the step log, sets progress = step/7 |
 | `multi_chapter` | `estimated`, `message` | Step 1 if estimated > 1 | Shows the notice panel + warning toast |
 | `new_character` | `name`, `slug` | Step 3 per saved character | Adds an entity tag, reloads characters after 300 ms, shows a toast |
 | `new_scene` | `name`, `slug` | Step 3 per saved scene | Same, for scenes |
-| `warning` | `message` | Step 3 profile validation failure | **No handler: silently ignored** (KI-018) |
+| `warning` | `message` | Step 3 profile that can't be saved, step 5 unload failure, step 7 character update that fails validation | Warning toast (6 s) and `console.warn` (since plan 009; before, ignored: KI-018) |
 | `token` | `content` | Step 6, per chunk | Appends to the current `<p>`. Splits paragraphs on `\n\n`. Moves the blinking cursor |
 | `error` | `message`, `detail?` | Writer error or uncaught exception | Error toast, hides the cursor, paints the active step red |
 | `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, sets the badge from `chapter_number`, reloads chapters, characters **and novel meta** (step 7 updated profiles and `total_chapters` on disk; the Edit and Settings modals read that state), clears the plot textarea, success toast |
@@ -197,8 +197,8 @@ sequenceDiagram
 
 ## W4 — Character / Scene build (refine)
 
-Frontend: `refineCharacter()` (`app.js:1529-1571`) / `refineScene()` (`app.js:1576-1616`).
-Backend: `refine_character` (`main.py:310-339`) / `refine_scene` (`main.py:342-369`).
+Frontend: `refineCharacter()` (`app.js:1535-1577`) / `refineScene()` (`app.js:1582-1622`).
+Backend: `refine_character` (`main.py:310-344`) / `refine_scene` (`main.py:347-379`).
 
 ```mermaid
 sequenceDiagram
@@ -228,16 +228,16 @@ sequenceDiagram
 Merge semantics for "Update Existing":
 - **Overwrites** each field for which the LLM returned a truthy value. Lists such as `abilities` are **replaced**, not merged.
 - The existing `slug`, `name` and `first_appeared_chapter` are always kept.
-- ⚠ Values are assigned with `setattr` and **not validated** (no `validate_assignment` on the models). An invalid LLM value (e.g. `type:"supporting"`, `age:17`) is written to disk, after which the file no longer loads: the entity disappears from the sidebar and later edits/merges of it return 500 (verified, KI-016).
+- Only known model fields are merged. The merged record is validated (and coerced, e.g. `age: 17` → `"17"`, `type: "supporting"` → `temporary`) **before** saving; if validation still fails, the request returns 500 and nothing is saved, so the file stays loadable. (Before plan 009 values were `setattr` without validation and could make the entity vanish, KI-016.)
 - Refine calls use `keep_alive=-1`, so the specialist **stays loaded in VRAM** afterwards (until a generation unloads it or Ollama restarts).
 
 ## W5 — World build (refine + merge)
 
-Frontend `refineWorld()` (`app.js:1621-1653`) → `POST /api/refine/world` (`main.py:372-396`).
+Frontend `refineWorld()` (`app.js:1627-1659`) → `POST /api/refine/world` (`main.py:382-409`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
-2. Merge into the existing world (`main.py:382-394`):
-   - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): append each truthy item that is not already present (exact-string dedupe, order kept).
+2. Merge into the existing world (`main.py:391-407`):
+   - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): the LLM value is read as a list (a single string is one item), then each truthy item that is not already present is appended (exact-string dedupe, order kept). Before plan 009 a string replaced the whole list or caused a 500.
    - **String fields:** replaced when the new value is non-empty.
    - Unknown keys are ignored.
 3. Saves `data/world_settings.json` and returns the merged world.
@@ -256,9 +256,9 @@ Frontend `refineWorld()` (`app.js:1621-1653`) → `POST /api/refine/world` (`mai
 
 ## W7 — World settings & novel settings editing
 
-- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:972-1019`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
-- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1024-1064`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`. The body is `{...state.novelMeta, …form}`, so `total_chapters` and `created_at` are kept, and an empty model select falls back to the stored model. `state.novelMeta` is reloaded after every generation, so the count is current. Opening the modal (button or **Alt+S**) fills the model lists at once and refreshes them from Ollama (see W8). (KI-006/KI-007, fixed in plan 006.)
-- **Inline title edit** (`initTitleEdit`, `app.js:1245-1284`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
+- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:978-1025`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
+- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1030-1070`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`. The body is `{...state.novelMeta, …form}`, so `total_chapters` and `created_at` are kept, and an empty model select falls back to the stored model. `state.novelMeta` is reloaded after every generation, so the count is current. Opening the modal (button or **Alt+S**) fills the model lists at once and refreshes them from Ollama (see W8). (KI-006/KI-007, fixed in plan 006.)
+- **Inline title edit** (`initTitleEdit`, `app.js:1251-1290`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
 
 ## W8 — Model management
 

@@ -36,6 +36,8 @@
 
 Common error shapes: FastAPI `HTTPException` → `{"detail": "message"}`. Validation errors → **422** with `{"detail": [ {loc, msg, type, …} ]}`. Create conflicts → **409** `{"detail": "Character 'x' already exists"}` (raised as `FileExistsError` by a manager's `create()` and mapped by an app-wide handler in `main.py`).
 
+Character, scene and world bodies are **coerced** before validation (plan 009): e.g. `"age": 17` → `"17"`, `"type": "supporting"` → `"temporary"`, `"abilities": "fly"` → `["fly"]`. Only a missing/null `name` or `slug` (and malformed JSON) still gives 422. Rules: [05 §2](05-data-model-and-storage.md).
+
 ---
 
 ## Health
@@ -125,7 +127,7 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:265`). Writer errors carry `message` only (`chapter_pipeline.py:188`).
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:284`). Writer errors carry `message` only (`chapter_pipeline.py:198`).
 
 Consuming it from a shell:
 ```bash
@@ -142,9 +144,9 @@ The response arrives when the specialist finishes (seconds to minutes). The call
 
 ### `POST /api/refine/character`
 - `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.
-  ⚠ The merge uses plain `setattr` (`main.py:327`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:357`).
+  Only known fields are merged, and the merged record is validated (with the coercion described in [05](05-data-model-and-storage.md)) before saving. If it still fails, **500** `Could not merge character: …` and nothing is saved. (Before plan 009 the merge used `setattr` without validation, so an invalid value was saved and the character vanished, KI-016.) The same applies to scenes.
 - Otherwise → `Character(**llm_result)` with `slug = make_slug(LLM name)` (never the LLM's slug, plan 007) → created → **200**. **422** if the profile has no usable name. If that slug is already taken → **409** `Could not create character: Character 'x' already exists`, and nothing is written (use **Update Existing** / `existing_slug` instead).
-- **500** `Failed to generate character profile` (empty LLM result) · **500** `Could not create character: …` (validation failure, e.g. missing slug, `type:"supporting"`, int `age`). Transport errors (Ollama down) → **500** Internal Server Error.
+- **500** `Failed to generate character profile` (empty LLM result) · **500** `Could not create character: …` (validation failure that coercion can't fix, e.g. a missing name; `type:"supporting"` or an int `age` are coerced since plan 009). Transport errors (Ollama down) → **500** Internal Server Error.
 
 ### `POST /api/refine/scene`
 Same as above for `Scene`.

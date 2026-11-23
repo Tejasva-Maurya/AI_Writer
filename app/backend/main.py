@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from models import (
     Character, Scene, WorldSettings, Chapter, NovelMeta,
     GenerateChapterRequest, UpdateCharacterRequest, UpdateSceneRequest,
-    UpdateWorldRequest, UpdateNovelMetaRequest
+    UpdateWorldRequest, UpdateNovelMetaRequest, as_str_list
 )
 from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager
 from pipeline.chapter_pipeline import run_pipeline
@@ -321,12 +321,17 @@ async def refine_character(req: RefineRequest):
     if req.existing_slug:
         existing = character_manager.get_by_slug(req.existing_slug)
     if existing:
-        # Merge: only update non-empty fields from result
+        # Merge non-empty known fields, then validate (and coerce) before saving, so a bad value can't break the file (KI-016)
+        merged = existing.model_dump()
         for field, value in result.items():
-            if value and field not in ("slug", "name", "first_appeared_chapter"):
-                setattr(existing, field, value)
-        character_manager.save(existing)
-        return existing
+            if value and field in Character.model_fields and field not in ("slug", "name", "first_appeared_chapter"):
+                merged[field] = value
+        try:
+            updated = Character(**merged)
+        except Exception as e:
+            raise HTTPException(500, f"Could not merge character: {e}")
+        character_manager.save(updated)
+        return updated
     else:
         slug = character_manager.make_slug(str(result.get("name") or ""))  # never the LLM's slug (KI-009)
         if not slug:
@@ -352,11 +357,16 @@ async def refine_scene(req: RefineRequest):
     if req.existing_slug:
         existing = scene_manager.get_by_slug(req.existing_slug)
     if existing:
+        merged = existing.model_dump()  # same validated merge as refine_character (KI-016)
         for field, value in result.items():
-            if value and field not in ("slug", "name", "first_appeared_chapter"):
-                setattr(existing, field, value)
-        scene_manager.save(existing)
-        return existing
+            if value and field in Scene.model_fields and field not in ("slug", "name", "first_appeared_chapter"):
+                merged[field] = value
+        try:
+            updated = Scene(**merged)
+        except Exception as e:
+            raise HTTPException(500, f"Could not merge scene: {e}")
+        scene_manager.save(updated)
+        return updated
     else:
         slug = scene_manager.make_slug(str(result.get("name") or ""))  # never the LLM's slug (KI-009)
         if not slug:
@@ -382,16 +392,19 @@ async def refine_world(req: RefineRequest):
     world_dict = world.model_dump()
     for key, value in result.items():
         if key in world_dict:
-            if isinstance(value, list) and isinstance(world_dict[key], list):
-                # Merge lists (deduplicate)
+            if isinstance(world_dict[key], list):
+                # Merge lists (deduplicate); a single string is one new item, not a replacement list (KI-015)
                 existing_list = world_dict[key]
-                for item in value:
+                for item in as_str_list(value):
                     if item and item not in existing_list:
                         existing_list.append(item)
                 world_dict[key] = existing_list
             elif value:  # Only overwrite if new value is non-empty
                 world_dict[key] = value
-    updated_world = WorldSettings(**world_dict)
+    try:
+        updated_world = WorldSettings(**world_dict)
+    except Exception as e:
+        raise HTTPException(500, f"Could not merge world settings: {e}")
     world_manager.save(updated_world)
     return updated_world
 

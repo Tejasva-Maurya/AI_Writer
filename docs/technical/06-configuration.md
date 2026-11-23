@@ -22,25 +22,25 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:401` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:401` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:414` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:414` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
 | Frontend API base | `/api` (same origin) | `app.js:6` | Works for `http://127.0.0.1:8000` and `http://localhost:8000` alike (KI-021, fixed in plan 007). |
 | Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:241`, `main.py:278` | Edit the source. |
 | Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
 | Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:33` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:401` | — |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:414` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
 
 | Parameter | Specialist | Writer | Location |
 |---|---|---|---|
-| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:52`, `writer.py:63` |
+| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:53`, `writer.py:63` |
 | `temperature` | 0.1 | 0.8 | same |
 | `top_p` | (Ollama default) | 0.9 | `writer.py:63` |
-| `keep_alive` | `-1` (keep loaded) by default. `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,195,235`, `writer.py:62` |
+| `keep_alive` | `-1` (keep loaded) by default. `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,197,237`, `writer.py:62` |
 | Streaming | no | yes | — |
-| JSON mode (`format="json"`) | **not used** | n/a | — |
+| JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:52` |
 
 > `num_ctx 32768` on a 12B model can need much more VRAM than the model weights alone. If you hit out-of-memory errors, lowering this is the first knob to try, together with picking a smaller model.
 
@@ -51,12 +51,12 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Target chapter length | ~2000 words (stated twice) | `writer.py:23`, `writer.py:48` |
 | Narrative perspective | third-person limited unless world settings say otherwise | `writer.py:24` |
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
-| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:76` |
+| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:77` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
-| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:143-155` (the only copy since plan 008) |
+| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:153-165` (the only copy since plan 008) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
-| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:173` (`_chapter_excerpt`) |
-| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:217-219` |
+| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:175` (`_chapter_excerpt`) |
+| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:219-221` |
 
 ### 2.4 Model catalogue (shown in Settings)
 
@@ -80,11 +80,11 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 
 | Constant | Value | Location |
 |---|---|---|
-| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1289`, `app.js:1431` |
-| Connection check timeout | 3000 ms | `app.js:1429` |
+| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1295`, `app.js:1437` |
+| Connection check timeout | 3000 ms | `app.js:1435` |
 | Sidebar reload delay after a new entity | 300 ms | `app.js:477,478` |
-| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:663-665` |
-| Refine status auto-clear | 5000 ms | `app.js:1569` etc. |
+| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:669-671` |
+| Refine status auto-clear | 5000 ms | `app.js:1575` etc. |
 | Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)

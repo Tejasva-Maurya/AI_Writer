@@ -138,8 +138,8 @@ flowchart TB
 
 | Role | Default model | Used for | Ollama options | `keep_alive` |
 |---|---|---|---|---|
-| **Specialist** | `phi4-mini:3.8b` (`models.py:75`) | Plot analysis, entity resolution, profiling, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `-1` (stay loaded) for steps 1–3 and the refine endpoints. **`0` (unload right away)** at step 5 (explicit `unload`: an empty `generate`, no generation) and after step 7 (`post_write_update`). |
-| **Writer** | `gemma3:12b` (`models.py:74`) | Chapter prose (streamed) | `num_ctx 32768`, `temperature 0.8`, `top_p 0.9` | `300` seconds (stays warm for the next chapter) |
+| **Specialist** | `phi4-mini:3.8b` (`models.py:148`) | Plot analysis, entity resolution, profiling, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `-1` (stay loaded) for steps 1–3 and the refine endpoints. **`0` (unload right away)** at step 5 (explicit `unload`: an empty `generate`, no generation) and after step 7 (`post_write_update`). |
+| **Writer** | `gemma3:12b` (`models.py:147`) | Chapter prose (streamed) | `num_ctx 32768`, `temperature 0.8`, `top_p 0.9` | `300` seconds (stays warm for the next chapter) |
 
 Timeline of one chapter generation:
 
@@ -219,7 +219,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 
 ## 8. Process & runtime model
 
-- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:399-401`).
+- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:412-414`).
 - **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast.
 - **No background jobs, queues or locks.** A generation lives exactly as long as its HTTP response stream. Two generations at once are not prevented on the server; the frontend blocks a second one only within the same tab (`state.isGenerating`).
 - **State.** All durable state is in `data/`. The server keeps no in-memory state between requests, apart from the module-level constant `RECOMMENDED_MODELS`.

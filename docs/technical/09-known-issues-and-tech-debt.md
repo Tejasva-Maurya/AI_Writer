@@ -1,23 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 008. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 009. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 18 open · 1 partly fixed (KI-023) · 19 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-021, KI-022, KI-027, KI-036, KI-038).
+**At a glance:** 15 open · 1 partly fixed (KI-023) · 22 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-021, KI-022, KI-027, KI-036, KI-038).
 
-### Open (19)
+### Open (16)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-015 | Low | Pipeline | `estimated_chapters > 1` crashes when the LLM returns a string | Open |
-| KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Open |
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
-| KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Open |
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error | Open |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
@@ -34,7 +31,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 
-### Fixed (19)
+### Fixed (22)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -54,6 +51,9 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-012 | Low | Pipeline | Step 5 `predict_updates` result unused (an LLM call made only to unload VRAM) | Fixed in Unreleased [plan 008] |
 | KI-013 | Low | Pipeline | `scene_updates`, `scene_profiles`, `novel_meta` arg ignored; scenes never evolve | Fixed in Unreleased [plan 008] |
 | KI-014 | Medium | Pipeline | Post-write summariser sees only the first 3000 chars of the chapter | Fixed in Unreleased [plan 008] |
+| KI-015 | Low | Pipeline | `estimated_chapters > 1` crashes when the LLM returns a string | Fixed in Unreleased [plan 009] |
+| KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Fixed in Unreleased [plan 009] |
+| KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Fixed in Unreleased [plan 009] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
@@ -144,18 +144,21 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Impact:** continuity relies on summaries of chapter openings only.
 - **Fix:** pass the full text (the specialist's `num_ctx` is 8192, which fits ~2000 words), or the head plus the tail.
 
-### KI-015 — Type-unsafe LLM fields · Low
+### KI-015 — Type-unsafe LLM fields · Low · ✅ Fixed in Unreleased (plan 009)
+- **Status: Fixed in Unreleased [plan 009].** `_call` always returns a dict. Step 1 coerces `estimated_chapters` (numeric text → int, else 1), `tone` and `entity_mentions` (string lists only). Step 3 iterates only lists of dicts. Step 7 coerces the title and summaries to text (empty title → `Chapter N`) and processes `character_updates` only as dicts. Verified against the committed code with a hostile stub: an analysis that is a JSON list (old: `'list' object has no attribute 'get'`), `estimated_chapters: "2"` (old: `'>' not supported`), and a post-write reply with `chapter_title: null` and list/number summaries (old: **the chapter streamed and was then lost**, `4 validation errors for Chapter`). The fixed code completes all three and saves the chapter. The evidence below describes the pre-fix code.
 - **Evidence:** `if estimated_chapters > 1` (`chapter_pipeline.py:74`) raises a `TypeError` for `"2"`/`null`, which aborts the whole pipeline. Similar latent risks: `.get()` results used as lists or dicts without type checks.
 - **Fix:** coerce or validate specialist outputs (small Pydantic models per call, or helper coercers).
 
-### KI-016 — Entities silently dropped on validation failure · Medium · Verified ✔
+### KI-016 — Entities silently dropped on validation failure · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 009)
+- **Status: Fixed in Unreleased [plan 009].** `models.py` coerces wrong-typed values for Character, Scene and WorldSettings (`type` → main/temporary, numbers → text, a string → a one-item list, numeric chapter text → int, …) and Character/Scene use `validate_assignment`. Refine merges validate the merged record before saving (500 and no save if it still fails) and ignore unknown fields; step 7 validates character updates and sends a `warning` on failure. Specialist calls use `format="json"`; the step-3 template defaults to `temporary`. Verified: a refine merge with `type: "supporting"`, `age: 17` made the committed code's character vanish (and its PUT return 500); the fixed code saves `temporary`/`"17"` and the character stays listed and editable. A file saved with wrong types by an older version is skipped by the committed code and listed by the fixed one. A profile with `type: "supporting"`, `age: 17`, `abilities: "flying"` is created instead of dropped. The real `data/` files round-trip unchanged. The evidence below describes the pre-fix code.
 - **Evidence:** `Character(type="supporting")` and `Character(age=17)` both raise (verified). In step 3 these become `warning` events, which the UI ignores (KI-018). In the refine **create** branch they become HTTP 500 (`main.py:334-339`, `356-360`). **Worse, in the refine *merge* branch** (`existing_slug` found), values are applied with `setattr` (`main.py:327`, `:357`) without validation (no `validate_assignment`), so the invalid value is **saved** and the endpoint returns 200. The file then fails to load: `get_all()` silently skips it (the entity vanishes from the sidebar) and `get_by_slug()` raises (later PUT/merge → 500). Reproduced: `setattr(c, "type", "supporting")` then `model_dump()` then re-construct → `ValidationError`. The step-3 template hard-codes `"type": "main"` (`specialist.py:139`), so auto-discovered characters skew to MAIN CAST.
 - **Fix:** normalise LLM output before construction (map unknown types → `temporary`, `str()` the age, derive a missing slug). Pass `format="json"` to Ollama.
 
 ### KI-017 — Export side effects · Low
 - `main.py:211-215` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
 
-### KI-018 — `warning` SSE ignored · Low
+### KI-018 — `warning` SSE ignored · Low · ✅ Fixed in Unreleased (plan 009)
+- **Status: Fixed in Unreleased [plan 009].** `generateChapter`'s handler map has a `warning` entry: a warning toast (6 s) plus `console.warn`. Verified in the browser pane: a failed step-5 unload showed "⚠ Could not unload the specialist model: …" and the chapter still completed. The evidence below describes the pre-fix code.
 - The pipeline emits `warning` (`chapter_pipeline.py:107,115`), but `generateChapter`'s handler map has no `warning` key. **Fix:** add a handler that shows a warning toast or step log.
 
 ### KI-019 — False-success model pulls · Medium
@@ -178,7 +181,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:765`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
 
 ### KI-024 — Pipeline UI state not reset · Low
-- `completePipeline` sets `opacity: 0.4` (`app.js:664`). `setStepError` sets inline red border/background (`:679-680`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
+- `completePipeline` sets `opacity: 0.4` (`app.js:670`). `setStepError` sets inline red border/background (`:685-686`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
 
 ### KI-025 — No tests / lint / CI / logging · Medium
 - No test files, no linters, no CI workflows. No `logging` usage (`except: pass` in managers hides errors). **Suggested start:** pytest + FastAPI `TestClient` with a stubbed `ollama` module; `ruff`; a `logging` config writing to the console.
@@ -191,7 +194,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - The character modal sends neither `first_appeared_chapter` nor `last_seen_chapter`, so once KI-001 is fixed they will reset to 1 on every edit. Same for the scene's `first_appeared_chapter`. **Fix:** merge the payload into the existing record server-side (PATCH semantics), or round-trip all fields.
 
 ### KI-028 — Fallback specialist mismatch · Low
-- `app.js:172` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:75`).
+- `app.js:172` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:148`).
 
 ### KI-029 — Specialist stays resident after refine · Low
 - Refine endpoints call `_call` with the default `keep_alive=-1`. **Fix:** use `0` or a finite value (e.g. `120`) for refine calls.

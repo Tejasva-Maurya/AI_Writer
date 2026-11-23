@@ -11,7 +11,7 @@ from typing import AsyncGenerator
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import Chapter, Character, Scene, NovelMeta
+from models import Chapter, Character, Scene, NovelMeta, as_int, as_str_list, as_text
 from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager
 from agents import specialist, writer
 from pipeline.context_builder import build_master_prompt
@@ -67,9 +67,13 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         # ── STEP 1: ANALYZE PLOT ──────────────────────────────────────
         yield _sse("status", step=1, message="Analyzing plot...")
         analysis = await specialist.analyze_plot(plot, spec_model)
-        tone = analysis.get("tone", "action")
-        estimated_chapters = analysis.get("estimated_chapters", 1)
-        entity_mentions = analysis.get("entity_mentions", {"characters": [], "locations": []})
+        # The specialist's values may have the wrong type: coerce them (KI-015)
+        tone = as_text(analysis.get("tone")).strip() or "action"
+        estimated_chapters = as_int(analysis.get("estimated_chapters"), 1)
+        mentions = analysis.get("entity_mentions")
+        mentions = mentions if isinstance(mentions, dict) else {}
+        entity_mentions = {"characters": as_str_list(mentions.get("characters")),
+                           "locations": as_str_list(mentions.get("locations"))}
 
         if estimated_chapters > 1:
             yield _sse("multi_chapter", estimated=estimated_chapters,
@@ -98,7 +102,11 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
             world = world_manager.load()
             profiles = await specialist.profile_new_entities(new_char_names, new_scene_names, plot, world, tone, chapter_number, spec_model)
 
-            for char_data in profiles.get("characters", []):
+            profiled_chars = profiles.get("characters")
+            profiled_scenes = profiles.get("scenes")
+            for char_data in profiled_chars if isinstance(profiled_chars, list) else []:
+                if not isinstance(char_data, dict):
+                    continue
                 try:
                     char = Character(**{**char_data, "slug": character_manager.make_slug(str(char_data.get("name") or ""))})
                     character_manager.create(char)
@@ -106,7 +114,9 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
                 except Exception as e:
                     yield _sse("warning", message=f"Could not save character profile: {e}")
 
-            for scene_data in profiles.get("scenes", []):
+            for scene_data in profiled_scenes if isinstance(profiled_scenes, list) else []:
+                if not isinstance(scene_data, dict):
+                    continue
                 try:
                     scene = Scene(**{**scene_data, "slug": scene_manager.make_slug(str(scene_data.get("name") or ""))})
                     scene_manager.create(scene)
@@ -199,15 +209,15 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
 
         post_data = await specialist.post_write_update(full_text, featured_char_profiles, featured_scene_profiles, spec_model)
 
-        # Save chapter
+        # Save chapter (summary values are coerced to text, so a wrong type can't lose the written chapter, KI-015)
         chapter = Chapter(
             chapter_number=chapter_number,
-            title=post_data.get("chapter_title", f"Chapter {chapter_number}"),
+            title=as_text(post_data.get("chapter_title")).strip() or f"Chapter {chapter_number}",
             plot_input=plot,
             full_text=full_text,
-            micro_summary=post_data.get("micro_summary", ""),
-            short_summary=post_data.get("short_summary", ""),
-            full_summary=post_data.get("full_summary", ""),
+            micro_summary=as_text(post_data.get("micro_summary")),
+            short_summary=as_text(post_data.get("short_summary")),
+            full_summary=as_text(post_data.get("full_summary")),
             characters_featured=primary_chars,
             scenes_featured=featured_scene_slugs,
             word_count=word_count,
@@ -215,25 +225,34 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         )
         chapter_manager.save_chapter(chapter)
 
-        # Update character profiles
-        char_updates = post_data.get("character_updates", {})
+        # Update character profiles: each change is validated (and coerced) by the model before saving (KI-015/KI-016)
+        char_updates = post_data.get("character_updates")
+        char_updates = char_updates if isinstance(char_updates, dict) else {}
         for slug, updates in char_updates.items():
-            if slug in chars_dict:
-                char = chars_dict[slug]
-                char.last_seen_chapter = chapter_number
-                if updates.get("arc_notes"):
-                    char.arc_notes = updates["arc_notes"]
-                if updates.get("cultivation_level"):
-                    char.cultivation_level = updates["cultivation_level"]
-                if updates.get("new_abilities"):
-                    char.abilities = list(set(char.abilities + updates["new_abilities"]))
-                if updates.get("relationship_updates"):
-                    char.relationships.update(updates["relationship_updates"])
-                character_manager.save(char)
+            if slug not in chars_dict:
+                continue
+            updates = updates if isinstance(updates, dict) else {}
+            char = chars_dict[slug]
+            changes = {"last_seen_chapter": chapter_number}
+            if updates.get("arc_notes"):
+                changes["arc_notes"] = updates["arc_notes"]
+            if updates.get("cultivation_level"):
+                changes["cultivation_level"] = updates["cultivation_level"]
+            new_abilities = as_str_list(updates.get("new_abilities"))
+            if new_abilities:
+                changes["abilities"] = list(dict.fromkeys(char.abilities + new_abilities))
+            if isinstance(updates.get("relationship_updates"), dict):
+                changes["relationships"] = {**char.relationships, **updates["relationship_updates"]}
+            try:
+                updated = Character(**{**char.model_dump(), **changes})
+                chars_dict[slug] = updated
+                character_manager.save(updated)
+            except Exception as e:
+                yield _sse("warning", message=f"Could not update character '{slug}': {e}")
 
-        # Update last_seen for all featured chars not already updated
+        # Update last_seen for all featured chars not already updated (including ones whose update was rejected)
         for slug in primary_chars:
-            if slug in chars_dict and slug not in char_updates:
+            if slug in chars_dict and chars_dict[slug].last_seen_chapter != chapter_number:
                 char = chars_dict[slug]
                 char.last_seen_chapter = chapter_number
                 character_manager.save(char)

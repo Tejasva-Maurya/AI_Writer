@@ -542,6 +542,12 @@ async function generateChapter() {
         showToast(data.message || 'Plot may span multiple chapters', 'warning');
       },
 
+      // Non-fatal problems (a profile or update that couldn't be saved, a failed unload): show them (KI-018)
+      warning: (data) => {
+        console.warn('[NovelForge] Pipeline warning:', data.message);
+        showToast(data.message || 'Something went wrong in this step', 'warning', 6000);
+      },
+
       error: (data) => {
         showToast(`Generation error: ${data.message}`, 'error');
         DOM.textCursor.hidden = true;
