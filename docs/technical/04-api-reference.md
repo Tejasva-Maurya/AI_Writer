@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -26,7 +26,8 @@
 | PUT | `/api/world` | Replace world settings | `saveWorld` |
 | GET | `/api/chapters` | List chapters (no text) | `loadChapters` |
 | GET | `/api/chapters/{number}` | Get one chapter (with text) | `viewChapter`, `openChapterViewModal` |
-| POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline | `generateChapter` |
+| POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline (one at a time) | `generateChapter` |
+| POST | `/api/generate-chapter/cancel` | Stop the running generation | `cancelGeneration` |
 | POST | `/api/refine/character` | LLM: description → character (create or merge) | `refineCharacter` |
 | POST | `/api/refine/scene` | LLM: description → scene (create or merge) | `refineScene` |
 | POST | `/api/refine/world` | LLM: description → merged world settings | `refineWorld` |
@@ -110,6 +111,8 @@ Body:
 ```
 `chapter_number` is optional (default: highest existing + 1). Passing an existing number **overwrites** that chapter.
 
+**One generation at a time** (plan 010, KI-031): while a generation runs, another request gets **409** `A chapter is already being generated. Wait for it to finish or cancel it.` The guard is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 7 already ran.
+
 Response: `200`, `Content-Type: text/event-stream`, headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`.
 The body is a sequence of `data: {json}\n\n` lines. The full event contract is in [02 §W3.4](02-workflows.md#w34-sse-event-contract-backend--frontend). Example stream:
 
@@ -127,12 +130,16 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:284`). Writer errors carry `message` only (`chapter_pipeline.py:198`).
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:284`). Writer errors carry `message` only (`chapter_pipeline.py:198`). A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}` (`main.py:163`).
 
 Consuming it from a shell:
 ```bash
 curl -N -X POST http://127.0.0.1:8000/api/generate-chapter -H "Content-Type: application/json" -d '{"plot":"A storm hits the lab."}'
 ```
+
+### `POST /api/generate-chapter/cancel`
+No body. Cancels the running generation and waits up to 5 s for it to stop, so a new generation is accepted as soon as this returns (plan 010).
+**200** `{"cancelled": true}` if a generation was running, `{"cancelled": false}` if none was. The generation's own stream then ends with the cancelled `error` event above. Profiles already created in step 3 stay. The chapter is saved only in step 7, so a generation cancelled before that saves no chapter.
 
 ## Refinement (LLM builders)
 
@@ -179,9 +186,13 @@ Events (no `type` field; keyed by `status`):
 data: {"status": "pulling manifest", "percent": 0, "total": 0, "completed": 0}
 data: {"status": "pulling 8eeb52dfb3bb", "percent": 42, "total": 4920000000, "completed": 2066400000}
 data: {"status": "success", "model": "llama3.1:8b"}
-data: {"status": "error", "message": "…"}      ← only on transport exceptions
+data: {"status": "error", "message": "…"}
 ```
-⚠ Ollama-side errors are not detected, so the stream can end with `success` even when the pull failed (KI-019).
+The stream ends with exactly one `success` or `error` (plan 010, KI-019):
+- `success` only after Ollama itself sends `{"status": "success"}`.
+- `error` when Ollama answers with a non-200 status (`"Ollama returned 404: pull model manifest: file does not exist"`), sends an `{"error": …}` line (its text is the message), ends without confirming success (`"Ollama ended the download without confirming success"`), or can't be reached (the transport error text, e.g. `"All connection attempts failed"`).
+
+Before plan 010 every pull ended with `success`, even a failed one.
 
 ## Export
 

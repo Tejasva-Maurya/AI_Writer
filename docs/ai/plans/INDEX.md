@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 010  
-**Total plans:** 9
+**Next number:** 011  
+**Total plans:** 10
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -19,3 +19,4 @@
 | 007 | [Consistent, validated slugs, no cross-site API access, escaped HTML (KI-009, KI-010, KI-011)](007-consistent-validated-slugs-no-cross-site-api-access-escaped.md) | `done` | 2026-11-23 | — |
 | 008 | [Leaner pipeline: explicit unload, no dead LLM calls, scene updates, whole-chapter summaries (KI-012, KI-013, KI-014)](008-leaner-pipeline-explicit-unload-no-dead-llm-calls-scene.md) | `done` | 2026-11-23 | — |
 | 009 | [Tolerate wrong-typed LLM output, validated refine merges, visible warnings (KI-015, KI-016, KI-018)](009-tolerate-wrong-typed-llm-output-validated-refine-merges.md) | `done` | 2026-11-23 | — |
+| 010 | [Honest model-pull results, one generation at a time with Cancel (KI-019, KI-031)](010-honest-model-pull-results-one-generation-at-a-time-with.md) | `done` | 2026-11-23 | — |

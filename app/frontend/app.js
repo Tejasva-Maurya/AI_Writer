@@ -71,6 +71,7 @@ const DOM = {
   nextChapterHint:   $('next-chapter-hint'),
   plotInput:         $('plot-input'),
   btnGenerate:       $('btn-generate'),
+  btnCancelGenerate: $('btn-cancel-generate'),
 
   // Center - Pipeline
   pipelineSection:   $('pipeline-section'),
@@ -429,6 +430,7 @@ async function generateChapter() {
   state.isGenerating = true;
   DOM.btnGenerate.disabled = true;
   DOM.btnGenerate.querySelector('.generate-text').textContent = 'Generating...';
+  DOM.btnCancelGenerate.hidden = false;
 
   // Reset & show pipeline
   resetPipeline();
@@ -452,7 +454,9 @@ async function generateChapter() {
     });
 
     if (!response.ok) {
-      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      // e.g. 409 while another generation is running (KI-031): show the server's message
+      const err = await response.json().catch(() => ({}));
+      throw new Error(typeof err.detail === 'string' ? err.detail : `Server returned ${response.status}: ${response.statusText}`);
     }
 
     // Show output section with cursor as text streams
@@ -549,8 +553,14 @@ async function generateChapter() {
       },
 
       error: (data) => {
-        showToast(`Generation error: ${data.message}`, 'error');
         DOM.textCursor.hidden = true;
+        if (data.cancelled) {  // the user pressed Cancel: nothing went wrong (KI-031)
+          resetPipeline();
+          DOM.outputChapterTitle.textContent = 'Cancelled (not saved)';
+          showToast('Generation cancelled', 'info');
+          return;
+        }
+        showToast(`Generation error: ${data.message}`, 'error');
         setStepError();
       },
     });
@@ -564,6 +574,20 @@ async function generateChapter() {
     state.isGenerating = false;
     DOM.btnGenerate.disabled = false;
     DOM.btnGenerate.querySelector('.generate-text').textContent = 'Generate Chapter';
+    DOM.btnCancelGenerate.hidden = true;
+    DOM.btnCancelGenerate.disabled = false;
+  }
+}
+
+// Stops the running generation; its stream then ends with a cancelled `error` event (KI-031)
+async function cancelGeneration() {
+  DOM.btnCancelGenerate.disabled = true;
+  try {
+    const res = await apiPost('/generate-chapter/cancel', {});
+    if (!res.cancelled) DOM.btnCancelGenerate.disabled = false;  // nothing was running yet
+  } catch (e) {
+    showToast(`Could not cancel: ${e.message}`, 'error');
+    DOM.btnCancelGenerate.disabled = false;
   }
 }
 
@@ -1326,6 +1350,7 @@ function escHtml(str) {
 function bindStaticEvents() {
   // Generate button
   DOM.btnGenerate.addEventListener('click', generateChapter);
+  DOM.btnCancelGenerate.addEventListener('click', cancelGeneration);
 
   // Plot textarea — Enter + Ctrl to generate
   DOM.plotInput.addEventListener('keydown', (e) => {

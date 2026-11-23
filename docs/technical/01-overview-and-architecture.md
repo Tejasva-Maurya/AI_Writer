@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v1.0.0 (commit `dead3e3`). **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -128,11 +128,11 @@ flowchart TB
 ### Dependency rules (as implemented)
 
 1. `models.py` depends on nothing in the project. Every other module imports it.
-2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:213` writes export files into `data/` directly.
+2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:253` writes export files into `data/` directly.
 3. `agents/*` depend on `models` and the `ollama` library. They never touch disk.
 4. `pipeline/*` depends on managers, agents and models.
 5. `main.py` depends on everything. The refine endpoints import `agents.specialist` lazily, inside the handler.
-6. Imports are **flat, not package-relative** (`from models import …`). This works because `main.py:13` and `chapter_pipeline.py:12` insert `app/backend/` into `sys.path`, and uvicorn is started with `app/backend/` as the working directory. Keep this style unless you restructure the whole package.
+6. Imports are **flat, not package-relative** (`from models import …`). This works because `main.py:14` and `chapter_pipeline.py:12` insert `app/backend/` into `sys.path`, and uvicorn is started with `app/backend/` as the working directory. Keep this style unless you restructure the whole package.
 
 ## 6. The dual-model design and VRAM strategy
 
@@ -215,14 +215,17 @@ AI_Writer/
 └── .gitignore
 ```
 
-How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:41`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
+How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:42`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
 
 ## 8. Process & runtime model
 
-- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:412-414`).
+- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:476-478`).
 - **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast.
-- **No background jobs, queues or locks.** A generation lives exactly as long as its HTTP response stream. Two generations at once are not prevented on the server; the frontend blocks a second one only within the same tab (`state.isGenerating`).
-- **State.** All durable state is in `data/`. The server keeps no in-memory state between requests, apart from the module-level constant `RECOMMENDED_MODELS`.
+- **One generation at a time** (plan 010, KI-031). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter` gets **409**.
+  - `POST /api/generate-chapter/cancel` stops it.
+  - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream.
+  - There are no other background jobs or locks.
+- **State.** All durable state is in `data/`. In memory, the server keeps only the module-level constant `RECOMMENDED_MODELS` and the running generation's task (`_generation`, `main.py:162`), which is gone after a restart.
 
 ## 9. Security posture (summary)
 
@@ -230,7 +233,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 |---|---|
 | Network exposure | Bound to loopback (`127.0.0.1`) only. |
 | Authentication | None. |
-| Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:33`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
+| Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:34`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
 | Input → filesystem | `slug` values (from the URL path, request bodies or LLM output) become filenames without sanitisation (KI-010). |
 | HTML injection | Most rendering goes through `escHtml()`. The world snapshot and the model browser do not (KI-011). |
 | Secrets | None used or stored. |

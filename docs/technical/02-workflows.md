@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -52,28 +52,36 @@ Notes:
 
 ## W2 — Frontend boot
 
-1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:46-51`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:54-61`).
-2. `DOMContentLoaded` listener #1 (`app.js:1444`):
+1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:47-52`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:55-62`).
+2. `DOMContentLoaded` listener #1 (`app.js:1469`):
    1. `checkConnection()` → `fetch /api/novel-meta` with a 3 s timeout. On a network failure it shows the toast *"⚠ Cannot connect to backend…"* for 8 s.
    2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `updateChapterHint()`.
-3. `DOMContentLoaded` listener #2 (`app.js:1883`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
+3. `DOMContentLoaded` listener #2 (`app.js:1908`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
 4. Each loader stores its result in `state.*` and renders: sidebars (character/scene cards), header title, chapter count badge, history pills, "CHAPTER N" label.
 5. If a loader fails it logs `console.warn` and falls back to empty data. The UI stays usable.
 
 ## W3 — Chapter generation (the 7-step pipeline)
 
-### W3.1 Trigger (frontend: `generateChapter()`, `app.js:420-568`)
+### W3.1 Trigger (frontend: `generateChapter()`, `app.js:421-580`)
 
-1. Validates that the plot textarea is not empty and that no generation is running (`state.isGenerating`).
-2. Disables the button, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
+1. Validates that the plot textarea is not empty and that no generation is running in this tab (`state.isGenerating`).
+2. Disables the button, shows **✕ Cancel** next to it, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
 3. `POST`s `/api/generate-chapter` with `{plot}` only. The backend numbers the chapter itself (`get_next_number()`: highest existing number + 1, read from disk), so a gap or a stale page can't overwrite a chapter. The UI shows `nextChapterNumber()` (the same rule over `state.chapters`) while streaming and takes the real number from the `complete` event. (Before plan 006 it sent `count + 1`, which overwrote chapters after a gap: KI-008.)
-4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:573-612`). Each JSON event is dispatched by its `type` (see W3.4).
+4. A non-2xx response throws with the server's `detail` (e.g. the **409** "A chapter is already being generated…" when another tab or client is generating), shown as an error toast.
+5. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:597-636`). Each JSON event is dispatched by its `type` (see W3.4).
+6. **✕ Cancel** → `cancelGeneration()` (`app.js:583-592`) disables the button and `POST`s `/api/generate-chapter/cancel`. The stream then ends with the cancelled `error` event (W3.4). The `finally` block hides **Cancel** and re-enables **Generate** whichever way the run ends.
 
-### W3.2 Backend entry (`main.py:160-177`)
+### W3.2 Backend entry (`main.py:171-207`)
 
+- **One generation at a time** (plan 010, KI-031): if the task in `_generation["task"]` is still running, → **409** `A chapter is already being generated. Wait for it to finish or cancel it.`
 - Loads `NovelMeta` from `data/novel_meta.json` to get the model names.
-- `chapter_number = req.chapter_number or chapter_manager.get_next_number()`. The frontend always sends a number, so the backend fallback is effectively unused.
-- Returns `StreamingResponse(run_pipeline(...), media_type="text/event-stream")` with headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`.
+- `chapter_number = req.chapter_number or chapter_manager.get_next_number()`. The frontend sends no number (plan 006), so the backend picks highest + 1.
+- Starts `produce()` as an `asyncio.Task` (stored in `_generation`): it iterates `run_pipeline(...)` and puts each SSE string on an `asyncio.Queue`, then `None` when it ends. If the task is cancelled, it first queues `error {"message": "Generation cancelled", "cancelled": true}`.
+- Returns `StreamingResponse(event_stream(), media_type="text/event-stream")` with headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`. `event_stream()` yields the queued events until `None`.
+- **Stopping:**
+  - `POST /api/generate-chapter/cancel` (`main.py:210-217`) cancels the task and waits up to 5 s for it to finish, so the guard is free when it returns.
+  - If the client disconnects, Starlette cancels the stream, and `event_stream()`'s `finally` cancels the task. Closing the tab therefore still stops the generation, as before plan 010.
+  - Cancellation interrupts the pipeline at its current `await` (an Ollama call or a streamed token). Its `except Exception` doesn't catch `CancelledError`, so the open Ollama request is closed.
 
 ### W3.3 Pipeline steps (`app/backend/pipeline/chapter_pipeline.py`)
 
@@ -114,7 +122,7 @@ Primary characters with no (successful) update still get `last_seen_chapter = N`
 
 ### W3.4 SSE event contract (backend → frontend)
 
-| `type` | Payload fields | Emitted at | Frontend handler (`app.js:465-556`) |
+| `type` | Payload fields | Emitted at | Frontend handler (`app.js:469-566`) |
 |---|---|---|---|
 | `status` | `step` (1–7), `message` | Start/end of each step | Marks the previous step done, the current one active, writes `message` to the step log, sets progress = step/7 |
 | `multi_chapter` | `estimated`, `message` | Step 1 if estimated > 1 | Shows the notice panel + warning toast |
@@ -122,7 +130,7 @@ Primary characters with no (successful) update still get `last_seen_chapter = N`
 | `new_scene` | `name`, `slug` | Step 3 per saved scene | Same, for scenes |
 | `warning` | `message` | Step 3 profile that can't be saved, step 5 unload failure, step 7 character update that fails validation | Warning toast (6 s) and `console.warn` (since plan 009; before, ignored: KI-018) |
 | `token` | `content` | Step 6, per chunk | Appends to the current `<p>`. Splits paragraphs on `\n\n`. Moves the blinking cursor |
-| `error` | `message`, `detail?` | Writer error or uncaught exception | Error toast, hides the cursor, paints the active step red |
+| `error` | `message`, `detail?`, `cancelled?` | Writer error or uncaught exception; `cancelled: true` (message "Generation cancelled") when the generation was cancelled (`main.py:163`, plan 010) | Hides the cursor. Normal errors: error toast and paints the active step red. Cancelled: resets the pipeline steps, sets the output title to "Cancelled (not saved)", info toast "Generation cancelled" |
 | `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, sets the badge from `chapter_number`, reloads chapters, characters **and novel meta** (step 7 updated profiles and `total_chapters` on disk; the Edit and Settings modals read that state), clears the plot textarea, success toast |
 
 Wire format: each event is one line `data: {json}\n\n` (`chapter_pipeline.py:20-23`). No `event:` or `id:` fields are used.
@@ -189,16 +197,18 @@ sequenceDiagram
 |---|---|
 | Ollama not running / model missing during steps 1–5 or 7 | Exception → `error` event "Pipeline error: …" with traceback. Nothing saved, except profiles already written in step 3. |
 | Specialist returns non-JSON | `_extract_json` returns `{}`. Downstream `.get()` defaults apply: tone "action", no entities, empty summaries. Generation continues with less context. |
-| Specialist returns a wrong type (e.g. `"estimated_chapters": "2"`) | `TypeError` on `>` comparison → whole pipeline aborts (KI-015). |
-| New entity JSON fails Pydantic validation (e.g. `type: "supporting"`) | `warning` event (ignored by the UI). Entity not saved. Pipeline continues. |
+| Specialist returns a wrong type (e.g. `"estimated_chapters": "2"`) | Coerced (`as_int`, `as_text`, `as_str_list`), so the pipeline continues (plan 009; before, a `TypeError` aborted it, KI-015). |
+| New entity JSON fails Pydantic validation | Most bad values are coerced by the models (e.g. `type: "supporting"` → `temporary`, plan 009). If it still fails (e.g. no name), a `warning` event (a warning toast since plan 009). Entity not saved. Pipeline continues. |
 | A "new" entity's profile reuses an existing slug (the specialist missed the match in step 2) | `warning` event "Could not save character profile: Character 'x' already exists". The existing profile is kept unchanged and still used for context. Pipeline continues. (Before plan 004 it was overwritten, KI-036.) |
 | Writer error | `error` event "Writer error: …". Pipeline returns **before saving**. Streamed text is lost on the server; the browser still shows it. |
-| Browser tab closed mid-stream | Starlette stops iterating the generator. Whatever was not yet saved is lost. |
+| Browser tab closed mid-stream | Starlette cancels the stream, which cancels the generation task (plan 010). Whatever was not yet saved is lost, and the next generation is accepted at once. |
+| **✕ Cancel** pressed | The task is cancelled at its current `await`. The stream ends with `error {cancelled: true}`. Profiles already written in step 3 stay; the chapter is saved only in step 7. A cancel during step 7 can leave the chapter saved with only some character updates applied. |
+| A second generation while one runs (another tab or client) | **409** before anything starts (plan 010; before, both ran and wrote the same chapter number, KI-031). |
 
 ## W4 — Character / Scene build (refine)
 
-Frontend: `refineCharacter()` (`app.js:1535-1577`) / `refineScene()` (`app.js:1582-1622`).
-Backend: `refine_character` (`main.py:310-344`) / `refine_scene` (`main.py:347-379`).
+Frontend: `refineCharacter()` (`app.js:1560-1602`) / `refineScene()` (`app.js:1607-1647`).
+Backend: `refine_character` (`main.py:374-408`) / `refine_scene` (`main.py:411-443`).
 
 ```mermaid
 sequenceDiagram
@@ -233,10 +243,10 @@ Merge semantics for "Update Existing":
 
 ## W5 — World build (refine + merge)
 
-Frontend `refineWorld()` (`app.js:1627-1659`) → `POST /api/refine/world` (`main.py:382-409`).
+Frontend `refineWorld()` (`app.js:1652-1684`) → `POST /api/refine/world` (`main.py:446-473`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
-2. Merge into the existing world (`main.py:391-407`):
+2. Merge into the existing world (`main.py:455-471`):
    - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): the LLM value is read as a list (a single string is one item), then each truthy item that is not already present is appended (exact-string dedupe, order kept). Before plan 009 a string replaced the whole list or caused a 500.
    - **String fields:** replaced when the new value is non-empty.
    - Unknown keys are ignored.
@@ -256,18 +266,20 @@ Frontend `refineWorld()` (`app.js:1627-1659`) → `POST /api/refine/world` (`mai
 
 ## W7 — World settings & novel settings editing
 
-- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:978-1025`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
-- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1030-1070`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`. The body is `{...state.novelMeta, …form}`, so `total_chapters` and `created_at` are kept, and an empty model select falls back to the stored model. `state.novelMeta` is reloaded after every generation, so the count is current. Opening the modal (button or **Alt+S**) fills the model lists at once and refreshes them from Ollama (see W8). (KI-006/KI-007, fixed in plan 006.)
-- **Inline title edit** (`initTitleEdit`, `app.js:1251-1290`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
+- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:1002-1049`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
+- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1054-1094`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`. The body is `{...state.novelMeta, …form}`, so `total_chapters` and `created_at` are kept, and an empty model select falls back to the stored model. `state.novelMeta` is reloaded after every generation, so the count is current. Opening the modal (button or **Alt+S**) fills the model lists at once and refreshes them from Ollama (see W8). (KI-006/KI-007, fixed in plan 006.)
+- **Inline title edit** (`initTitleEdit`, `app.js:1275-1314`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
 
 ## W8 — Model management
 
 1. Opening **⚙ Settings** (button or **Alt+S**: both call `openSettingsModal`) first fills both `<select>`s with the current models, then `loadModels()` → `GET /api/models` (cached in `_cachedModels` until **↻ Refresh**) refreshes the lists and the model browser, keeping any choice made meanwhile.
-2. Backend (`main.py:234-263`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
+2. Backend (`main.py:274-303`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
    ⚠ "Installed" matches **any tag in the same family**, so `gemma3:4b` installed marks `gemma3:12b` as installed (KI-020).
 3. The UI fills both `<select>`s (installed models + current selections, the latter tagged "(not installed)") and renders the model browser cards with **Set Writer / Set Specialist** (installed) or **⬇ Pull** (not installed).
 4. **Pull** → `POST /api/models/pull {model}` → the backend streams `POST /api/pull` from Ollama, re-emitting `data: {status, percent, total, completed}`, then `{status:"success", model}` or `{status:"error", message}`.
-   ⚠ Ollama error lines (`{"error": …}`) and HTTP error statuses are not detected, so a failed pull can still end with `success` (KI-019).
+   - `success` comes only after Ollama's own `{"status": "success"}` line.
+   - A non-200 status, an `{"error": …}` line, a stream that ends without success, or an unreachable Ollama each end in `error` (plan 010, KI-019).
+   - The UI shows "Pull failed: …" in the card and a toast.
 5. Selecting a model only changes the `<select>`. It is saved when the user clicks **Save Settings**.
 
 ## W9 — Chapter history & Full View reader
@@ -280,7 +292,7 @@ Frontend `refineWorld()` (`app.js:1627-1659`) → `POST /api/refine/world` (`mai
 ## W10 — Export
 
 1. `exportNovel(fmt)` creates a temporary `<a href="/api/export/{fmt}">` and clicks it.
-2. Backend (`main.py:193-215`) loads all chapters with text, sorted by number, and builds:
+2. Backend (`main.py:233-255`) loads all chapters with text, sorted by number, and builds:
    - **md:** `# {title}` then `## Chapter {n}: {title}` + text per chapter.
    - **txt:** `{title}` + `====` underline, then `Chapter {n}: {title}` + 40 dashes + text.
 3. Writes the result to `data/{title with spaces→_}.{fmt}` (a side effect that stays on disk), then returns it as a `FileResponse` download.

@@ -1,21 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 009. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 010. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 15 open · 1 partly fixed (KI-023) · 22 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-021, KI-022, KI-027, KI-036, KI-038).
+**At a glance:** 13 open · 1 partly fixed (KI-023) · 24 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-021, KI-022, KI-027, KI-031, KI-036, KI-038).
 
-### Open (16)
+### Open (14)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
-| KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error | Open |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs | Open |
@@ -24,14 +23,13 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) | Open |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
-| KI-031 | Medium | Backend | No concurrency guard or cancel for generations | Open |
 | KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) | Open |
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 
-### Fixed (22)
+### Fixed (24)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -54,9 +52,11 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-015 | Low | Pipeline | `estimated_chapters > 1` crashes when the LLM returns a string | Fixed in Unreleased [plan 009] |
 | KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Fixed in Unreleased [plan 009] |
 | KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Fixed in Unreleased [plan 009] |
+| KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error ✔ | Fixed in Unreleased [plan 010] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
+| KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
 
@@ -155,17 +155,18 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Fix:** normalise LLM output before construction (map unknown types → `temporary`, `str()` the age, derive a missing slug). Pass `format="json"` to Ollama.
 
 ### KI-017 — Export side effects · Low
-- `main.py:211-215` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
+- `main.py:251-255` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
 
 ### KI-018 — `warning` SSE ignored · Low · ✅ Fixed in Unreleased (plan 009)
 - **Status: Fixed in Unreleased [plan 009].** `generateChapter`'s handler map has a `warning` entry: a warning toast (6 s) plus `console.warn`. Verified in the browser pane: a failed step-5 unload showed "⚠ Could not unload the specialist model: …" and the chapter still completed. The evidence below describes the pre-fix code.
 - The pipeline emits `warning` (`chapter_pipeline.py:107,115`), but `generateChapter`'s handler map has no `warning` key. **Fix:** add a handler that shows a warning toast or step log.
 
-### KI-019 — False-success model pulls · Medium
+### KI-019 — False-success model pulls · Medium · ✅ Fixed in Unreleased (plan 010)
+- **Status: Fixed in Unreleased [plan 010].** `pull_model` (`main.py:306-364`) turns a non-200 response into `{"status": "error", "message": "Ollama returned <code>: <Ollama's error>"}`, stops at the first `{"error": …}` line, and ends with `success` only after Ollama's own `{"status": "success"}`. A stream that ends without it reports "Ollama ended the download without confirming success". Verified against a fake Ollama: the old code reported `success` for an HTTP 404, an error line and a truncated stream; the new code reports each as an error, and Settings shows "Pull failed: …". The evidence below describes the pre-fix code.
 - `pull_model` neither checks `resp.status_code` nor detects `{"error": …}` lines. After the loop it always yields `success` (`main.py:273-294`). **Fix:** check the status, detect the `error` key, and only emit success after a final `{"status":"success"}` from Ollama.
 
 ### KI-020 — Family-prefix "installed" detection · Low
-- `main.py:252-255`: `inst.startswith(family + ":")` marks every tag of a family as installed. **Fix:** exact match (also treat `name` ≡ `name:latest`).
+- `main.py:292-295`: `inst.startswith(family + ":")` marks every tag of a family as installed. **Fix:** exact match (also treat `name` ≡ `name:latest`).
 
 ### KI-021 — Hard-coded API base · Low · ✅ Fixed in Unreleased (plan 007)
 - **Status: Fixed in Unreleased [plan 007]** (as part of KI-010). `const API = '/api'`: same origin, so the UI works as `127.0.0.1:8000` and `localhost:8000` and the server needs no CORS. Verified: the UI loaded and worked from `http://localhost:8000`. The evidence below describes the v1.0.0 code.
@@ -178,10 +179,10 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 
 ### KI-023 — Documentation/UI copy drift · Low
 - README "Architecture" listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json` and "JSON/SQLite" storage → **corrected in [Unreleased]**.
-- Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:765`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
+- Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:766`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
 
 ### KI-024 — Pipeline UI state not reset · Low
-- `completePipeline` sets `opacity: 0.4` (`app.js:670`). `setStepError` sets inline red border/background (`:685-686`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
+- `completePipeline` sets `opacity: 0.4` (`app.js:694`). `setStepError` sets inline red border/background (`:709-710`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
 
 ### KI-025 — No tests / lint / CI / logging · Medium
 - No test files, no linters, no CI workflows. No `logging` usage (`except: pass` in managers hides errors). **Suggested start:** pytest + FastAPI `TestClient` with a stubbed `ollama` module; `ruff`; a `logging` config writing to the console.
@@ -194,7 +195,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - The character modal sends neither `first_appeared_chapter` nor `last_seen_chapter`, so once KI-001 is fixed they will reset to 1 on every edit. Same for the scene's `first_appeared_chapter`. **Fix:** merge the payload into the existing record server-side (PATCH semantics), or round-trip all fields.
 
 ### KI-028 — Fallback specialist mismatch · Low
-- `app.js:172` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:148`).
+- `app.js:173` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:148`).
 
 ### KI-029 — Specialist stays resident after refine · Low
 - Refine endpoints call `_call` with the default `keep_alive=-1`. **Fix:** use `0` or a finite value (e.g. `120`) for refine calls.
@@ -202,16 +203,24 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 ### KI-030 — User/sample data in VCS · Low
 - `data/` holds personal novel content plus an export file, and `novel_meta.total_chapters` is 1 with no chapters. **Fix:** ignore `data/` (keep a `data.sample/` or seed on first run).
 
-### KI-031 — No concurrency guard / cancellation · Medium
+### KI-031 — No concurrency guard / cancellation · Medium · ✅ Fixed in Unreleased (plan 010)
+- **Status: Fixed in Unreleased [plan 010].**
+  - **One at a time:** `generate_chapter` (`main.py:171-207`) runs the pipeline as one `asyncio.Task` held in `_generation`. While it runs, a second request gets **409** "A chapter is already being generated. Wait for it to finish or cancel it."
+  - **Cancel:** `POST /api/generate-chapter/cancel` (`main.py:210-217`) cancels it; the stream ends with `error {"message": "Generation cancelled", "cancelled": true}`. The UI has a **✕ Cancel** button next to **Generate**.
+  - **Closing the tab** still stops the generation and releases the guard.
+  - **Verified (stubbed ollama):**
+    - Old code: two overlapping generations both returned 200 and both completed as chapter 1, so one overwrote the other.
+    - New code: the second request got 409. Cancel ended the stream within 0.1 s and saved no chapter, and the next generation was accepted. A client that disconnected after 2 s left no chapter, and nothing was still running.
+  - The evidence below describes the pre-fix code.
 - Two tabs (or API clients) can generate the same chapter at once. Writes race and can overwrite each other. There is no cancel button. Closing the tab aborts the stream and loses unsaved work. **Fix:** a server-side lock per novel, plus a cancel endpoint or `AbortController` in the UI.
 
 ### KI-032 — Minor UI glitches · Low
-- After generation, `state.currentChapter` lacks `characters_featured`/`scenes_featured`, so Full View tags are empty (`app.js:529-533`).
-- If the very first token chunk contains `\n\n`, its text is held back by the `app.js:494` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
+- After generation, `state.currentChapter` lacks `characters_featured`/`scenes_featured`, so Full View tags are empty (`app.js:533-537`).
+- If the very first token chunk contains `\n\n`, its text is held back by the `app.js:498` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.
 
 ### KI-033 — Partial `OLLAMA_HOST` support · Low
-- ollama-python honours `OLLAMA_HOST`, but `main.py:241,278` hard-code `http://localhost:11434`.
+- ollama-python honours `OLLAMA_HOST`, but `main.py:281,319` hard-code `http://localhost:11434`.
 
 ### KI-034 — "Fully offline" claim · Low
 - Google Fonts are loaded **twice**: `<link>` tags in `index.html:9-11` and an `@import` in `style.css:6`. The app works offline with fallback fonts. Either self-host the fonts (change both files) or soften the README claim.
@@ -231,8 +240,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Fix:** return **409** from POST when the slug exists (and show the message in the UI), or append a numeric suffix. Apply the same check in refine create and pipeline step 3 (where it should fall back to "existing").
 
 ### KI-037 — Streaming text cursor never hides · Low · Verified ✔
-- **Evidence:** `.text-cursor { display: inline; }` (`style.css:1189-1190`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:525`, `:401`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
-- **Fix:** add `.text-cursor[hidden] { display: none; }` next to the rule (the same pattern as `.modal-overlay[hidden]`, `style.css:1299`).
+- **Evidence:** `.text-cursor { display: inline; }` (`style.css:1191-1192`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:529`, `:402`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
+- **Fix:** add `.text-cursor[hidden] { display: none; }` next to the rule (the same pattern as `.modal-overlay[hidden]`, `style.css:1301`).
 
 ### KI-038 — Names without letters or digits produce an empty slug · Low · Verified ✔ · ✅ Fixed in Unreleased (plan 007)
 - **Status: Fixed in Unreleased [plan 007]** (as part of KI-009/KI-010). POST derives `make_slug(slug or name)` and returns **422** "name must contain at least one letter or digit" when that is empty; the managers never write an empty slug. Verified: `???` and `!!!` → 422, no `.json` created; `林凡` → `林凡.json` and `Élodie Brontë` → `élodie_brontë` (any-script names still work). An old `.json` must still be deleted by hand. The evidence below describes the pre-fix code.

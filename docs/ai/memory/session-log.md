@@ -96,3 +96,13 @@
   - Old vs new with a hostile stub: list analysis, `"2"` chapters and a null title crashed old (the last one lost a streamed chapter), while new completes. The merge made a character vanish on old but not on new. The legacy broken file is skipped by old and listed by new. A warning toast was verified in the UI.
 - **Plan:** 009 (done).
 - **Open threads:** Committed and pushed in the same session. Real model behaviour with `format="json"` not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-019, KI-031 (plan 010)
+- **Goal:** Stop model pulls from reporting false success, allow only one generation at a time, and add a way to cancel one.
+- **Outcome:**
+  - `pull_model`: a non-200 status or an `{"error": …}` line becomes an `error` event; `success` only after Ollama's own `success` line.
+  - `generate_chapter` runs the pipeline as an `asyncio.Task` feeding a queue; 409 while it runs; new `POST /api/generate-chapter/cancel`; a client disconnect cancels the task.
+  - UI: **✕ Cancel** button (shown while generating), the cancelled `error` is an info toast, the 409 `detail` is shown.
+  - Old vs new (stub ollama, fake Ollama pull): old reported success for a 404, an error line and a truncated pull, and let two generations both write chapter 1; new reports each pull error, returns 409, cancels within 0.1 s without saving, and frees the guard on disconnect. UI checked in the browser pane.
+- **Plan:** 010 (done).
+- **Open threads:** Not committed yet (waiting for the user). Real Ollama pull and real cancellation of an Ollama generation not exercised.

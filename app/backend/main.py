@@ -4,6 +4,7 @@ Run from AI_Writer/app/backend/ with: uvicorn main:app --host 127.0.0.1 --port 8
 """
 import sys
 import json
+import asyncio
 import httpx
 from pathlib import Path
 from datetime import datetime
@@ -157,14 +158,43 @@ async def get_chapter(number: int):
 
 
 # ── GENERATE CHAPTER (SSE) ────────────────────────────────────
+# One generation at a time (KI-031): the pipeline runs as a task that feeds the SSE stream
+_generation: Dict[str, Optional[asyncio.Task]] = {"task": None}
+_CANCELLED_EVENT = f"data: {json.dumps({'type': 'error', 'message': 'Generation cancelled', 'cancelled': True})}\n\n"
+
+
+def _generation_running() -> bool:
+    task = _generation["task"]
+    return task is not None and not task.done()
+
+
 @app.post("/api/generate-chapter")
 async def generate_chapter(req: GenerateChapterRequest):
+    if _generation_running():
+        raise HTTPException(409, "A chapter is already being generated. Wait for it to finish or cancel it.")
     meta = novel_meta_manager.load()
     chapter_number = req.chapter_number or chapter_manager.get_next_number()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def produce():
+        try:
+            async for sse_event in run_pipeline(req.plot, chapter_number, meta):
+                queue.put_nowait(sse_event)
+        except asyncio.CancelledError:
+            queue.put_nowait(_CANCELLED_EVENT)
+            raise
+        finally:
+            queue.put_nowait(None)
+
+    task = asyncio.create_task(produce())
+    _generation["task"] = task
 
     async def event_stream():
-        async for sse_event in run_pipeline(req.plot, chapter_number, meta):
-            yield sse_event
+        try:
+            while (sse_event := await queue.get()) is not None:
+                yield sse_event
+        finally:
+            task.cancel()  # the client went away (tab closed): stop the pipeline as well
 
     return StreamingResponse(
         event_stream(),
@@ -175,6 +205,16 @@ async def generate_chapter(req: GenerateChapterRequest):
             "Connection": "keep-alive"
         }
     )
+
+
+@app.post("/api/generate-chapter/cancel")
+async def cancel_generation():
+    if not _generation_running():
+        return {"cancelled": False}
+    task = _generation["task"]
+    task.cancel()
+    await asyncio.wait({task}, timeout=5)  # once this returns, a new generation is accepted
+    return {"cancelled": True}
 
 
 # ── NOVEL META ────────────────────────────────────────────────
@@ -271,6 +311,7 @@ async def pull_model(body: dict):
         raise HTTPException(400, "model name required")
 
     async def stream_pull():
+        confirmed = False
         try:
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream(
@@ -278,18 +319,41 @@ async def pull_model(body: dict):
                     "http://localhost:11434/api/pull",
                     json={"name": model_name, "stream": True}
                 ) as resp:
+                    # Ollama reports failures as a non-200 status or an {"error": ...} line (KI-019)
+                    if resp.status_code != 200:
+                        detail = (await resp.aread()).decode("utf-8", "replace").strip()
+                        try:
+                            detail = json.loads(detail).get("error") or detail
+                        except (ValueError, AttributeError):
+                            pass
+                        yield f"data: {json.dumps({'status': 'error', 'message': f'Ollama returned {resp.status_code}: {detail}'})}\n\n"
+                        return
                     async for line in resp.aiter_lines():
                         if line.strip():
                             try:
                                 progress = json.loads(line)
-                                status = progress.get("status", "")
+                            except ValueError:
+                                continue
+                            if not isinstance(progress, dict):
+                                continue
+                            if progress.get("error"):
+                                yield f"data: {json.dumps({'status': 'error', 'message': str(progress['error'])})}\n\n"
+                                return
+                            status = progress.get("status", "")
+                            if status == "success":
+                                confirmed = True
+                                continue
+                            try:
                                 total = progress.get("total", 0)
                                 completed = progress.get("completed", 0)
                                 pct = int((completed / total) * 100) if total > 0 else 0
                                 yield f"data: {json.dumps({'status': status, 'percent': pct, 'total': total, 'completed': completed})}\n\n"
                             except Exception:
                                 pass
-            yield f"data: {json.dumps({'status': 'success', 'model': model_name})}\n\n"
+            if confirmed:
+                yield f"data: {json.dumps({'status': 'success', 'model': model_name})}\n\n"
+            else:
+                yield f"data: {json.dumps({'status': 'error', 'message': 'Ollama ended the download without confirming success'})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
 

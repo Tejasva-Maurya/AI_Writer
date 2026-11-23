@@ -26,6 +26,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   - **PostToolUse / ExitPlanMode**: approved plans are saved automatically to `docs/ai/plans/NNN-slug.md` and indexed (first saved live: plan 002).
   - **Stop**: blocks finishing (once) when files under `app/` changed but `docs/CHANGELOG.md` was not updated.
   [plan 001] [plan 002]
+- **✕ Cancel** button next to **Generate Chapter**, and `POST /api/generate-chapter/cancel`: stops the running generation within a moment; nothing is saved unless the last step had already run. [plan 010] [KI-031]
 
 ### Changed
 - Specialist calls use Ollama's JSON mode (`format="json"`), and auto-created characters default to supporting (`temporary`) unless the model marks them as central. Character, location and world fields accept near-miss types (e.g. `"age": 17`, `"type": "supporting"`, a single string for a list) and store them coerced, instead of rejecting them. [plan 009] [KI-016]
@@ -71,6 +72,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Chapter generation no longer fails, or loses an already-written chapter, when the specialist returns a value with the wrong type (text where a number is expected, a list instead of an object, an empty title). [plan 009] [KI-015]
 - Building or updating a character or location can no longer make it disappear: refine merges are validated before saving, auto-profiles with near-miss values are kept instead of dropped, and files saved with wrong types by older versions load again. [plan 009] [KI-016]
 - Pipeline warnings (a profile that couldn't be saved, a failed unload, a rejected update) are shown as warning toasts instead of being ignored. [plan 009] [KI-018]
+- Pulling a model in Settings no longer reports "installed" when the download failed: an unknown model name, an Ollama error or a download that stopped early now shows "Pull failed: …" with Ollama's reason. [plan 010] [KI-019]
+- Only one chapter is generated at a time: a second request (another tab or a script) gets 409 "A chapter is already being generated" instead of running in parallel and overwriting the same chapter file. Closing the tab still stops the generation, and the next one is accepted at once. [plan 010] [KI-031]
 
 
 ### Security

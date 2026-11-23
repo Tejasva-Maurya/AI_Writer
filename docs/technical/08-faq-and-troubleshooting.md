@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
 
 ## Part A — Troubleshooting
 
@@ -45,8 +45,14 @@ A v1.0.0 defect (KI-002), **fixed in [Unreleased] (plan 003)**: the World Settin
 ### A7. The Build tab says "✓ Created: undefined"
 A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. The tab now shows the created name.
 
-### A8. A model pull says "installed" but the model is not there
-The pull progress stream does not detect Ollama errors (KI-019), and "installed" badges match any tag of the same family (KI-020). Verify with `ollama list`. Pull manually with `ollama pull <exact:tag>`.
+### A8. A model pull says "installed" but the model is not there, or "Pull failed: …"
+- Since plan 010 (KI-019) a pull reports success only when Ollama confirms it. Otherwise you see "Pull failed:" plus Ollama's reason:
+  - "Ollama returned 404: pull model manifest: file does not exist": the name or tag is wrong.
+  - "max retries exceeded …": a network problem.
+  - "Ollama ended the download without confirming success": the download stopped early. Pull again.
+  - "All connection attempts failed": Ollama isn't running.
+- Before plan 010 every pull ended with "installed".
+- "Installed" badges still match any tag of the same family (KI-020). Verify with `ollama list`, and pull manually with `ollama pull <exact:tag>`.
 
 ### A9. A character/location I added by hand doesn't show up
 `get_all()` silently skips files that are invalid JSON or have no `name`/`slug`. Wrong-typed values (an unknown `type`, a numeric `age`, a string for a list) are coerced since plan 009, so such files load again. Validate the file: start Python in `app/backend/` and run `Character(**json.load(open(path)))`.
@@ -69,6 +75,13 @@ It is a pipeline `warning` (shown since plan 009, KI-018): something non-fatal f
 ### A14. "Failed to save character: … 409 … already exists"
 Creating never overwrites an existing character or location (since plan 004, KI-036). The name you typed turns into the same file name (slug) as an existing entry. For example, "Elder Wu", "elder  wu" and "Elder-Wu!" all become `elder_wu`. **Either** give the new one a distinct name, **or** close the form and use **Edit** on the existing card. In the Build tabs, choose it under **Update Existing**. During chapter generation the same situation is handled silently: the existing profile is kept.
 A name made only of symbols (e.g. `???`) is refused with **422** "name must contain at least one letter or digit" (since plan 007, KI-038). A `data/characters/.json` (or `data/scenes/.json`) left by an older version can't be edited or deleted from the UI; delete that file by hand.
+
+### A15. "Failed to generate chapter: A chapter is already being generated…"
+Only one chapter is generated at a time (since plan 010, KI-031). Another tab or a script (API **409**) is still generating.
+- Wait for it to finish, or press **✕ Cancel** in the tab that started it.
+- A script can call `POST /api/generate-chapter/cancel`.
+- Closing the tab that started it also stops it.
+- If no generation should be running, restart the server: the guard lives in memory.
 
 ## Part B — FAQ
 

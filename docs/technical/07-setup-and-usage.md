@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -110,15 +110,17 @@ Colour code: **purple** = characters, **gold** = locations, **mint** = world.
 
 ### 5.2 Writing chapters (Plot Writing tab)
 
-1. The label shows **CHAPTER N** (N = number of existing chapters + 1).
+1. The label shows **CHAPTER N** (N = highest existing chapter number + 1, the number the backend will use).
 2. Describe *what happens*, not prose. Name characters and places explicitly. That is how the pipeline finds them in the database or creates new profiles. Example:
    > *Xiao Fan discovers a cultivation technique hidden in the Azure Cave. Practising it causes a spiritual explosion that draws Elder Wu and two inner disciples to investigate.*
 3. Press **▶ Generate Chapter**, `Ctrl+Enter` (in the textarea) or `Alt+G` (anywhere).
 4. Watch the 7 steps: Analyze Plot → Extract Entities → Build Profiles → Optimize Context → Prepare Model → Write Chapter (text streams in) → Summarize & Save. Newly discovered characters/locations pop up as tags and toasts, and they appear in the sidebars. A yellow ⚠ toast means a non-fatal problem in a step (e.g. a profile that couldn't be saved); the chapter still completes ([08 A13b](08-faq-and-troubleshooting.md)).
 5. When the run completes, the title and word count are filled in, the chapter is added to **HISTORY**, and the plot box clears.
+6. To stop a run, press **✕ Cancel** next to the Generate button (shown only while generating). The steps reset and a "Generation cancelled" toast appears. Nothing is saved unless the last step had already run. Character/location profiles created in step 3 stay.
 
 Tips:
 - First generation is slow while models load into VRAM. Within 5 minutes the writer stays warm.
+- One chapter is generated at a time. If another tab (or a script) is already generating, **Generate** shows "A chapter is already being generated. Wait for it to finish or cancel it." Closing the tab that started a generation also stops it.
 - If the plot clearly spans several chapters, you'll see a notice. Only the current chapter is written. Split the plot yourself.
 - Chapter quality depends heavily on the summaries of earlier chapters. Use a capable specialist model if summaries look poor.
 - There is no "regenerate" or "delete chapter" button. To redo the last chapter, delete `data/chapters/NNN.json` while the server runs, reload the page, and generate again.

@@ -125,6 +125,7 @@ The launcher will:
    - Summarizes for future continuity
 4. When complete, the chapter appears below with word count
 5. Use **⛶ Full View** to open the chapter in a distraction-free reading modal
+6. Changed your mind mid-run? Click **✕ Cancel** next to the Generate button. The run stops and nothing is saved (new character/location profiles already created stay). One chapter is generated at a time, so a second tab gets "A chapter is already being generated" until the first finishes or is cancelled.
 
 ### Managing Characters
 
@@ -227,6 +228,8 @@ The backend stores all data as plain JSON files under `data/` (no database). See
 - Ensure your selected models are pulled: `ollama pull gemma3:12b`
 - Check the backend terminal window for error messages
 - The Ollama service must be running: look for it in the system tray or run `ollama serve`
+- "A chapter is already being generated": another tab is still generating. Wait, or click **✕ Cancel** there
+- A model pull in **⚙ Settings** says "Pull failed: …": the message is Ollama's reason (e.g. a misspelt model name, or a network problem). Check the name and try again
 
 ### Out of memory / VRAM errors
 - Switch to a smaller model in **⚙ Settings**
