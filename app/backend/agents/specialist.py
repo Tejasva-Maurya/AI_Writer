@@ -55,7 +55,7 @@ async def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dic
     return _extract_json(content)
 
 
-async def analyze_plot(plot: str, novel_meta: dict, model: str) -> Dict:
+async def analyze_plot(plot: str, model: str) -> Dict:
     system = """You are a precise JSON generator for a light novel story analyzer.
 Output ONLY valid JSON with no markdown fences, no explanation, no extra text."""
     user = f"""Analyze this chapter plot and return ONLY this exact JSON:
@@ -170,79 +170,46 @@ Return ONLY this JSON structure:
     return await _call(model, system, user)
 
 
-async def select_context(involved_chars: List[Dict], involved_scenes: List[Dict], all_chapters: List[Dict], plot: str, current_chapter: int, model: str) -> Dict:
-    system = """You are a context optimization system for an AI story writer.
-Decide what information to include. Output ONLY valid JSON."""
-    char_list = [{"slug": c["slug"], "name": c["name"], "importance": c["importance"]} for c in involved_chars]
-    scene_list = [{"slug": s["slug"], "name": s["name"], "importance": s["importance"]} for s in involved_scenes]
-    chapter_nums = [c["chapter_number"] for c in all_chapters]
-    user = f"""Optimize context for writing chapter {current_chapter}.
-
-PLOT SUMMARY: {plot}
-
-INVOLVED CHARACTERS: {json.dumps(char_list)}
-INVOLVED SCENES: {json.dumps(scene_list)}
-AVAILABLE CHAPTER NUMBERS: {json.dumps(chapter_nums)}
-
-Decide detail level for each entity and summary tier for each chapter.
-
-Rules for characters:
-- importance=primary → "full"
-- importance=secondary → "compressed"
-
-Rules for scenes:
-- importance=main → "full"
-- importance=background → "skip"
-
-Rules for chapter tiers (relative to current chapter {current_chapter}):
-- ch = current-1 → "full_text"
-- ch in [current-4, current-2] → "full"
-- ch in [current-8, current-5] → "short"
-- older → "micro"
-
-Return ONLY this JSON:
-{{
-  "character_detail": {{
-    "slug": "full|compressed|skip"
-  }},
-  "scene_detail": {{
-    "slug": "full|skip"
-  }},
-  "chapter_tiers": {{
-    "1": "micro"
-  }}
-}}"""
-    return await _call(model, system, user)
+def _chapter_excerpt(text: str, budget: float = 5000) -> str:
+    """The chapter as the summariser sees it (KI-014): the whole text if it fits about `budget` tokens (num_ctx is 8192),
+    otherwise the opening and the ending with a marker between them. Estimate: 1/4 token per ASCII char, 1 per other char."""
+    cost = [0.25 if ord(ch) < 128 else 1.0 for ch in text]
+    if sum(cost) <= budget:
+        return text
+    head, spent = 0, 0.0
+    while spent + cost[head] <= budget * 0.4:
+        spent += cost[head]
+        head += 1
+    tail, spent = len(text), 0.0
+    while spent + cost[tail - 1] <= budget * 0.6:
+        tail -= 1
+        spent += cost[tail]
+    return text[:head] + "\n\n[… middle of the chapter omitted …]\n\n" + text[tail:]
 
 
-async def predict_updates(plot: str, primary_chars: List[str], main_scenes: List[str], model: str) -> Dict:
-    system = """You are a story continuity tracker. Predict what will change. Output ONLY valid JSON."""
-    user = f"""Based on this plot, predict which characters and scenes will have updated information after this chapter.
-
-PLOT: {plot}
-PRIMARY CHARACTERS (slugs): {json.dumps(primary_chars)}
-MAIN SCENES (slugs): {json.dumps(main_scenes)}
-
-Return ONLY this JSON:
-{{
-  "characters_to_update": ["slug1"],
-  "scenes_to_update": ["slug1"]
-}}"""
-    # keep_alive=0 to unload specialist from VRAM before writer loads
-    return await _call(model, system, user, keep_alive=0)
+async def unload(model: str) -> None:
+    """Free the specialist's VRAM before the writer loads (step 5): an empty generate with keep_alive=0 is Ollama's
+    unload request, so nothing is generated (KI-012)."""
+    if ollama is None:
+        raise RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")
+    await ollama.AsyncClient().generate(model=model, keep_alive=0)
 
 
 async def post_write_update(chapter_text: str, char_profiles: List[Dict], scene_profiles: List[Dict], model: str) -> Dict:
     system = """You are a story summarizer and continuity tracker for a light novel.
 Generate summaries and track character/scene changes. Output ONLY valid JSON."""
     chars_brief = [{"slug": c.get("slug"), "name": c.get("name"), "arc_notes": c.get("arc_notes", "")} for c in char_profiles]
+    scenes_brief = [{"slug": s.get("slug"), "name": s.get("name"), "significance": s.get("significance", "")} for s in scene_profiles]
     user = f"""Summarize this chapter and update character/scene records.
 
 CHARACTER PROFILES (before this chapter):
 {json.dumps(chars_brief, indent=2)}
 
-CHAPTER TEXT (first 3000 chars):
-{chapter_text[:3000]}
+SCENE PROFILES (before this chapter):
+{json.dumps(scenes_brief, indent=2)}
+
+CHAPTER TEXT:
+{_chapter_excerpt(chapter_text)}
 
 Return ONLY this JSON:
 {{

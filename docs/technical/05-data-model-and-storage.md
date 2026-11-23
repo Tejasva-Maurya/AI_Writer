@@ -88,7 +88,7 @@ Example (the committed sample):
 | `first_appeared_chapter` | int | 1 | LLM | Card meta |
 | `micro_summary` | str | "" | UI, LLM | Card summary |
 
-Scenes are **never updated by the pipeline** after creation (`scene_updates` is ignored).
+After each chapter, step 7 may update a **featured** scene's `significance` (scenes marked `main` in that chapter; non-empty text from `scene_updates` only). Other scene fields are never changed by the pipeline (plan 008, KI-013).
 
 ### 2.3 Chapter — `data/chapters/{NNN}.json`
 

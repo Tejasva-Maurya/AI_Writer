@@ -125,7 +125,7 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:272`). Writer errors carry `message` only (`chapter_pipeline.py:205`).
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:265`). Writer errors carry `message` only (`chapter_pipeline.py:188`).
 
 Consuming it from a shell:
 ```bash

@@ -66,7 +66,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
     try:
         # ── STEP 1: ANALYZE PLOT ──────────────────────────────────────
         yield _sse("status", step=1, message="Analyzing plot...")
-        analysis = await specialist.analyze_plot(plot, novel_meta.model_dump(), spec_model)
+        analysis = await specialist.analyze_plot(plot, spec_model)
         tone = analysis.get("tone", "action")
         estimated_chapters = analysis.get("estimated_chapters", 1)
         entity_mentions = analysis.get("entity_mentions", {"characters": [], "locations": []})
@@ -125,29 +125,10 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         # ── STEP 4: SMART CONTEXT SELECTION ─────────────────────────
         yield _sse("status", step=4, message="Optimizing context...")
         all_chapters = chapter_manager.get_all(include_text=True)
-        chapters_brief = [{"chapter_number": c.chapter_number} for c in all_chapters]
 
-        involved_chars_for_selection = [
-            {"name": c.get("name"), "slug": c.get("slug"), "importance": c.get("importance", "secondary")}
-            for c in resolved_chars if c.get("slug") in chars_dict
-        ]
-        involved_scenes_for_selection = [
-            {"name": s.get("name"), "slug": s.get("slug"), "importance": s.get("importance", "background")}
-            for s in resolved_scenes if s.get("slug") in scenes_dict
-        ]
-
-        # Fallback: if specialist didn't set well, use simple rules
-        if involved_chars_for_selection or involved_scenes_for_selection:
-            context_selection = await specialist.select_context(
-                involved_chars_for_selection, involved_scenes_for_selection,
-                chapters_brief, plot, chapter_number, spec_model
-            )
-        else:
-            context_selection = {"character_detail": {}, "scene_detail": {}, "chapter_tiers": {}}
-
-        # Ensure all resolved chars/scenes have a detail level (fallback)
-        char_detail = context_selection.get("character_detail", {})
-        scene_detail = context_selection.get("scene_detail", {})
+        # Deterministic rules (no LLM call): the old select_context prompt only restated them (KI-013)
+        char_detail = {}
+        scene_detail = {}
         for c in resolved_chars:
             slug = c.get("slug", "")
             if slug not in char_detail:
@@ -157,8 +138,8 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
             if slug not in scene_detail:
                 scene_detail[slug] = "full" if s.get("importance") == "main" else "skip"
 
-        # Compute chapter tiers using hardcoded rules as fallback
-        chapter_tiers = context_selection.get("chapter_tiers", {})
+        # Chapter tiers by distance from the chapter being written
+        chapter_tiers = {}
         for ch in all_chapters:
             n = ch.chapter_number
             key = str(n)
@@ -175,12 +156,14 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
 
         yield _sse("status", step=4, message=f"Context optimized: {sum(1 for v in char_detail.values() if v == 'full')} full profiles, {len(chapter_tiers)} chapter summaries")
 
-        # ── STEP 5: PREDICT UPDATES (releases specialist VRAM) ───────
+        # ── STEP 5: RELEASE SPECIALIST VRAM ───────────────────────────
         yield _sse("status", step=5, message="Preparing for writing... (releasing specialist model)")
         primary_chars = [c.get("slug") for c in resolved_chars if c.get("importance") == "primary"]
         main_scenes = [s.get("slug") for s in resolved_scenes if s.get("importance") == "main"]
-        # This call uses keep_alive=0 — UNLOADS specialist from VRAM
-        update_predictions = await specialist.predict_updates(plot, primary_chars, main_scenes, spec_model)
+        try:
+            await specialist.unload(spec_model)  # explicit unload, no generation (KI-012)
+        except Exception as e:
+            yield _sse("warning", message=f"Could not unload the specialist model: {e}")
         yield _sse("status", step=5, message="Specialist agent released. Loading writer model...")
 
         # ── BUILD MASTER PROMPT ───────────────────────────────────────
@@ -212,8 +195,9 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         yield _sse("status", step=7, message="Summarizing and updating character records...")
         featured_char_profiles = [chars_dict[slug].model_dump() for slug in primary_chars if slug in chars_dict]
         featured_scene_slugs = main_scenes
+        featured_scene_profiles = [scenes_dict[slug].model_dump() for slug in main_scenes if slug in scenes_dict]
 
-        post_data = await specialist.post_write_update(full_text, featured_char_profiles, [], spec_model)
+        post_data = await specialist.post_write_update(full_text, featured_char_profiles, featured_scene_profiles, spec_model)
 
         # Save chapter
         chapter = Chapter(
@@ -253,6 +237,15 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
                 char = chars_dict[slug]
                 char.last_seen_chapter = chapter_number
                 character_manager.save(char)
+
+        # Update featured locations (KI-013): only a non-empty text significance, only for scenes in this chapter
+        scene_updates = post_data.get("scene_updates")
+        for slug, updates in (scene_updates.items() if isinstance(scene_updates, dict) else []):
+            significance = updates.get("new_significance") if isinstance(updates, dict) else None
+            if slug in main_scenes and slug in scenes_dict and isinstance(significance, str) and significance.strip():
+                scene = scenes_dict[slug]
+                scene.significance = significance.strip()
+                scene_manager.save(scene)
 
         # Update novel meta
         meta = novel_meta_manager.load()

@@ -83,17 +83,17 @@ Notes:
 | 2 | Extract Entities | `:80-93` | `specialist.resolve_entities` (spec, -1) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` The result is then canonicalised server-side (`_canonical_entities`, plan 007): matches by slug or name (ignoring case and `-`/`_`) become `existing` with the real slug, everything else `new` with `slug = make_slug(name)`; nameless entries and repeats are dropped. | `status{step:2}` ×2 |
 | 3 | Build Profiles | `:95-117` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects with `slug = make_slug(profile name)` (never the LLM's slug) and **creates their files** in `data/` with `create()`, which never overwrites (also not an equivalent slug). A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
 | — | (reload) | `:119-123` | — | — | Re-reads all characters and scenes into `chars_dict` / `scenes_dict` keyed by slug | — |
-| 4 | Optimize Context | `:125-176` | `specialist.select_context` (spec, -1). **Skipped when no resolved entity exists on disk** | involved entities with importance, chapter numbers, plot | `character_detail{slug: full\|compressed\|skip}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`. Missing keys are filled by hard-coded fallback rules (below) | `status{step:4}` ×2 |
-| 5 | Prepare Model | `:178-184` | `specialist.predict_updates` (spec, **0 → unloads specialist**) | plot, primary char slugs, main scene slugs | Result stored in `update_predictions` and **never used** (KI-012) | `status{step:5}` ×2 |
-| — | (prompt) | `:186-196` | — | world + dicts + chapters + detail maps | `master_prompt` string (see [03 §2.6](03-low-level-design.md#26-appbackendpipelinecontext_builderpy)) | — |
-| 6 | Write Chapter | `:198-209` | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())` | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
-| 7 | Summarize & Save | `:211-268` | `specialist.post_write_update` (spec, **0**) | **first 3000 chars** of the chapter (KI-014), primary character briefs | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates `novel_meta.total_chapters = max(old, n)` | `status{step:7}`, `complete{…}` |
-| ✖ | — | `:270-272` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk.** | `error{message, detail: traceback}` |
+| 4 | Optimize Context | `:125-157` | **none** (deterministic since plan 008; the old `select_context` prompt only restated these rules, KI-013) | resolved entities with importance, all chapters | `character_detail{slug: full\|compressed}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`, built by the rules below | `status{step:4}` ×2 |
+| 5 | Prepare Model | `:159-167` | `specialist.unload` → `AsyncClient.generate(model, keep_alive=0)`: Ollama's unload request, **no generation** (plan 008, KI-012) | specialist model name | Specialist leaves VRAM before the writer loads. Best-effort: a failure becomes a `warning` and the run continues | `status{step:5}` ×2, `warning{message}` if the unload fails |
+| — | (prompt) | `:169-179` | — | world + dicts + chapters + detail maps | `master_prompt` string (see [03 §2.6](03-low-level-design.md#26-appbackendpipelinecontext_builderpy)) | — |
+| 6 | Write Chapter | `:181-192` | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())` | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
+| 7 | Summarize & Save | `:194-261` | `specialist.post_write_update` (spec, **0**) | the **whole chapter**, or its opening + ending when it exceeds ~5000 tokens (`_chapter_excerpt`, plan 008, KI-014), primary character briefs, featured (main) scene briefs | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates a featured scene's `significance` from `scene_updates` (non-empty text only, KI-013). Updates `novel_meta.total_chapters = max(old, n)` | `status{step:7}`, `complete{…}` |
+| ✖ | — | `:263-265` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk.** | `error{message, detail: traceback}` |
 
-#### Fallback rules (always applied after step 4)
+#### Step 4 rules (deterministic)
 
-- **Characters:** `importance == "primary"` → `full`, otherwise → `compressed` (`:151-154`).
-- **Scenes:** `importance == "main"` → `full`, otherwise → `skip` (`:155-158`).
+- **Characters:** `importance == "primary"` → `full`, otherwise → `compressed` (`:132-135`).
+- **Scenes:** `importance == "main"` → `full`, otherwise → `skip` (`:136-139`).
 - **Chapter tiers**, relative to the chapter being written `N`, for each existing chapter `n` (`:161-174`):
 
 | `N − n` | Tier | What goes into the prompt |
@@ -105,12 +105,12 @@ Notes:
 
 > When regenerating chapter *k* with chapters after *k* already on disk, those **later** chapters are also included in "STORY SO FAR" (as `micro`, because `N − n ≤ 0`). The current chapter's old version is included too.
 
-#### Post-write character update rules (`:234-255`)
+#### Post-write character update rules (`:218-239`)
 
 For every slug in `post_data.character_updates` that exists:
 `last_seen_chapter = N`. Non-empty `arc_notes` replaces the old value. Non-empty `cultivation_level` replaces the old value. `new_abilities` is merged as a set (**order is lost**). `relationship_updates` is merged into the relationships dict. Then the character is saved.
 Primary characters with no update entry still get `last_seen_chapter = N`.
-`scene_updates` returned by the LLM are **ignored** (KI-013).
+`scene_updates` returned by the LLM update the featured scenes' `significance` (only scenes marked `main` in this chapter, only non-empty text; anything else is ignored). Before plan 008 they were ignored (KI-013).
 
 ### W3.4 SSE event contract (backend → frontend)
 
@@ -160,13 +160,10 @@ sequenceDiagram
         PL-->>UI: new_character / new_scene (warning on failure)
     end
     PL->>FS: reload characters, scenes, all chapters (with text)
-    opt involved entities exist
-        PL->>SP: select_context
-        SP->>OL: chat
-    end
+    PL->>PL: detail levels + chapter tiers (rules, no LLM)
     PL-->>UI: status step 4
-    PL->>SP: predict_updates (keep_alive=0)
-    SP->>OL: chat → specialist unloaded
+    PL->>SP: unload
+    SP->>OL: generate(keep_alive=0) → specialist unloaded, nothing generated
     PL-->>UI: status step 5
     PL->>PL: build_master_prompt()
     PL-->>UI: status step 6
@@ -179,9 +176,9 @@ sequenceDiagram
     end
     PL-->>UI: status step 6 (word count)
     PL-->>UI: status step 7
-    PL->>SP: post_write_update(first 3000 chars, keep_alive=0)
+    PL->>SP: post_write_update(whole chapter or opening+ending, scene briefs, keep_alive=0)
     SP->>OL: chat
-    PL->>FS: save chapters/NNN.json, update characters, update novel_meta
+    PL->>FS: save chapters/NNN.json, update characters and featured scenes, update novel_meta
     PL-->>UI: complete
     UI->>API: GET /api/chapters (refresh history)
 ```

@@ -1,22 +1,19 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 007. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 008. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 21 open · 1 partly fixed (KI-023) · 16 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-021, KI-022, KI-027, KI-036, KI-038).
+**At a glance:** 18 open · 1 partly fixed (KI-023) · 19 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-021, KI-022, KI-027, KI-036, KI-038).
 
-### Open (22)
+### Open (19)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-012 | Low | Pipeline | Step 5 `predict_updates` result unused (an LLM call made only to unload VRAM) | Open |
-| KI-013 | Low | Pipeline | `scene_updates`, `scene_profiles`, `novel_meta` arg ignored; scenes never evolve | Open |
-| KI-014 | Medium | Pipeline | Post-write summariser sees only the first 3000 chars of the chapter | Open |
 | KI-015 | Low | Pipeline | `estimated_chapters > 1` crashes when the LLM returns a string | Open |
 | KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Open |
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
@@ -37,7 +34,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 
-### Fixed (16)
+### Fixed (19)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -54,6 +51,9 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-009 | Medium | Data | Inconsistent slugs (LLM-provided, verbatim) lead to duplicates and odd filenames | Fixed in Unreleased [plan 007] |
 | KI-010 | Medium | Security | Slugs used as filenames without validation; CORS `*` on an unauthenticated API | Fixed in Unreleased [plan 007] |
 | KI-011 | Medium | Security/Frontend | Unescaped `innerHTML` in world snapshot and model browser | Fixed in Unreleased [plan 007] |
+| KI-012 | Low | Pipeline | Step 5 `predict_updates` result unused (an LLM call made only to unload VRAM) | Fixed in Unreleased [plan 008] |
+| KI-013 | Low | Pipeline | `scene_updates`, `scene_profiles`, `novel_meta` arg ignored; scenes never evolve | Fixed in Unreleased [plan 008] |
+| KI-014 | Medium | Pipeline | Post-write summariser sees only the first 3000 chars of the chapter | Fixed in Unreleased [plan 008] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
@@ -129,14 +129,17 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Evidence:** `renderWorldSnapshot` interpolates world fields into `innerHTML` (`app.js:1481-1490`). `populateModelSelects` (`:1688`) and `renderModelBrowser` (`:1747-1766`) interpolate model names. World fields can come from LLM output.
 - **Fix:** wrap the values with `escHtml()`, or build the nodes with `textContent`.
 
-### KI-012 — Unused `predict_updates` call · Low
+### KI-012 — Unused `predict_updates` call · Low · ✅ Fixed in Unreleased (plan 008)
+- **Status: Fixed in Unreleased [plan 008].** Step 5 calls `specialist.unload(model)` = `AsyncClient().generate(model=model, keep_alive=0)`, Ollama's unload request; `predict_updates` is removed. Verified with the real ollama client (0.4.0 and 0.6.3) against a logging fake Ollama: the request body is exactly `{"model": …, "stream": false, "keep_alive": 0}` (no prompt, nothing generated). In a full run, the committed code made 6 chat generations per chapter, the fixed code 4 plus that unload. A failing unload becomes a `warning` event and the chapter still completes. Not verified: a real Ollama freeing VRAM (no Ollama/GPU here). The evidence below describes the pre-fix code.
 - **Evidence:** `update_predictions` (`chapter_pipeline.py:183`) is never read. The call exists to send `keep_alive=0`.
 - **Fix:** replace with an explicit unload (`ollama.generate(model, keep_alive=0)` with an empty prompt, or `ollama.chat(..., keep_alive=0)` with a minimal message). This saves one full LLM round trip per chapter.
 
-### KI-013 — Ignored outputs and parameters · Low
+### KI-013 — Ignored outputs and parameters · Low · ✅ Fixed in Unreleased (plan 008)
+- **Status: Fixed in Unreleased [plan 008].** Step 7 passes the featured scenes' profiles to `post_write_update` (new `SCENE PROFILES` block) and applies `scene_updates`: a featured (main) scene's `significance` is replaced by a non-empty text `new_significance`; non-dict values and non-featured slugs are ignored. `analyze_plot` lost its unused `novel_meta` argument. Step 4 is deterministic: the `select_context` LLM call, which only restated the rules the code applied anyway, is removed. Verified in a full run: the featured scene's significance was updated on disk, an update for a scene not in the chapter was ignored, and a string `scene_updates` changed nothing. The evidence below describes the pre-fix code.
 - `post_write_update(..., scene_profiles=[])` is always empty and unused. The LLM's `scene_updates` are never applied (`chapter_pipeline.py:216+`). The `novel_meta` arg of `analyze_plot` is unused. `select_context` largely duplicates the hard-coded fallback rules.
 
-### KI-014 — Summaries based on the first 3000 characters only · Medium
+### KI-014 — Summaries based on the first 3000 characters only · Medium · ✅ Fixed in Unreleased (plan 008)
+- **Status: Fixed in Unreleased [plan 008].** `_chapter_excerpt` sends the whole chapter when its estimated size fits ~5000 tokens (¼ token per ASCII char, 1 per other char; the specialist's `num_ctx` is 8192); otherwise the opening (40 %) + `[… middle of the chapter omitted …]` + the ending (60 %), so the ending hook is always included. Verified: a ~2000-word English chapter goes through whole (~3000 tokens); ~7000-word English and 12k-char CJK chapters become opening + ending at ~5000 tokens with the last sentence present. In a full run the summariser prompt contained the chapter's final sentence (committed code: 3979 chars, no ending). The evidence below describes the pre-fix code.
 - **Evidence:** `specialist.py:245` `chapter_text[:3000]`. A ~2000-word chapter is ~11–12k characters, so roughly the last ¾, **including the ending hook**, is never summarised, although the prompt asks for an "ending hook" in `full_summary`.
 - **Impact:** continuity relies on summaries of chapter openings only.
 - **Fix:** pass the full text (the specialist's `num_ctx` is 8192, which fits ~2000 words), or the head plus the tail.

@@ -65,7 +65,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 - **Port/URL.** `8000` and `127.0.0.1` appear in **two** places: `app/start.bat` (`PORT`) and `main.py` (`__main__`). Change both or neither. `app.js` uses the relative `API = '/api'`; keep it relative (no CORS, plan 007).
 - **Slugs.** Every file access goes through the managers' `_path(slug)` (`[\w-]+` only), and every new slug is `make_slug(...)` on the server. Never build `data/` paths from request or LLM strings directly (KI-010).
 - **Imports.** Flat (`from models import …`) with `sys.path` patching. Don't convert to relative imports piecemeal.
-- **VRAM choreography.** The specialist `keep_alive=0` at step 5/7 and the writer `keep_alive=300` are deliberate (docs/technical/01 §6). Don't change them casually.
+- **VRAM choreography.** The specialist is unloaded at step 5 (`specialist.unload`: empty `generate` with `keep_alive=0`, no generation) and after step 7 (`keep_alive=0`); the writer keeps `keep_alive=300`. These are deliberate (docs/technical/01 §6). Don't change them casually.
 
 ## 4. Coding conventions
 

@@ -14,5 +14,6 @@
 - **Git identity is per clone.** The machine-wide git identity is the work account; this repo overrides it in `.git/config` (D-010). Check `git config user.email` = `mauryatejasva512004@gmail.com` before committing, and set it again after a fresh clone, or GitHub credits the work account. (2026-11-23)
 - **The API is same-origin only.** No CORS; `TrustedHostMiddleware` allows `Host` 127.0.0.1/localhost only (other hosts → 400). Test with `http://127.0.0.1:<port>`; a page on another origin can't call the API (plan 007). (2026-11-23)
 - **Git Bash curl mangles non-ASCII arguments.** `curl -d '{"name":"林凡"}'` arrives as `??` (looked like a 422 bug). Send UTF-8 bodies from a Python script (`urllib`), and run it without `-I` with `PYTHONIOENCODING=utf-8` to print them. (2026-11-23)
+- **`\\$` in Git Bash double quotes swallows the variable.** `PYTHONPATH="$DIR\\$s"` expands to a literal `$s` (the import then fails as if the package were missing). Use a forward slash: `"$DIR/$s"`. (2026-11-23)
 - **Git Bash noise.** Every Bash call on this machine prints `/etc/mtab`, `/etc/hosts` … "Permission denied" lines from the shell profile. They are harmless; ignore them. (2026-11-22)
 - **`data/` is the user's novel.** Never use it as a scratch area. Test with `zz_test_` entities and delete them afterwards. (2026-11-22)

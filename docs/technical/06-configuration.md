@@ -38,7 +38,7 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:52`, `writer.py:63` |
 | `temperature` | 0.1 | 0.8 | same |
 | `top_p` | (Ollama default) | 0.9 | `writer.py:63` |
-| `keep_alive` | `-1` (keep loaded) by default. `0` in `predict_updates` and `post_write_update` | `300` s | `specialist.py:41,232,268`, `writer.py:62` |
+| `keep_alive` | `-1` (keep loaded) by default. `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,195,235`, `writer.py:62` |
 | Streaming | no | yes | — |
 | JSON mode (`format="json"`) | **not used** | n/a | — |
 
@@ -53,10 +53,10 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
 | Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:76` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
-| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:162-174` (+ duplicated in the `select_context` prompt, `specialist.py:197-201`) |
+| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:143-155` (the only copy since plan 008) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
-| Post-write input truncation | first **3000 chars** of the chapter | `specialist.py:245` |
-| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:250-252` |
+| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:173` (`_chapter_excerpt`) |
+| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:217-219` |
 
 ### 2.4 Model catalogue (shown in Settings)
 

@@ -72,3 +72,14 @@
   - Old vs new verified for CORS preflight, Host header, pipeline duplicate and the nameless-entry crash; XSS payloads verified in the UI (world fields plus a fake Ollama on 11434). KI-021 and KI-038 fixed by the same change.
 - **Plan:** 007 (done).
 - **Open threads:** Committed and pushed in the same session. Real LLM not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-012, KI-013, KI-014 (plan 008)
+- **Goal:** Remove the wasted step-5 prediction call, apply the ignored scene updates and dead parameters, and summarise whole chapters.
+- **Outcome:**
+  - Step 5: `specialist.unload` (an empty `generate` with `keep_alive=0`).
+  - Step 4: deterministic, `select_context` removed.
+  - Step 7: scene briefs plus applied `scene_updates`; `_chapter_excerpt` (whole chapter ≤ ~5000 est. tokens, else opening + ending).
+  - `analyze_plot` lost `novel_meta`.
+  - Verified with the real ollama client (0.4.0 and 0.6.3) against a logging fake Ollama: unload body `{model, stream:false, keep_alive:0}`; per chapter 6 → 4 generations; the summariser prompt now contains the ending; the scene update was applied, the non-featured and malformed ones were ignored; a failed unload gives a `warning` and the chapter completes.
+- **Plan:** 008 (done).
+- **Open threads:** Committed and pushed in the same session. Real Ollama/VRAM behaviour not exercised.

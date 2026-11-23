@@ -28,6 +28,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   [plan 001] [plan 002]
 
 ### Changed
+- Each chapter makes two fewer specialist-model calls: step 4 (Optimize Context) now applies its rules directly instead of asking the model to restate them, and step 5 unloads the specialist with Ollama's unload request instead of a full prediction prompt whose answer was never used. A failed unload is reported as a warning and no longer stops the chapter. [plan 008] [KI-012] [KI-013]
 - `POST /api/characters` and `/api/scenes` always store a server-derived slug (`make_slug(slug or name)`: lowercase, `_` separators, letters of any script kept), so a client-supplied `"Elder-Wu"` becomes `elder_wu`. The API is same-origin only: no CORS, and the `Host` must be `127.0.0.1` or `localhost`. [plan 007] [KI-009] [KI-010]
 - `app/requirements.txt` uses lower bounds instead of stale exact pins: `fastapi>=0.111`, `uvicorn[standard]>=0.30`, `pydantic>=2.9,<3`, `httpx>=0.27` (was missing), `ollama>=0.4,<1` (was 0.3.3, incompatible with the code). `pip install -r app/requirements.txt` works again on Python 3.11–3.14. [plan 005] [KI-004]
 - **Repository reorganized into three areas** [plan 002]:
@@ -43,6 +44,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Repository history: the four commits published on 2026-11-22 were authored with the global work identity, so GitHub credited the work account. They were re-credited to the personal account (Tejasva_Maurya) with the same content, messages and dates (`14dd6aa`→`3e61415`, `5960228`→`058caae`, `eedf02f`→`78ab1ea`, `d1e3f85`→`2b4f3c2`). This repo now sets its own git identity (decision D-010).
 
 ### Removed
+- The specialist's `select_context` and `predict_updates` prompts, and the unused `novel_meta` argument of `analyze_plot`. [plan 008] [KI-012] [KI-013]
 - Unused dependencies `aiofiles` and `python-multipart` from `app/requirements.txt` (nothing imports them). [plan 005] [KI-004]
 - Compiled `__pycache__/*.pyc` files are no longer tracked: they moved with the code into `app/backend/`, where `.gitignore` excludes them, so committing the move drops the old tracked copies. [plan 002] [KI-022]
 
@@ -63,6 +65,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - No more duplicate characters or locations from slug mismatches: the pipeline maps the specialist's matches onto real slugs (ignoring case and `-`/`_`), saves new profiles under a server-derived slug, and no longer crashes on a nameless match; creating anything whose slug is equivalent to an existing one returns 409. [plan 007] [KI-009]
 - The UI works the same when opened as `http://localhost:8000` (the frontend calls `/api` on its own origin). [plan 007] [KI-021]
 - A name with no letters or digits (e.g. `???`) is refused with 422 instead of being saved as `.json`. [plan 007] [KI-038]
+- Chapter summaries now cover the whole chapter, including the ending hook: the summariser gets the full text, or the opening and the ending of very long chapters, instead of only the first 3000 characters. [plan 008] [KI-014]
+- Locations evolve with the story: after each chapter, the significance of the locations featured in it is updated from the summariser's `scene_updates` (previously ignored). [plan 008] [KI-013]
 
 
 ### Security

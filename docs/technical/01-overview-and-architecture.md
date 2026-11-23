@@ -138,7 +138,7 @@ flowchart TB
 
 | Role | Default model | Used for | Ollama options | `keep_alive` |
 |---|---|---|---|---|
-| **Specialist** | `phi4-mini:3.8b` (`models.py:75`) | Plot analysis, entity resolution, profiling, context selection, update prediction, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `-1` (stay loaded) for steps 1–4 and the refine endpoints. **`0` (unload right away)** for step 5 (`predict_updates`) and step 7 (`post_write_update`). |
+| **Specialist** | `phi4-mini:3.8b` (`models.py:75`) | Plot analysis, entity resolution, profiling, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `-1` (stay loaded) for steps 1–3 and the refine endpoints. **`0` (unload right away)** at step 5 (explicit `unload`: an empty `generate`, no generation) and after step 7 (`post_write_update`). |
 | **Writer** | `gemma3:12b` (`models.py:74`) | Chapter prose (streamed) | `num_ctx 32768`, `temperature 0.8`, `top_p 0.9` | `300` seconds (stays warm for the next chapter) |
 
 Timeline of one chapter generation:
@@ -149,15 +149,15 @@ gantt
     axisFormat %s
     title VRAM residency during one generation (illustrative)
     section Specialist
-    Steps 1-4 (keep_alive -1)        :a1, 0, 4
-    Step 5 predict_updates (keep_alive 0 → unload) :a2, 4, 5
+    Steps 1-3 (keep_alive -1)        :a1, 0, 4
+    Step 5 unload (keep_alive 0, nothing generated) :a2, 4, 5
     Step 7 post_write_update (load, then unload)  :a3, 9, 10
     section Writer
     Step 6 stream chapter (keep_alive 300s)        :b1, 5, 9
     Stays warm 5 min                                :b2, 9, 14
 ```
 
-Step 5 exists mainly to unload the specialist: its prediction result is **never used** (KI-012). In step 7 the specialist is loaded again while the writer may still be resident (writer `keep_alive=300`), so peak VRAM can briefly include both models.
+Step 5 only unloads the specialist, with Ollama's unload request (`generate` with an empty prompt and `keep_alive=0`), so no tokens are generated (plan 008; before, it ran a full prediction prompt whose result was never used, KI-012). Step 4 makes no LLM call. In step 7 the specialist is loaded again while the writer may still be resident (writer `keep_alive=300`), so peak VRAM can briefly include both models.
 
 ## 7. Directory structure
 

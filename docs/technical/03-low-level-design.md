@@ -94,12 +94,12 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`. All fu
 |---|---|---|---|
 | `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:25`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
 | `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`. Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
-| `analyze_plot` | `(plot, novel_meta: dict, model)` | Step 1 (`novel_meta` unused) | -1 |
+| `analyze_plot` | `(plot, model)` | Step 1 (the unused `novel_meta` argument was removed in plan 008) | -1 |
 | `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | -1 |
 | `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | -1 |
-| `select_context` | `(involved_chars, involved_scenes, all_chapters, plot, current_chapter, model)` | Step 4 | -1 |
-| `predict_updates` | `(plot, primary_chars, main_scenes, model)` | Step 5, used to unload the specialist | **0** |
-| `post_write_update` | `(chapter_text, char_profiles, scene_profiles, model)` | Step 7 (`scene_profiles` unused; text truncated to 3000 chars) | **0** |
+| `_chapter_excerpt` | `(text, budget=5000) -> str` | What the summariser sees (KI-014): the whole chapter if its estimated size (¼ token per ASCII char, 1 per other char, so CJK counts safely) fits `budget`; otherwise the opening (40 %) + `[… middle of the chapter omitted …]` + the ending (60 %). | — |
+| `unload` | `(model) -> None` | Step 5: `AsyncClient().generate(model=model, keep_alive=0)`, Ollama's unload request (body `{model, stream:false, keep_alive:0}`, verified with ollama 0.4.0 and 0.6.3); generates nothing (KI-012) | **0** |
+| `post_write_update` | `(chapter_text, char_profiles, scene_profiles, model)` | Step 7: whole chapter via `_chapter_excerpt`, character and scene briefs | **0** |
 | `refine_character` | `(description, name, world, model)` | Character Build | -1 |
 | `refine_scene` | `(description, name, world, model)` | Scene Build | -1 |
 | `refine_world` | `(description, existing_world, model)` | World Build | -1 |
@@ -171,9 +171,7 @@ All specialist calls use the system message "…Output ONLY valid JSON…" and a
 | `analyze_plot` | `{estimated_chapters:int, tone, pacing, entity_mentions:{characters[],locations[]}, key_events[], chapter_focus}` | `tone`, `estimated_chapters`, `entity_mentions` | tone ∈ action/dark/romantic/comedic/tense/mysterious/epic |
 | `resolve_entities` | `{characters:[{name,slug,status,importance}], scenes:[…]}` | all | status ∈ existing/new. Char importance ∈ primary/secondary. Scene importance ∈ main/background. Asks for **snake_case** slugs for new entities. |
 | `profile_new_entities` | `{characters:[Character…], scenes:[Scene…]}` | all → `Character(**)`/`Scene(**)` | The template hard-codes `"type": "main"` and `"age": "17"`, so most auto-profiled characters come out as MAIN. |
-| `select_context` | `{character_detail:{slug:full\|compressed\|skip}, scene_detail:{slug:full\|skip}, chapter_tiers:{"n":tier}}` | all (merged with the fallbacks) | Rules are spelled out in the prompt and duplicated in code. |
-| `predict_updates` | `{characters_to_update[], scenes_to_update[]}` | **none** | — |
-| `post_write_update` | `{chapter_title, micro_summary (15-20 words), short_summary (80-100), full_summary (180-220), character_updates:{slug:{arc_notes, cultivation_level, new_abilities[], relationship_updates{}}}, scene_updates:{slug:{new_significance}}}` | all except `scene_updates` | — |
+| `post_write_update` | `{chapter_title, micro_summary (15-20 words), short_summary (80-100), full_summary (180-220), character_updates:{slug:{arc_notes, cultivation_level, new_abilities[], relationship_updates{}}}, scene_updates:{slug:{new_significance}}}` | all (`scene_updates` only for featured scenes, non-empty text) | Prompt has `CHARACTER PROFILES` and `SCENE PROFILES` blocks and the `CHAPTER TEXT:` excerpt. |
 | `refine_character` | full `Character` shape (`first_appeared_chapter: 0`, `last_seen_chapter: 0`) | all | — |
 | `refine_scene` | full `Scene` shape | all | scene_type hint list |
 | `refine_world` | full `WorldSettings` shape, untouched fields empty | all | — |
@@ -292,9 +290,7 @@ There is **no logging framework**. The only diagnostics are uvicorn access logs 
 |---|---|
 | `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
 | `chapter_manager.get_recent_n` | `chapter_manager.py:53` |
-| `update_predictions` result | `chapter_pipeline.py:183` |
-| `featured_scene_slugs` alias, `scene_profiles` param | `chapter_pipeline.py:214`, `specialist.py:235` |
-| `novel_meta` param of `analyze_plot` | `specialist.py:58` |
+| `featured_scene_slugs` alias | `chapter_pipeline.py:197` |
 | `/static` mount | `main.py:42-43` |
 | `state._profileContext` (written, never read) | `app.js` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |
