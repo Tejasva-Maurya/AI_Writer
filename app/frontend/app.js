@@ -354,8 +354,13 @@ function renderChapterHistory() {
   });
 }
 
+// Highest existing chapter number + 1, like the backend's get_next_number() (KI-008)
+function nextChapterNumber() {
+  return state.chapters.reduce((max, ch) => Math.max(max, ch.chapter_number), 0) + 1;
+}
+
 function updateChapterHint() {
-  const nextNum = (state.chapters.length || 0) + 1;
+  const nextNum = nextChapterNumber();
   DOM.chapterNumLabel.textContent = `CHAPTER ${nextNum}`;
   DOM.nextChapterHint.textContent = `Will generate Chapter ${nextNum}`;
 }
@@ -432,9 +437,9 @@ async function generateChapter() {
   DOM.multiChapterNotice.hidden = true;
   DOM.newEntities.innerHTML = '';
 
-  // Prepare chapter number
-  const chapterNumber = state.chapters.length + 1;
-  const body = { plot, chapter_number: chapterNumber };
+  // The backend numbers the chapter (highest on disk + 1), so nothing is overwritten. This number is for display only.
+  const chapterNumber = nextChapterNumber();
+  const body = { plot };
 
   let streamedText = '';
   let currentParagraph = null;
@@ -518,6 +523,7 @@ async function generateChapter() {
       complete: async (data) => {
         completePipeline();
         DOM.textCursor.hidden = true;
+        DOM.outputChapterBadge.textContent = `Chapter ${data.chapter_number}`;
         DOM.outputChapterTitle.textContent = data.title || `Chapter ${data.chapter_number}`;
         DOM.wordCountNum.textContent = (data.word_count || 0).toLocaleString();
         state.currentChapter = {
@@ -525,7 +531,7 @@ async function generateChapter() {
           title: data.title,
           word_count: data.word_count,
         };
-        await Promise.all([loadChapters(), loadCharacters()]); // step 7 updated character profiles
+        await Promise.all([loadChapters(), loadCharacters(), loadNovelMeta()]); // step 7 updated profiles and total_chapters
         showToast(`✓ Chapter ${data.chapter_number} complete — ${data.word_count?.toLocaleString()} words`, 'success');
         DOM.plotInput.value = '';
       },
@@ -1020,18 +1026,25 @@ function openSettingsModal() {
   $('meta-title').value           = m.title || '';
   $('meta-genre').value           = m.genre || '';
   $('meta-author').value          = m.author || '';
-  $('meta-writer-model').value    = m.writer_model || 'gemma3:12b';
-  $('meta-specialist-model').value= m.specialist_model || 'gemma3:12b';
+  // Fill the model lists now, then refresh them from Ollama. The button and Alt+S both come here (KI-006).
+  populateModelSelects(_cachedModels?.installed || [], m.writer_model, m.specialist_model);
+  loadModels().then(data => {
+    populateModelSelects(data.installed || [],
+      $('meta-writer-model').value || m.writer_model, $('meta-specialist-model').value || m.specialist_model);
+    renderModelBrowser(data);
+  });
   openModal('modal-settings');
 }
 
 async function saveSettings() {
+  // PUT is a full replace: keep the fields the form does not show (total_chapters, created_at) (KI-007)
   const meta = {
+    ...state.novelMeta,
     title:            $('meta-title').value.trim(),
     genre:            $('meta-genre').value.trim(),
     author:           $('meta-author').value.trim(),
-    writer_model:     $('meta-writer-model').value,
-    specialist_model: $('meta-specialist-model').value,
+    writer_model:     $('meta-writer-model').value || state.novelMeta.writer_model,
+    specialist_model: $('meta-specialist-model').value || state.novelMeta.specialist_model,
   };
 
   const btn = $('btn-save-settings');
@@ -1872,19 +1885,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Refresh models button
   const btnRefresh = $('btn-refresh-models');
   if (btnRefresh) btnRefresh.addEventListener('click', refreshModels);
-
-  // Load models dynamically when Settings opens
-  // (second listener stacks on top of the existing one — no replacement, no recursion)
-  const btnSettingsEl = document.getElementById('btn-settings');
-  if (btnSettingsEl) {
-    btnSettingsEl.addEventListener('click', () => {
-      loadModels().then(data => {
-        const m = state.novelMeta || {};
-        populateModelSelects(data.installed || [], m.writer_model, m.specialist_model);
-        renderModelBrowser(data);
-      });
-    });
-  }
 });
 
 

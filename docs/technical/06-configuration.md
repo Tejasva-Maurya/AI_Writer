@@ -80,12 +80,12 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 
 | Constant | Value | Location |
 |---|---|---|
-| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1276`, `app.js:1418` |
-| Connection check timeout | 3000 ms | `app.js:1416` |
-| Sidebar reload delay after a new entity | 300 ms | `app.js:472,478` |
-| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:657-659` |
-| Refine status auto-clear | 5000 ms | `app.js:1555` etc. |
-| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173`, `app.js:1023-1024` |
+| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1289`, `app.js:1431` |
+| Connection check timeout | 3000 ms | `app.js:1429` |
+| Sidebar reload delay after a new entity | 300 ms | `app.js:477,478` |
+| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:663-665` |
+| Refine status auto-clear | 5000 ms | `app.js:1568` etc. |
+| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)
 

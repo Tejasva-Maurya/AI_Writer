@@ -129,7 +129,7 @@ Chapters cannot be edited or deleted through the API or UI. Re-generating with a
 | `title` | str | `"Untitled Novel"` | Header, export title/filename |
 | `genre` | str | "" | Stored only, not used in prompts |
 | `author` | str | "" | Stored only, not exported |
-| `total_chapters` | int | 0 | `max(old, n)` after each generation. Reset to 0 by the Settings modal (KI-007). The UI shows the chapter-list length instead. |
+| `total_chapters` | int | 0 | `max(old, n)` after each generation. Kept by Settings saves and title edits since plan 006 (KI-007 reset it to 0 before). The UI shows the chapter-list length instead. |
 | `writer_model` | str | `"gemma3:12b"` | Ollama model tag for step 6 |
 | `specialist_model` | str | `"phi4-mini:3.8b"` | Ollama model tag for all specialist calls |
 | `created_at` | str | "" | Never set |

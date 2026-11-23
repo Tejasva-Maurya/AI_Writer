@@ -53,21 +53,21 @@ Notes:
 ## W2 — Frontend boot
 
 1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:50-55`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:58-65`).
-2. `DOMContentLoaded` listener #1 (`app.js:1425`):
+2. `DOMContentLoaded` listener #1 (`app.js:1438`):
    1. `checkConnection()` → `fetch /api/novel-meta` with a 3 s timeout. On a network failure it shows the toast *"⚠ Cannot connect to backend…"* for 8 s.
    2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `updateChapterHint()`.
-3. `DOMContentLoaded` listener #2 (`app.js:1860`) binds the mode tabs, the three refine buttons, **Refresh models**, and a **second** click listener on **⚙ Settings** that loads the Ollama models.
+3. `DOMContentLoaded` listener #2 (`app.js:1873`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
 4. Each loader stores its result in `state.*` and renders: sidebars (character/scene cards), header title, chapter count badge, history pills, "CHAPTER N" label.
 5. If a loader fails it logs `console.warn` and falls back to empty data. The UI stays usable.
 
 ## W3 — Chapter generation (the 7-step pipeline)
 
-### W3.1 Trigger (frontend: `generateChapter()`, `app.js:415-556`)
+### W3.1 Trigger (frontend: `generateChapter()`, `app.js:420-562`)
 
 1. Validates that the plot textarea is not empty and that no generation is running (`state.isGenerating`).
 2. Disables the button, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
-3. Computes `chapterNumber = state.chapters.length + 1` (⚠ the count of chapters, not max+1, KI-008) and `POST`s `/api/generate-chapter` with `{plot, chapter_number}`.
-4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:561-600`). Each JSON event is dispatched by its `type` (see W3.4).
+3. `POST`s `/api/generate-chapter` with `{plot}` only. The backend numbers the chapter itself (`get_next_number()`: highest existing number + 1, read from disk), so a gap or a stale page can't overwrite a chapter. The UI shows `nextChapterNumber()` (the same rule over `state.chapters`) while streaming and takes the real number from the `complete` event. (Before plan 006 it sent `count + 1`, which overwrote chapters after a gap: KI-008.)
+4. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:567-606`). Each JSON event is dispatched by its `type` (see W3.4).
 
 ### W3.2 Backend entry (`main.py:162-179`)
 
@@ -114,7 +114,7 @@ Primary characters with no update entry still get `last_seen_chapter = N`.
 
 ### W3.4 SSE event contract (backend → frontend)
 
-| `type` | Payload fields | Emitted at | Frontend handler (`app.js:460-544`) |
+| `type` | Payload fields | Emitted at | Frontend handler (`app.js:465-550`) |
 |---|---|---|---|
 | `status` | `step` (1–7), `message` | Start/end of each step | Marks the previous step done, the current one active, writes `message` to the step log, sets progress = step/7 |
 | `multi_chapter` | `estimated`, `message` | Step 1 if estimated > 1 | Shows the notice panel + warning toast |
@@ -123,7 +123,7 @@ Primary characters with no update entry still get `last_seen_chapter = N`.
 | `warning` | `message` | Step 3 profile validation failure | **No handler: silently ignored** (KI-018) |
 | `token` | `content` | Step 6, per chunk | Appends to the current `<p>`. Splits paragraphs on `\n\n`. Moves the blinking cursor |
 | `error` | `message`, `detail?` | Writer error or uncaught exception | Error toast, hides the cursor, paints the active step red |
-| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, reloads chapters **and characters** (step 7 updated their profiles on disk, and the Edit modal reads `state.characters`), clears the plot textarea, success toast |
+| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, sets title and word count, `state.currentChapter = {chapter_number,title,word_count}`, sets the badge from `chapter_number`, reloads chapters, characters **and novel meta** (step 7 updated profiles and `total_chapters` on disk; the Edit and Settings modals read that state), clears the plot textarea, success toast |
 
 Wire format: each event is one line `data: {json}\n\n` (`chapter_pipeline.py:20-23`). No `event:` or `id:` fields are used.
 
@@ -200,7 +200,7 @@ sequenceDiagram
 
 ## W4 — Character / Scene build (refine)
 
-Frontend: `refineCharacter()` (`app.js:1515-1557`) / `refineScene()` (`app.js:1562-1602`).
+Frontend: `refineCharacter()` (`app.js:1528-1570`) / `refineScene()` (`app.js:1575-1615`).
 Backend: `refine_character` (`main.py:312-338`) / `refine_scene` (`main.py:341-365`).
 
 ```mermaid
@@ -236,7 +236,7 @@ Merge semantics for "Update Existing":
 
 ## W5 — World build (refine + merge)
 
-Frontend `refineWorld()` (`app.js:1607-1639`) → `POST /api/refine/world` (`main.py:368-392`).
+Frontend `refineWorld()` (`app.js:1620-1652`) → `POST /api/refine/world` (`main.py:368-392`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
 2. Merge into the existing world (`main.py:378-390`):
@@ -259,14 +259,13 @@ Frontend `refineWorld()` (`app.js:1607-1639`) → `POST /api/refine/world` (`mai
 
 ## W7 — World settings & novel settings editing
 
-- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:966-1013`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
-- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1018-1051`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`.
-  ⚠ `total_chapters` and `created_at` are not sent, so they reset to `0` and `""` (KI-007). Opening Settings with **Alt+S** skips model loading, which can save empty model names (KI-006).
-- **Inline title edit** (`initTitleEdit`, `app.js:1232-1271`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
+- **World Settings modal** (`openWorldModal`/`saveWorld`, `app.js:972-1019`): fills the form from `state.world` and saves with `PUT /api/world {settings}` (full replace).
+- **Novel Settings modal** (`openSettingsModal`/`saveSettings`, `app.js:1024-1064`): title, genre, author, writer model, specialist model → `PUT /api/novel-meta {meta}`. The body is `{...state.novelMeta, …form}`, so `total_chapters` and `created_at` are kept, and an empty model select falls back to the stored model. `state.novelMeta` is reloaded after every generation, so the count is current. Opening the modal (button or **Alt+S**) fills the model lists at once and refreshes them from Ollama (see W8). (KI-006/KI-007, fixed in plan 006.)
+- **Inline title edit** (`initTitleEdit`, `app.js:1245-1284`): click the title, type, then Enter or blur → `PUT /api/novel-meta` with `{...state.novelMeta, title}`. This keeps the other fields. Escape cancels.
 
 ## W8 — Model management
 
-1. Opening **⚙ Settings** (button click only) → `loadModels()` → `GET /api/models` (cached in `_cachedModels` until **↻ Refresh**).
+1. Opening **⚙ Settings** (button or **Alt+S**: both call `openSettingsModal`) first fills both `<select>`s with the current models, then `loadModels()` → `GET /api/models` (cached in `_cachedModels` until **↻ Refresh**) refreshes the lists and the model browser, keeping any choice made meanwhile.
 2. Backend (`main.py:236-265`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
    ⚠ "Installed" matches **any tag in the same family**, so `gemma3:4b` installed marks `gemma3:12b` as installed (KI-020).
 3. The UI fills both `<select>`s (installed models + current selections, the latter tagged "(not installed)") and renders the model browser cards with **Set Writer / Set Specialist** (installed) or **⬇ Pull** (not installed).

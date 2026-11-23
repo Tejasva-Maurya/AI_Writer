@@ -56,6 +56,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   - [plan 004] [KI-036]
 - The backend starts even when the `ollama` Python package is missing; generation and the Build tabs then report "ollama Python package not installed: run pip install -r app/requirements.txt". `app/start.bat` now checks every runtime package (and `ollama` >= 0.4) on each launch, installs or upgrades when needed, and stops with the manual command if that fails, instead of only checking FastAPI. [plan 005] [KI-003]
 - The app no longer freezes while the specialist model works: specialist calls use the async Ollama client, so sidebars, settings and other requests are served during generation and refine steps. [plan 005] [KI-005]
+- **Alt+S** opens Settings with the model lists filled, like the ⚙ button, so saving can no longer blank the writer or specialist model. [plan 006] [KI-006]
+- Saving Settings or renaming the novel no longer resets `total_chapters` and `created_at` in `novel_meta.json`, including right after a generation (novel settings now reload when a chapter completes). [plan 006] [KI-007]
+- New chapters are numbered highest + 1 by the backend instead of count + 1 by the page, so a gap in the numbering no longer makes the next generation overwrite an existing chapter. [plan 006] [KI-008]
 
 ---
 

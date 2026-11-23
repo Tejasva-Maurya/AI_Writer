@@ -85,7 +85,7 @@ curl http://127.0.0.1:8000/api/models
 
 ## 4. First-run checklist
 
-1. **⚙ Settings** (click the button; ⚠ don't use `Alt+S` for this, KI-006): set title/genre/author. Make sure both model dropdowns show models that are actually installed (the status bar should say "Ollama running — N model(s) installed"). **Save Settings**.
+1. **⚙ Settings** (button or `Alt+S`): set title/genre/author. Make sure both model dropdowns show models that are actually installed (the status bar should say "Ollama running — N model(s) installed"). **Save Settings**.
 2. **World Build** tab: describe your world in free text (cultivation realms, magic, factions…) → **Integrate into World Settings**. The snapshot above the box shows the merged result.
 3. **Character Build** / **Scene Build** tabs: describe your main cast and key locations → **Refine & Save**. They appear in the sidebars after a moment.
 4. **Plot Writing** tab: write your first chapter plot → **▶ Generate Chapter**.
@@ -153,7 +153,7 @@ Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (
 | `Ctrl+Enter` (in plot box) | Generate chapter |
 | `Alt+G` | Generate chapter |
 | `Alt+N` | New character modal |
-| `Alt+S` | Settings modal (⚠ model lists may not load, KI-006) |
+| `Alt+S` | Settings modal |
 | `Alt+W` | World settings modal |
 | `Escape` | Close the open modal |
 | `Enter` / `,` in a tag field | Add tag |

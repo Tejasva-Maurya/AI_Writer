@@ -54,3 +54,9 @@
 - **Outcome:** Cause: the global git identity is the work email, and GitHub credits by author email. Set a repo-local identity (Tejasva_Maurya / gmail). Re-credited the four commits via REST with a lease check (`14dd6aa`→`3e61415`, `5960228`→`058caae`, `eedf02f`→`78ab1ea`, `d1e3f85`→`2b4f3c2`; trees verified identical). The API now maps all six commits to Tejasva-Maurya. Recorded D-010 and a gotcha.
 - **Plan:** none (git housekeeping on user request).
 - **Open threads:** GitHub's cached contributor list may lag.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-006, KI-007, KI-008 (plan 006)
+- **Goal:** Settings via Alt+S without model lists; Settings save resetting `total_chapters`/`created_at`; chapters numbered count + 1 (overwrite after a gap).
+- **Outcome:** Frontend only (`app.js`). `openSettingsModal` fills and refreshes the model lists (the second button listener was removed). `saveSettings` round-trips `state.novelMeta`, and an empty select keeps the stored model. `complete` also reloads novel meta. The UI no longer sends `chapter_number`; `nextChapterNumber()` (highest + 1) drives the hint and badge. Sandbox UI verified: Alt+S lists filled and Save kept models; total 7 and `created_at` kept by Settings and title edit; with chapters 1 and 3, the request was `{plot}`, 004 was created and 003 untouched; a stale count (3→4) was not written back.
+- **Plan:** 006 (done).
+- **Open threads:** Committed and pushed in the same session. Real LLM not exercised.

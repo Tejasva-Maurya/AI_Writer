@@ -1,22 +1,19 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-22, through plan 005. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 006. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 29 open · 1 partly fixed (KI-023) · 8 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-022, KI-027, KI-036).
+**At a glance:** 26 open · 1 partly fixed (KI-023) · 11 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-022, KI-027, KI-036).
 
-### Open (30)
+### Open (27)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-006 | Medium | Frontend | `Alt+S` opens Settings without loading models, so empty model names can be saved | Open |
-| KI-007 | Medium | Frontend | Settings save resets `total_chapters`/`created_at` | Open |
-| KI-008 | Medium | Frontend/Pipeline | Next chapter number = count+1 (not max+1), so gaps cause overwrites | Open |
 | KI-009 | Medium | Data | Inconsistent slugs (LLM-provided, verbatim) lead to duplicates and odd filenames | Open |
 | KI-010 | Medium | Security | Slugs used as filenames without validation; CORS `*` on an unauthenticated API | Open |
 | KI-011 | Medium | Security/Frontend | Unescaped `innerHTML` in world snapshot and model browser | Open |
@@ -45,7 +42,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Open |
 
-### Fixed (8)
+### Fixed (11)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -56,6 +53,9 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-003 | High | Setup | Server fails to start without `ollama`; `app/start.bat` only checks `fastapi` ✔ | Fixed in Unreleased [plan 005] |
 | KI-004 | High | Setup | `app/requirements.txt` pins are stale/incompatible (ollama 0.3.3 vs ≥0.4 API; pydantic 2.7.1 vs Py3.13+; httpx missing) | Fixed in Unreleased [plan 005] |
 | KI-005 | Medium | Backend | Synchronous `ollama.chat` blocks the event loop during specialist calls | Fixed in Unreleased [plan 005] |
+| KI-006 | Medium | Frontend | `Alt+S` opens Settings without loading models, so empty model names can be saved | Fixed in Unreleased [plan 006] |
+| KI-007 | Medium | Frontend | Settings save resets `total_chapters`/`created_at` | Fixed in Unreleased [plan 006] |
+| KI-008 | Medium | Frontend/Pipeline | Next chapter number = count+1 (not max+1), so gaps cause overwrites | Fixed in Unreleased [plan 006] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
@@ -93,15 +93,18 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Impact:** While a specialist call runs (seconds to minutes), the server cannot answer any request (UI reloads, health, model list).
 - **Fix:** `await asyncio.to_thread(specialist.fn, …)` at the call sites, or switch the specialist to `ollama.AsyncClient`.
 
-### KI-006 — `Alt+S` Settings without model list · Medium
+### KI-006 — `Alt+S` Settings without model list · Medium · ✅ Fixed in Unreleased (plan 006)
+- **Status: Fixed in Unreleased [plan 006].** `openSettingsModal` fills both model selects from `state.novelMeta` immediately, then refreshes them (and the model browser) from `loadModels()`. The button and `Alt+S` share this path, and the second `#btn-settings` listener is gone. `saveSettings` falls back to the stored model if a select is empty. Verified in a sandbox: after `Alt+S` both selects held the current models, the browser rendered, and Save kept both names; the button path made no duplicate `/api/models` call. The evidence below describes the v1.0.0 code.
 - **Evidence:** Model loading is attached only to the `#btn-settings` click (`app.js:1878-1887`). `Alt+S` calls `openSettingsModal()` directly (`:1400-1403`). On an empty `<select>`, setting `.value` has no effect, so `saveSettings` sends `""` for both models.
 - **Fix:** move the model loading into `openSettingsModal()`.
 
-### KI-007 — Settings save resets counters · Medium
+### KI-007 — Settings save resets counters · Medium · ✅ Fixed in Unreleased (plan 006)
+- **Status: Fixed in Unreleased [plan 006].** `saveSettings` sends `{...state.novelMeta, …form}`, and the `complete` handler reloads novel meta, so neither Settings nor the inline title edit can write back an old `total_chapters`. Verified in a sandbox: Settings save and title edit kept `total_chapters` 7 and `created_at`; after a generation raised the count from 3 to 4, a Settings save kept 4. The evidence below describes the v1.0.0 code.
 - **Evidence:** `saveSettings` (`app.js:1029-1035`) omits `total_chapters`/`created_at`, so the Pydantic defaults (0, "") are persisted by a full-replace PUT.
 - **Fix:** send `{...state.novelMeta, ...formValues}` (as `initTitleEdit` already does).
 
-### KI-008 — Chapter number from count instead of max · Medium
+### KI-008 — Chapter number from count instead of max · Medium · ✅ Fixed in Unreleased (plan 006)
+- **Status: Fixed in Unreleased [plan 006]** (first option below). The UI no longer sends `chapter_number`; the backend uses `get_next_number()` (highest on disk + 1). `nextChapterNumber()` gives the same rule for the hint and the streaming badge, and the badge is set from the `complete` event. API callers can still pass an explicit number to regenerate. Verified in a sandbox with chapters 1 and 3: the hint said 4, the request body was `{plot}` only, `004.json` was created and `003.json` stayed byte-identical. The evidence below describes the v1.0.0 code.
 - **Evidence:** `generateChapter` sends `state.chapters.length + 1` (`app.js:436`); the hint uses the same rule (`:358`). The backend's correct `get_next_number()` (max+1) is bypassed because a number is always sent.
 - **Fix:** omit `chapter_number` (let the backend decide) or compute max+1. Consider refusing to overwrite unless an explicit "regenerate" flag is set.
 
@@ -116,7 +119,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Fix:** validate slugs against `^[a-z0-9_-]+$` (or ensure `resolved_path.parent == data_dir`). Restrict CORS to the app's own origin.
 
 ### KI-011 — Unescaped HTML injection points · Medium (security)
-- **Evidence:** `renderWorldSnapshot` interpolates world fields into `innerHTML` (`app.js:1468-1477`). `populateModelSelects` (`:1675`) and `renderModelBrowser` (`:1734-1753`) interpolate model names. World fields can come from LLM output.
+- **Evidence:** `renderWorldSnapshot` interpolates world fields into `innerHTML` (`app.js:1481-1490`). `populateModelSelects` (`:1688`) and `renderModelBrowser` (`:1747-1766`) interpolate model names. World fields can come from LLM output.
 - **Fix:** wrap the values with `escHtml()`, or build the nodes with `textContent`.
 
 ### KI-012 — Unused `predict_updates` call · Low
@@ -164,7 +167,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:765`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
 
 ### KI-024 — Pipeline UI state not reset · Low
-- `completePipeline` sets `opacity: 0.4` (`app.js:658`). `setStepError` sets inline red border/background (`:673-674`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
+- `completePipeline` sets `opacity: 0.4` (`app.js:664`). `setStepError` sets inline red border/background (`:679-680`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
 
 ### KI-025 — No tests / lint / CI / logging · Medium
 - No test files, no linters, no CI workflows. No `logging` usage (`except: pass` in managers hides errors). **Suggested start:** pytest + FastAPI `TestClient` with a stubbed `ollama` module; `ruff`; a `logging` config writing to the console.
@@ -177,7 +180,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - The character modal sends neither `first_appeared_chapter` nor `last_seen_chapter`, so once KI-001 is fixed they will reset to 1 on every edit. Same for the scene's `first_appeared_chapter`. **Fix:** merge the payload into the existing record server-side (PATCH semantics), or round-trip all fields.
 
 ### KI-028 — Fallback specialist mismatch · Low
-- `app.js:172` and `:1024` fall back to `gemma3:12b` for the specialist; the backend default is `phi4-mini:3.8b` (`models.py:75`).
+- `app.js:172` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:75`).
 
 ### KI-029 — Specialist stays resident after refine · Low
 - Refine endpoints call `_call` with the default `keep_alive=-1`. **Fix:** use `0` or a finite value (e.g. `120`) for refine calls.
@@ -189,8 +192,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - Two tabs (or API clients) can generate the same chapter at once. Writes race and can overwrite each other. There is no cancel button. Closing the tab aborts the stream and loses unsaved work. **Fix:** a server-side lock per novel, plus a cancel endpoint or `AbortController` in the UI.
 
 ### KI-032 — Minor UI glitches · Low
-- After generation, `state.currentChapter` lacks `characters_featured`/`scenes_featured`, so Full View tags are empty (`app.js:523-527`).
-- If the very first token chunk contains `\n\n`, its text is held back by the `app.js:489` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
+- After generation, `state.currentChapter` lacks `characters_featured`/`scenes_featured`, so Full View tags are empty (`app.js:529-533`).
+- If the very first token chunk contains `\n\n`, its text is held back by the `app.js:494` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.
 
 ### KI-033 — Partial `OLLAMA_HOST` support · Low
@@ -214,7 +217,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Fix:** return **409** from POST when the slug exists (and show the message in the UI), or append a numeric suffix. Apply the same check in refine create and pipeline step 3 (where it should fall back to "existing").
 
 ### KI-037 — Streaming text cursor never hides · Low · Verified ✔
-- **Evidence:** `.text-cursor { display: inline; }` (`style.css:1189-1190`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:520`, `:396`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
+- **Evidence:** `.text-cursor { display: inline; }` (`style.css:1189-1190`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:525`, `:401`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
 - **Fix:** add `.text-cursor[hidden] { display: none; }` next to the rule (the same pattern as `.modal-overlay[hidden]`, `style.css:1299`).
 
 ### KI-038 — Names without letters or digits produce an empty slug · Low · Verified ✔

@@ -222,12 +222,12 @@ Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021)
 | Area | Functions |
 |---|---|
 | Boot | `init`, `checkConnection`, `bindStaticEvents`, `bindModeTabs` |
-| Loaders / renderers | `loadNovelMeta`/`renderNovelMeta`, `loadCharacters`/`renderCharacters`, `loadScenes`/`renderScenes`, `loadWorld`, `loadChapters`/`renderChapterHistory`/`updateChapterHint`, `renderCardList`, `createEntityCard` |
+| Loaders / renderers | `loadNovelMeta`/`renderNovelMeta`, `loadCharacters`/`renderCharacters`, `loadScenes`/`renderScenes`, `loadWorld`, `loadChapters`/`renderChapterHistory`/`updateChapterHint`/`nextChapterNumber` (highest `chapter_number` + 1, the backend's rule), `renderCardList`, `createEntityCard` |
 | Chapter output | `viewChapter`, `showChapterOutput`, `formatChapterText` (splits on `\n\n+`, one `<p>` per paragraph via `textContent`) |
 | Generation | `generateChapter`, `parseSSEStream` (buffered line splitting, ignores malformed lines and `[DONE]`), `resetPipeline`, `activatePipelineStep`, `completePipelineStep`, `completePipeline` (fades the panel to 0.4 opacity after 2 s; nothing restores it, so later runs show a dimmed panel, KI-024), `updateProgress`, `setStepError` (inline red styles that `resetPipeline` also never clears, KI-024), `addNewEntityTag` |
 | Character | `openCharacterModal(slug?)`, `saveCharacter` (create sends `slug: ''` and the server derives it; edit sends `{...existing, ...form}` so the fields the modal doesn't show are kept), `deleteCharacter`, `viewCharacterProfile` |
 | Scene | `openSceneModal(slug?)`, `saveScene` (same payload rules as `saveCharacter`), `deleteScene`, `viewSceneProfile` |
-| World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal`, `saveSettings`, `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
+| World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal` (fills the model selects from `state.novelMeta`, then `loadModels()` → `populateModelSelects` + `renderModelBrowser`), `saveSettings` (sends `{...state.novelMeta, …form}`; an empty select keeps the stored model), `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
 | Chapter modal | `openChapterViewModal` |
 | Export | `exportNovel(format)` |
 | Modal system | `openModal(id)` (closes any other open modal, locks body scroll, focuses the first input), `closeModal(id)` |
@@ -242,13 +242,13 @@ Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021)
 | Binding | Where | Action |
 |---|---|---|
 | `#btn-generate` click, `Ctrl+Enter` in `#plot-input` | `bindStaticEvents` | `generateChapter()` |
-| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1388-1409` | Generate / new character / settings (⚠ without model load, KI-006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
+| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1401-1422` | Generate / new character / settings (loads models like the button since plan 006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
 | `Escape` | `bindStaticEvents` | Close the active modal |
 | Click on an overlay background, `.modal-close`, or `.btn-cancel[data-modal]` | delegated on `document` | Close modal |
 | Click anywhere | `document` | Close the export dropdown |
-| `#btn-settings` click | **two** listeners | (1) `openSettingsModal` (2) `loadModels().then(populate + render)` |
+| `#btn-settings` click | `bindStaticEvents` | `openSettingsModal` (which also loads the models; the old second listener was removed in plan 006) |
 
-### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:482-516`)
+### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:487-521`)
 
 - `streamedText` accumulates text since the last paragraph break. `currentParagraph` is the `<p>` being filled.
 - A chunk **without** `\n\n` is appended to `currentParagraph.textContent` (a `<p>` is created on first use).

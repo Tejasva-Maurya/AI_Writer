@@ -22,7 +22,7 @@
 | `'dict' object has no attribute 'message'` | ollama-python < 0.4 installed | `pip install -r app/requirements.txt` (upgrades it; `start.bat` does this automatically) |
 | `ollama Python package not installed: run pip install -r app/requirements.txt` | `ollama` package missing (the server still starts) | Run that command, then restart the backend |
 | `'>' not supported between instances of 'str' and 'int'` | Specialist returned `estimated_chapters` as text (KI-015) | Retry, or use a stronger specialist model |
-| model name is empty (`model is required`) | Settings were saved with empty model fields (KI-006) | Open Settings **with the button**, pick models, Save |
+| model name is empty (`model is required`) | Settings were saved with empty model fields by v1.0.0 (KI-006, fixed in plan 006) | Open Settings, pick both models, Save |
 
 The full traceback is in the SSE `error.detail` field. Watch it with the `curl -N` command in [07 §7](07-setup-and-usage.md#7-developer-quick-reference) or in the browser DevTools → Network → the `generate-chapter` response.
 
@@ -56,7 +56,7 @@ The pull progress stream does not detect Ollama errors (KI-019), and "installed"
 Slugs come from two sources: `make_slug()` gives `xiao_fan`, while LLM-generated slugs vary (e.g. `xiao-fan-scientist-inventor`). Entity resolution is done by the LLM and can miss a match (KI-009). Merge them by hand: keep one file, delete the other, and fix `characters_featured` in chapters if you care about those tags.
 
 ### A11. Chapter numbers look wrong / a chapter was overwritten
-The UI numbers new chapters as *count + 1*. If a chapter file is missing in the middle (e.g. `002.json` deleted while `003.json` exists), the next generation reuses an existing number and **overwrites** that chapter (KI-008).
+Since plan 006 the backend numbers new chapters as *highest existing number + 1*, so a gap (e.g. `002.json` deleted while `003.json` exists) just stays a gap, and nothing is overwritten. Chapters overwritten before that came from v1.0.0, which used *count + 1* (KI-008); restore them from a backup.
 
 ### A12. Export fails
 Titles containing `: ? * " < > |` produce an invalid Windows filename (KI-017). Rename the novel (click the header title) and export again.
