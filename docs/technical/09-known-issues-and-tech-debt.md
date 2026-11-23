@@ -1,23 +1,22 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 010. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 011. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 13 open · 1 partly fixed (KI-023) · 24 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-021, KI-022, KI-027, KI-031, KI-036, KI-038).
+**At a glance:** 11 open · 1 partly fixed (KI-023) · 27 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-021, KI-022, KI-024, KI-027, KI-031, KI-036, KI-037, KI-038, KI-039).
 
-### Open (14)
+### Open (12)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
-| KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs | Open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) | Open |
@@ -27,9 +26,8 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
-| KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
 
-### Fixed (24)
+### Fixed (27)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -55,10 +53,13 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error ✔ | Fixed in Unreleased [plan 010] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
+| KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs ✔ | Fixed in Unreleased [plan 011] |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
+| KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
+| KI-039 | Low | Frontend | Multi-chapter notice never hides (CSS `display: flex` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 
 ---
 
@@ -181,7 +182,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - README "Architecture" listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json` and "JSON/SQLite" storage → **corrected in [Unreleased]**.
 - Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:766`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
 
-### KI-024 — Pipeline UI state not reset · Low
+### KI-024 — Pipeline UI state not reset · Low · ✅ Fixed in Unreleased (plan 011)
+- **Status: Fixed in Unreleased [plan 011].** `resetPipeline()` (`app.js:643-660`) cancels `completePipeline()`'s pending fade (`_pipelineFadeTimer`, `app.js:641`), clears the panel's inline `opacity`, and clears each step's inline `borderColor`/`background`. It runs at the start of every generation and on cancel. Verified in the browser, old vs new with a stub:
+  - The run after a completed one: old stayed at opacity 0.4, new was at full opacity.
+  - A run started 0.5 s after the previous completion: old was dimmed 2 s later, new was not.
+  - The run after a failed one: old kept `step-1` red, new cleared it.
+  - The evidence below describes the pre-fix code.
 - `completePipeline` sets `opacity: 0.4` (`app.js:694`). `setStepError` sets inline red border/background (`:709-710`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
 
 ### KI-025 — No tests / lint / CI / logging · Medium
@@ -239,7 +245,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Reproduced 2026-11-22 [plan 003]:** POST `/api/characters` with `name: "Zz Test Hero"` after the existing `zz_test_hero` had been edited returned 200 and replaced the whole record (type, arc notes, chapters 3/5 → 1/1). Since KI-001 is fixed, this is reachable from **+ New Character** / **+ New Location** whenever a new name slugifies to an existing slug.
 - **Fix:** return **409** from POST when the slug exists (and show the message in the UI), or append a numeric suffix. Apply the same check in refine create and pipeline step 3 (where it should fall back to "existing").
 
-### KI-037 — Streaming text cursor never hides · Low · Verified ✔
+### KI-037 — Streaming text cursor never hides · Low · Verified ✔ · ✅ Fixed in Unreleased (plan 011)
+- **Status: Fixed in Unreleased [plan 011].** `.text-cursor[hidden] { display: none; }` (`style.css:1197`). Verified in the browser, old vs new: after a completed run the cursor's computed `display` was `inline` on old and `none` on new. Viewing a past chapter on a fresh page showed the same difference. While text streams it is `inline` on both. The evidence below describes the pre-fix code.
 - **Evidence:** `.text-cursor { display: inline; }` (`style.css:1191-1192`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:529`, `:402`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
 - **Fix:** add `.text-cursor[hidden] { display: none; }` next to the rule (the same pattern as `.modal-overlay[hidden]`, `style.css:1301`).
 
@@ -249,3 +256,14 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Reproduced 2026-11-22 [plan 004]:** the first `???` was saved as `.json`; a second (`!!!`) got 409 `Character '' already exists` (since KI-036's fix).
 - **Workaround:** delete `data/characters/.json` (or `data/scenes/.json`) by hand.
 - **Fix:** in POST (and refine create / pipeline step 3), reject an empty slug after derivation with 422 ("name needs at least one letter or digit"), or derive a fallback such as `character_<n>`.
+
+### KI-039 — Multi-chapter notice never hides · Low · Verified ✔ · ✅ Fixed in Unreleased (plan 011)
+- **Status: Fixed in Unreleased [plan 011].** `.multi-chapter-notice[hidden] { display: none; }` (`style.css:1210`). Verified in the browser, old vs new:
+  - On load, old showed the notice; new hid it.
+  - After a run with `estimated_chapters: 2`, both showed it.
+  - In the next run, old still showed it; new hid it.
+  - The evidence below describes the pre-fix code.
+- **Evidence:** `.multi-chapter-notice { display: flex; }` (`style.css:1199`) overrides the browser's `[hidden] { display: none }`, the same trap as KI-037.
+  - The notice "This plot may span multiple chapters" (`index.html:457`, `hidden` in the markup) was visible from page load. `DOM.multiChapterNotice.hidden = true` at the start of each run (`app.js:439`) had no effect, so it showed whether or not a `multi_chapter` event was sent.
+  - Found 2026-11-23 [plan 011]: a page audit listed `#text-cursor` and `#multi-chapter-notice` as the only elements with `hidden` set whose computed `display` wasn't `none`. Plan 010's UI screenshots showed the notice although the stub never sent `multi_chapter`.
+- **Fix:** add `.multi-chapter-notice[hidden] { display: none; }` next to the rule.

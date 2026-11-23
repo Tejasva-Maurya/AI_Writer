@@ -638,10 +638,17 @@ async function parseSSEStream(response, handlers) {
 // ─────────────────────────────────────────────
 // PIPELINE CONTROL
 // ─────────────────────────────────────────────
+let _pipelineFadeTimer = null;  // completePipeline's pending fade
+
 function resetPipeline() {
+  // Undo the previous run's fade and red error step (KI-024)
+  clearTimeout(_pipelineFadeTimer);
+  DOM.pipelineSection.style.opacity = '';
   for (let i = 1; i <= 7; i++) {
     const step = $(`step-${i}`);
     if (!step) continue;
+    step.style.borderColor = '';
+    step.style.background = '';
     step.classList.remove('step-is-active', 'step-is-done');
     step.querySelector('.step-pending').hidden = false;
     step.querySelector('.step-active').hidden = true;
@@ -690,7 +697,7 @@ function completePipeline() {
   DOM.pipelineProgressFill.style.width = '100%';
 
   // Fade out pipeline after a moment
-  setTimeout(() => {
+  _pipelineFadeTimer = setTimeout(() => {
     DOM.pipelineSection.style.opacity = '0.4';
   }, 2000);
 }

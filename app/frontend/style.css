@@ -1194,6 +1194,7 @@ body {
   animation: blink 1s step-end infinite;
   font-size: 0.9em;
 }
+.text-cursor[hidden] { display: none; }  /* display: inline above would override [hidden] (KI-037) */
 
 /* Multi-chapter notice */
 .multi-chapter-notice {
@@ -1206,6 +1207,7 @@ body {
   font-size: 0.78rem;
   color: var(--gold);
 }
+.multi-chapter-notice[hidden] { display: none; }  /* same trap as .text-cursor (KI-039) */
 
 .notice-icon { font-size: 1.1rem; animation: electric 1.2s ease-in-out infinite; }
 

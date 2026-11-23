@@ -74,6 +74,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Pipeline warnings (a profile that couldn't be saved, a failed unload, a rejected update) are shown as warning toasts instead of being ignored. [plan 009] [KI-018]
 - Pulling a model in Settings no longer reports "installed" when the download failed: an unknown model name, an Ollama error or a download that stopped early now shows "Pull failed: …" with Ollama's reason. [plan 010] [KI-019]
 - Only one chapter is generated at a time: a second request (another tab or a script) gets 409 "A chapter is already being generated" instead of running in parallel and overwriting the same chapter file. Closing the tab still stops the generation, and the next one is accepted at once. [plan 010] [KI-031]
+- The blinking `▍` cursor disappears when a chapter finishes, fails or is opened from History, instead of staying under the text. [plan 011] [KI-037]
+- The "This plot may span multiple chapters" notice appears only when the plot really does, and clears at the next generation (it was always visible). [plan 011] [KI-039]
+- Each generation starts with a fresh pipeline panel: no longer dimmed from the previous chapter, and no step left red from an earlier error. [plan 011] [KI-024]
 
 
 ### Security

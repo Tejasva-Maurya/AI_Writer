@@ -19,16 +19,17 @@
 - `[Unreleased]`: plan 007 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-009 (server-derived slugs, step-2 dedupe), KI-010 (slug validation stops path traversal; CORS removed; TrustedHost), KI-011 (escaped HTML), plus KI-021 and KI-038.
 - `[Unreleased]`: plan 008 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-012 (explicit unload at step 5), KI-013 (deterministic step 4, scene updates applied, dead args removed) and KI-014 (summariser sees the whole chapter).
 - `[Unreleased]`: plan 009 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-015 (type-safe pipeline), KI-016 (model coercion, validated merges, `format=json`) and KI-018 (warning toasts).
-- `[Unreleased]`: plan 010 (done 2026-11-23, **not committed yet**) fixes KI-019 (pull ends with `success` only after Ollama's own) and KI-031 (one generation at a time: 409 while one runs; `POST /api/generate-chapter/cancel` + **✕ Cancel** button; disconnect cancels).
+- `[Unreleased]`: plan 010 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-019 (pull ends with `success` only after Ollama's own) and KI-031 (one generation at a time: 409 while one runs; `POST /api/generate-chapter/cancel` + **✕ Cancel** button; disconnect cancels).
+- `[Unreleased]`: plan 011 (done 2026-11-23, **not committed yet**) fixes KI-037 (cursor hides), KI-024 (pipeline panel reset per run) and the newly found KI-039 (multi-chapter notice hides), in `style.css` and `app.js`.
 - POST no longer upserts (409) and now normalises slugs; the API is same-origin only. Generate can now return 409 too (plan 010). When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–010 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–009 are committed and pushed; plan 010 is in the working tree, waiting for the user to ask for a commit.
+- Plans 003–011 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–010 are committed and pushed; plan 011 is in the working tree, waiting for the user to ask for a commit.
 
 ## Suggested next up (from `docs/technical/09`, by impact)
 1. KI-025: no tests, lint, CI or logging (the only open Medium). A pytest + `TestClient` suite with a stubbed `ollama` would replace the ad-hoc sandbox checks.
-2. Quick Low fixes: KI-037 (cursor never hides, a one-line CSS fix), KI-024 (pipeline panel styles not reset), KI-020 (exact-match "installed" detection).
+2. Quick Low fixes: KI-020 (exact-match "installed" detection), KI-028 (frontend fallback specialist model), KI-032 (minor UI glitches).
 3. KI-017 (export writes into `data/`; illegal filename characters), KI-026 (non-atomic writes), KI-033 (`OLLAMA_HOST` ignored by model list/pull).
 
 ## Environment facts (dev machine, verified 2026-11-22)

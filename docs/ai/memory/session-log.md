@@ -105,4 +105,13 @@
   - UI: **✕ Cancel** button (shown while generating), the cancelled `error` is an info toast, the 409 `detail` is shown.
   - Old vs new (stub ollama, fake Ollama pull): old reported success for a 404, an error line and a truncated pull, and let two generations both write chapter 1; new reports each pull error, returns 409, cancels within 0.1 s without saving, and frees the guard on disconnect. UI checked in the browser pane.
 - **Plan:** 010 (done).
-- **Open threads:** Not committed yet (waiting for the user). Real Ollama pull and real cancellation of an Ollama generation not exercised.
+- **Open threads:** Committed and pushed in the same session. Real Ollama pull and real cancellation of an Ollama generation not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-037, KI-024, new KI-039 (plan 011)
+- **Goal:** Hide the streaming cursor when nothing streams, and reset the pipeline panel's fade and error styles between runs.
+- **Outcome:**
+  - `style.css`: `.text-cursor[hidden]` and `.multi-chapter-notice[hidden]` → `display: none`. The notice had the same trap as the cursor and was always visible: catalogued as KI-039, approved in the plan.
+  - `app.js`: `resetPipeline()` cancels the pending fade (`_pipelineFadeTimer`), clears the opacity and the steps' inline red styles.
+  - Browser, old vs new with a stub: wrongly visible `[hidden]` elements on load, old 2 (cursor, notice) vs new 0; cursor after completion `inline` vs `none`; the notice stayed vs cleared on the next run; next-run opacity 0.4 vs full, including the run started within 2 s; the red step stayed vs cleared. Console clean.
+- **Plan:** 011 (done).
+- **Open threads:** Not committed yet (waiting for the user).

@@ -67,7 +67,7 @@ Since plan 006 the backend numbers new chapters as *highest existing number + 1*
 Titles containing `: ? * " < > |` produce an invalid Windows filename (KI-017). Rename the novel (click the header title) and export again.
 
 ### A13. The pipeline panel looks dimmed or a step stays red on the next run
-Cosmetic (KI-024): fade and error styles are not reset between runs. Reload the page.
+Fixed in [Unreleased] (plan 011, KI-024): every run now starts with a full-opacity panel and no red step. If you still see it, your browser is running an old cached `app.js`; hard-reload the page (`Ctrl+F5`). The same plan fixed the blinking `▍` cursor staying after a chapter (KI-037) and the "may span multiple chapters" notice that never went away (KI-039).
 
 ### A13b. A yellow ⚠ toast appears during generation
 It is a pipeline `warning` (shown since plan 009, KI-018): something non-fatal failed and the chapter continued. Typical messages: "Could not save character profile: …" (the specialist returned a profile without a name), "Could not update character '…'" (an update the model couldn't validate; the character keeps its old values), "Could not unload the specialist model: …" (Ollama didn't confirm the unload; watch VRAM). The same text is in the browser console.
