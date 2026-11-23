@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import List, Optional, Dict
 from models import Scene
 
+# A slug is a filename stem: letters/digits of any script, "_" and "-" only. No dots, slashes or backslashes (KI-010).
+_SLUG_RE = re.compile(r"[\w-]+")
+
 
 def _data_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "data" / "scenes"  # <repo>/data (outside app/)
@@ -14,6 +17,16 @@ def _slugify(name: str) -> str:
     s = re.sub(r"[^\w\s-]", "", s)
     s = re.sub(r"[\s_-]+", "_", s)
     return s.strip("_")
+
+
+def is_valid_slug(slug) -> bool:
+    return isinstance(slug, str) and bool(_SLUG_RE.fullmatch(slug))
+
+
+def _path(slug: str) -> Path:
+    if not is_valid_slug(slug):
+        raise ValueError(f"Invalid scene slug: {slug!r}")
+    return _data_dir() / f"{slug}.json"
 
 
 def ensure_dir():
@@ -33,8 +46,10 @@ def get_all() -> List[Scene]:
 
 
 def get_by_slug(slug: str) -> Optional[Scene]:
+    if not is_valid_slug(slug):
+        return None
     ensure_dir()
-    path = _data_dir() / f"{slug}.json"
+    path = _path(slug)
     if path.exists():
         with open(path, encoding="utf-8") as f:
             return Scene(**json.load(f))
@@ -43,13 +58,15 @@ def get_by_slug(slug: str) -> Optional[Scene]:
 
 def save(scene: Scene):
     ensure_dir()
-    path = _data_dir() / f"{scene.slug}.json"
+    path = _path(scene.slug)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(scene.model_dump(), f, indent=2, ensure_ascii=False)
 
 
 def delete(slug: str) -> bool:
-    path = _data_dir() / f"{slug}.json"
+    if not is_valid_slug(slug):
+        return False
+    path = _path(slug)
     if path.exists():
         path.unlink()
         return True
@@ -65,9 +82,14 @@ def make_slug(name: str) -> str:
 
 
 def create(scene: Scene):
-    """Save a new scene. Never overwrites: raises FileExistsError if the slug is taken (KI-036)."""
+    """Save a new scene. Never overwrites: raises FileExistsError if the slug, or an equivalent one
+    (same letters ignoring case, "-" vs "_"), is taken (KI-036, KI-009)."""
+    path = _path(scene.slug)
     ensure_dir()
-    path = _data_dir() / f"{scene.slug}.json"
+    key = _slugify(scene.slug)
+    clash = next((f.stem for f in _data_dir().glob("*.json") if _slugify(f.stem) == key), None)
+    if clash is not None:
+        raise FileExistsError(f"Scene '{clash}' already exists")
     try:
         with open(path, "x", encoding="utf-8") as f:
             json.dump(scene.model_dump(), f, indent=2, ensure_ascii=False)

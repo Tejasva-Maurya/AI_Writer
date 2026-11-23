@@ -22,13 +22,13 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:397` | Edit both. Do **not** bind `0.0.0.0` without adding auth (no auth + CORS `*`). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:397`, **`app/frontend/app.js:6`** (`API`) | Change **all three** together. The frontend talks to an absolute URL. |
-| Frontend API base | `http://127.0.0.1:8000/api` | `app.js:6` | Opening the UI as `http://localhost:8000` makes API calls cross-origin (they work only because CORS is `*`). |
-| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:243`, `main.py:280` | Edit the source. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:401` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:401` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
+| Frontend API base | `/api` (same origin) | `app.js:6` | Works for `http://127.0.0.1:8000` and `http://localhost:8000` alike (KI-021, fixed in plan 007). |
+| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:241`, `main.py:278` | Edit the source. |
 | Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
-| CORS | `allow_origins=["*"]`, all methods/headers | `main.py:32-37` | Restrict to `http://127.0.0.1:8000` if hardening. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:397` | — |
+| Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:33` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:401` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
@@ -53,14 +53,14 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
 | Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:76` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
-| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:139-151` (+ duplicated in the `select_context` prompt, `specialist.py:197-201`) |
+| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:162-174` (+ duplicated in the `select_context` prompt, `specialist.py:197-201`) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
 | Post-write input truncation | first **3000 chars** of the chapter | `specialist.py:245` |
 | Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:250-252` |
 
 ### 2.4 Model catalogue (shown in Settings)
 
-`RECOMMENDED_MODELS` (`main.py:227-234`):
+`RECOMMENDED_MODELS` (`main.py:225-232`):
 
 | Model | Size (as listed) | Quality | Note |
 |---|---|---|---|
@@ -84,7 +84,7 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 | Connection check timeout | 3000 ms | `app.js:1429` |
 | Sidebar reload delay after a new entity | 300 ms | `app.js:477,478` |
 | Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:663-665` |
-| Refine status auto-clear | 5000 ms | `app.js:1568` etc. |
+| Refine status auto-clear | 5000 ms | `app.js:1569` etc. |
 | Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:166-173` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)

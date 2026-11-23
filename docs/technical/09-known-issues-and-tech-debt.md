@@ -1,22 +1,19 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 006. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 007. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 26 open · 1 partly fixed (KI-023) · 11 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-022, KI-027, KI-036).
+**At a glance:** 21 open · 1 partly fixed (KI-023) · 16 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-021, KI-022, KI-027, KI-036, KI-038).
 
-### Open (27)
+### Open (22)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-009 | Medium | Data | Inconsistent slugs (LLM-provided, verbatim) lead to duplicates and odd filenames | Open |
-| KI-010 | Medium | Security | Slugs used as filenames without validation; CORS `*` on an unauthenticated API | Open |
-| KI-011 | Medium | Security/Frontend | Unescaped `innerHTML` in world snapshot and model browser | Open |
 | KI-012 | Low | Pipeline | Step 5 `predict_updates` result unused (an LLM call made only to unload VRAM) | Open |
 | KI-013 | Low | Pipeline | `scene_updates`, `scene_profiles`, `novel_meta` arg ignored; scenes never evolve | Open |
 | KI-014 | Medium | Pipeline | Post-write summariser sees only the first 3000 chars of the chapter | Open |
@@ -26,7 +23,6 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Open |
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error | Open |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
-| KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Open |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs | Open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
@@ -40,9 +36,8 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Open |
-| KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Open |
 
-### Fixed (11)
+### Fixed (16)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -56,9 +51,14 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-006 | Medium | Frontend | `Alt+S` opens Settings without loading models, so empty model names can be saved | Fixed in Unreleased [plan 006] |
 | KI-007 | Medium | Frontend | Settings save resets `total_chapters`/`created_at` | Fixed in Unreleased [plan 006] |
 | KI-008 | Medium | Frontend/Pipeline | Next chapter number = count+1 (not max+1), so gaps cause overwrites | Fixed in Unreleased [plan 006] |
+| KI-009 | Medium | Data | Inconsistent slugs (LLM-provided, verbatim) lead to duplicates and odd filenames | Fixed in Unreleased [plan 007] |
+| KI-010 | Medium | Security | Slugs used as filenames without validation; CORS `*` on an unauthenticated API | Fixed in Unreleased [plan 007] |
+| KI-011 | Medium | Security/Frontend | Unescaped `innerHTML` in world snapshot and model browser | Fixed in Unreleased [plan 007] |
+| KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
+| KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
 
 ---
 
@@ -108,26 +108,33 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Evidence:** `generateChapter` sends `state.chapters.length + 1` (`app.js:436`); the hint uses the same rule (`:358`). The backend's correct `get_next_number()` (max+1) is bypassed because a number is always sent.
 - **Fix:** omit `chapter_number` (let the backend decide) or compute max+1. Consider refusing to overwrite unless an explicit "regenerate" flag is set.
 
-### KI-009 — Inconsistent slugs · Medium
+### KI-009 — Inconsistent slugs · Medium · ✅ Fixed in Unreleased (plan 007)
+- **Status: Fixed in Unreleased [plan 007].** Every slug the server writes is `make_slug(...)`: POST uses `make_slug(slug or name)`, refine create and pipeline step 3 use `make_slug(profile name)`, never the LLM's slug. Step 2 is canonicalised by `_canonical_entities`: a match by slug or name (ignoring case, `-`/`_` and punctuation) becomes `existing` with the real slug; nameless entries and repeats are dropped. `create()` also refuses a slug equivalent to an existing file stem (409). Verified with a stub that resolved the existing `xiao-fan-scientist-inventor` as "new" `xiao_fan_scientist_inventor`: the committed code created a duplicate file plus `Zz-New-Hero!.json`; the fixed code created only `zz_new_hero`, refused the duplicate profile with a warning, and stored the real slugs in the chapter. A nameless step-2 entry crashed the committed pipeline (`KeyError: 'name'`); the fixed one completes. Existing hyphenated files stay valid. The evidence below describes the v1.0.0 code.
 - **Evidence:** `make_slug` gives `snake_case` (`character_manager.py:12-16`). Prompts ask the LLM for snake_case slugs, but LLM slugs are saved verbatim (`chapter_pipeline.py:80`, `main.py:334`/`:361`). The sample data has the hyphenated `xiao-fan-scientist-inventor`.
 - **Impact:** duplicates; filenames containing arbitrary characters; resolution depends on LLM fuzzy matching.
 - **Fix:** always derive or sanitise slugs server-side (`make_slug(name)`), and de-duplicate against existing names before creating.
 
-### KI-010 — Unvalidated slugs as filenames; open CORS · Medium (security)
+### KI-010 — Unvalidated slugs as filenames; open CORS · Medium (security) · ✅ Fixed in Unreleased (plan 007)
+- **Status: Fixed in Unreleased [plan 007].**
+  - **Exploit confirmed before the fix** (sandbox copy, 2026-11-23): `DELETE /api/characters/..%5Cnovel_meta` and `DELETE /api/scenes/..%5Cworld_settings` returned 200 and **deleted `data/novel_meta.json` and `data/world_settings.json`**. With CORS `*`, any website open in the browser could have sent them.
+  - Managers: every file access goes through `_path(slug)`, which accepts only `[\w-]+` (letters/digits of any script, `_`, `-`); `get_by_slug`/`delete` treat anything else as not found. Now 404, files intact; `..%5C..%5Cx`, `a.b`, `x%2Fy` and a backslash PUT are 404 too.
+  - `main.py`: `CORSMiddleware` removed and the UI calls the same-origin `/api` (KI-021). A preflight from `evil.example` now gets 405 with no allow-origin header (was 200 with `*`). A cross-site `text/plain` POST is rejected by FastAPI (no write). `TrustedHostMiddleware` allows only `127.0.0.1`/`localhost`: `Host: evil.example` (DNS rebinding) now gets 400 (was 200).
+  - The evidence below describes the v1.0.0 code.
 - **Evidence:** `_data_dir() / f"{slug}.json"` in managers. The slug comes from URL paths, request bodies or LLM output. On Windows, a backslash in a slug is a path separator for `pathlib`. CORS `allow_origins=["*"]` (`main.py:32-37`) with no authentication means any website open in the browser can call these endpoints, including DELETE.
 - **Status of exploitability:** not exercised. Risk assessed from code.
 - **Fix:** validate slugs against `^[a-z0-9_-]+$` (or ensure `resolved_path.parent == data_dir`). Restrict CORS to the app's own origin.
 
-### KI-011 — Unescaped HTML injection points · Medium (security)
+### KI-011 — Unescaped HTML injection points · Medium (security) · ✅ Fixed in Unreleased (plan 007)
+- **Status: Fixed in Unreleased [plan 007].** `renderWorldSnapshot`, `populateModelSelects` and `renderModelBrowser` escape every interpolated value with `escHtml()` (world fields after truncation; model names in text, `value`, `data-model` and the `pb-/pf-/ps-` ids). Verified in the browser pane: `<img onerror>`, `<svg onload>`, `<script>` and `<b>` payloads in world fields, the stored writer model and a fake Ollama model list all rendered as literal text, with no injected elements and no handlers run; **Set Writer** still worked through the escaped `data-model`. The evidence below describes the v1.0.0 code.
 - **Evidence:** `renderWorldSnapshot` interpolates world fields into `innerHTML` (`app.js:1481-1490`). `populateModelSelects` (`:1688`) and `renderModelBrowser` (`:1747-1766`) interpolate model names. World fields can come from LLM output.
 - **Fix:** wrap the values with `escHtml()`, or build the nodes with `textContent`.
 
 ### KI-012 — Unused `predict_updates` call · Low
-- **Evidence:** `update_predictions` (`chapter_pipeline.py:160`) is never read. The call exists to send `keep_alive=0`.
+- **Evidence:** `update_predictions` (`chapter_pipeline.py:183`) is never read. The call exists to send `keep_alive=0`.
 - **Fix:** replace with an explicit unload (`ollama.generate(model, keep_alive=0)` with an empty prompt, or `ollama.chat(..., keep_alive=0)` with a minimal message). This saves one full LLM round trip per chapter.
 
 ### KI-013 — Ignored outputs and parameters · Low
-- `post_write_update(..., scene_profiles=[])` is always empty and unused. The LLM's `scene_updates` are never applied (`chapter_pipeline.py:193+`). The `novel_meta` arg of `analyze_plot` is unused. `select_context` largely duplicates the hard-coded fallback rules.
+- `post_write_update(..., scene_profiles=[])` is always empty and unused. The LLM's `scene_updates` are never applied (`chapter_pipeline.py:216+`). The `novel_meta` arg of `analyze_plot` is unused. `select_context` largely duplicates the hard-coded fallback rules.
 
 ### KI-014 — Summaries based on the first 3000 characters only · Medium
 - **Evidence:** `specialist.py:245` `chapter_text[:3000]`. A ~2000-word chapter is ~11–12k characters, so roughly the last ¾, **including the ending hook**, is never summarised, although the prompt asks for an "ending hook" in `full_summary`.
@@ -135,26 +142,27 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Fix:** pass the full text (the specialist's `num_ctx` is 8192, which fits ~2000 words), or the head plus the tail.
 
 ### KI-015 — Type-unsafe LLM fields · Low
-- **Evidence:** `if estimated_chapters > 1` (`chapter_pipeline.py:51`) raises a `TypeError` for `"2"`/`null`, which aborts the whole pipeline. Similar latent risks: `.get()` results used as lists or dicts without type checks.
+- **Evidence:** `if estimated_chapters > 1` (`chapter_pipeline.py:74`) raises a `TypeError` for `"2"`/`null`, which aborts the whole pipeline. Similar latent risks: `.get()` results used as lists or dicts without type checks.
 - **Fix:** coerce or validate specialist outputs (small Pydantic models per call, or helper coercers).
 
 ### KI-016 — Entities silently dropped on validation failure · Medium · Verified ✔
-- **Evidence:** `Character(type="supporting")` and `Character(age=17)` both raise (verified). In step 3 these become `warning` events, which the UI ignores (KI-018). In the refine **create** branch they become HTTP 500 (`main.py:333-338`, `356-360`). **Worse, in the refine *merge* branch** (`existing_slug` found), values are applied with `setattr` (`main.py:329`, `:356`) without validation (no `validate_assignment`), so the invalid value is **saved** and the endpoint returns 200. The file then fails to load: `get_all()` silently skips it (the entity vanishes from the sidebar) and `get_by_slug()` raises (later PUT/merge → 500). Reproduced: `setattr(c, "type", "supporting")` then `model_dump()` then re-construct → `ValidationError`. The step-3 template hard-codes `"type": "main"` (`specialist.py:139`), so auto-discovered characters skew to MAIN CAST.
+- **Evidence:** `Character(type="supporting")` and `Character(age=17)` both raise (verified). In step 3 these become `warning` events, which the UI ignores (KI-018). In the refine **create** branch they become HTTP 500 (`main.py:334-339`, `356-360`). **Worse, in the refine *merge* branch** (`existing_slug` found), values are applied with `setattr` (`main.py:327`, `:357`) without validation (no `validate_assignment`), so the invalid value is **saved** and the endpoint returns 200. The file then fails to load: `get_all()` silently skips it (the entity vanishes from the sidebar) and `get_by_slug()` raises (later PUT/merge → 500). Reproduced: `setattr(c, "type", "supporting")` then `model_dump()` then re-construct → `ValidationError`. The step-3 template hard-codes `"type": "main"` (`specialist.py:139`), so auto-discovered characters skew to MAIN CAST.
 - **Fix:** normalise LLM output before construction (map unknown types → `temporary`, `str()` the age, derive a missing slug). Pass `format="json"` to Ollama.
 
 ### KI-017 — Export side effects · Low
-- `main.py:213-217` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
+- `main.py:211-215` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
 
 ### KI-018 — `warning` SSE ignored · Low
-- The pipeline emits `warning` (`chapter_pipeline.py:84,92`), but `generateChapter`'s handler map has no `warning` key. **Fix:** add a handler that shows a warning toast or step log.
+- The pipeline emits `warning` (`chapter_pipeline.py:107,115`), but `generateChapter`'s handler map has no `warning` key. **Fix:** add a handler that shows a warning toast or step log.
 
 ### KI-019 — False-success model pulls · Medium
-- `pull_model` neither checks `resp.status_code` nor detects `{"error": …}` lines. After the loop it always yields `success` (`main.py:275-296`). **Fix:** check the status, detect the `error` key, and only emit success after a final `{"status":"success"}` from Ollama.
+- `pull_model` neither checks `resp.status_code` nor detects `{"error": …}` lines. After the loop it always yields `success` (`main.py:273-294`). **Fix:** check the status, detect the `error` key, and only emit success after a final `{"status":"success"}` from Ollama.
 
 ### KI-020 — Family-prefix "installed" detection · Low
-- `main.py:254-257`: `inst.startswith(family + ":")` marks every tag of a family as installed. **Fix:** exact match (also treat `name` ≡ `name:latest`).
+- `main.py:252-255`: `inst.startswith(family + ":")` marks every tag of a family as installed. **Fix:** exact match (also treat `name` ≡ `name:latest`).
 
-### KI-021 — Hard-coded API base · Low
+### KI-021 — Hard-coded API base · Low · ✅ Fixed in Unreleased (plan 007)
+- **Status: Fixed in Unreleased [plan 007]** (as part of KI-010). `const API = '/api'`: same origin, so the UI works as `127.0.0.1:8000` and `localhost:8000` and the server needs no CORS. Verified: the UI loaded and worked from `http://localhost:8000`. The evidence below describes the v1.0.0 code.
 - `app.js:6`. **Fix:** `const API = '/api'` (same origin). This also removes the need for CORS.
 
 ### KI-022 — Committed bytecode · Low · ✅ Fixed in Unreleased (plan 002)
@@ -197,7 +205,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.
 
 ### KI-033 — Partial `OLLAMA_HOST` support · Low
-- ollama-python honours `OLLAMA_HOST`, but `main.py:243,280` hard-code `http://localhost:11434`.
+- ollama-python honours `OLLAMA_HOST`, but `main.py:241,278` hard-code `http://localhost:11434`.
 
 ### KI-034 — "Fully offline" claim · Low
 - Google Fonts are loaded **twice**: `<link>` tags in `index.html:9-11` and an `@import` in `style.css:6`. The app works offline with fallback fonts. Either self-host the fonts (change both files) or soften the README claim.
@@ -220,7 +228,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Evidence:** `.text-cursor { display: inline; }` (`style.css:1189-1190`) overrides the browser's `[hidden] { display: none }`. `DOM.textCursor.hidden = true` (`app.js:525`, `:401`) therefore has no effect, and the blinking `▍` stays after a chapter completes and when a past chapter is viewed. Observed 2026-11-22 [plan 003]: `hidden === true` while the computed `display` was `inline`.
 - **Fix:** add `.text-cursor[hidden] { display: none; }` next to the rule (the same pattern as `.modal-overlay[hidden]`, `style.css:1299`).
 
-### KI-038 — Names without letters or digits produce an empty slug · Low · Verified ✔
+### KI-038 — Names without letters or digits produce an empty slug · Low · Verified ✔ · ✅ Fixed in Unreleased (plan 007)
+- **Status: Fixed in Unreleased [plan 007]** (as part of KI-009/KI-010). POST derives `make_slug(slug or name)` and returns **422** "name must contain at least one letter or digit" when that is empty; the managers never write an empty slug. Verified: `???` and `!!!` → 422, no `.json` created; `林凡` → `林凡.json` and `Élodie Brontë` → `élodie_brontë` (any-script names still work). An old `.json` must still be deleted by hand. The evidence below describes the pre-fix code.
 - **Evidence:** `_slugify` (`character_manager.py:12-16`, same in `scene_manager.py`) removes every character outside `[\w\s-]`, so a name like `???` or `!!!` becomes `""`. `POST /api/characters` then saves `data/characters/.json` (200) and lists it with slug `""`. The card's **Edit**/**Delete** call `/api/characters/` with an empty path segment, which FastAPI answers with a 307 redirect, so the entity can't be edited or deleted from the UI. Emoji-only names behave the same way (`\w` is Unicode-aware, so CJK/Latin names are fine).
 - **Reproduced 2026-11-22 [plan 004]:** the first `???` was saved as `.json`; a second (`!!!`) got 409 `Character '' already exists` (since KI-036's fix).
 - **Workaround:** delete `data/characters/.json` (or `data/scenes/.json`) by hand.

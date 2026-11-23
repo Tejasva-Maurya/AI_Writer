@@ -62,7 +62,8 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 - **SSE event contract.** Event types are `status`, `multi_chapter`, `new_character`, `new_scene`, `warning`, `token`, `error`, `complete`, emitted by `chapter_pipeline.py` and handled in the `generateChapter()` handler map in `app.js` (documented in docs/technical/02 §W3.4). Change both sides and the doc together.
 - **Request wrappers.** Bodies are `{"character": …}`, `{"scene": …}`, `{"settings": …}`, `{"meta": …}`.
 - **Identity.** `slug` = filename stem (`data/characters/{slug}.json`, `data/scenes/{slug}.json`). Chapters are `data/chapters/{n:03d}.json`.
-- **Port/URL.** `8000` and `127.0.0.1` appear in **three** places: `app/start.bat` (`PORT`), `main.py` (`__main__`), `app.js` (`API`). Change all or none.
+- **Port/URL.** `8000` and `127.0.0.1` appear in **two** places: `app/start.bat` (`PORT`) and `main.py` (`__main__`). Change both or neither. `app.js` uses the relative `API = '/api'`; keep it relative (no CORS, plan 007).
+- **Slugs.** Every file access goes through the managers' `_path(slug)` (`[\w-]+` only), and every new slug is `make_slug(...)` on the server. Never build `data/` paths from request or LLM strings directly (KI-010).
 - **Imports.** Flat (`from models import …`) with `sys.path` patching. Don't convert to relative imports piecemeal.
 - **VRAM choreography.** The specialist `keep_alive=0` at step 5/7 and the writer `keep_alive=300` are deliberate (docs/technical/01 §6). Don't change them casually.
 

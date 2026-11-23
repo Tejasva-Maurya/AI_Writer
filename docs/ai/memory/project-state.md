@@ -16,17 +16,18 @@
   - plan 004: KI-036, so create returns 409 instead of overwriting
 - `[Unreleased]`: plan 005 (pushed 2026-11-22; now `2b4f3c2`, re-credited, D-010) fixes KI-003 (server starts without ollama; launcher `DEP_CHECK`), KI-004 (requirements are lower bounds, D-009) and KI-005 (async specialist).
 - `[Unreleased]`: plan 006 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-006 (Alt+S Settings), KI-007 (Settings save kept fields) and KI-008 (backend numbers chapters highest + 1), all in `app/frontend/app.js`.
-- POST no longer upserts (409). When releasing, decide whether that counts as an API break for SemVer.
+- `[Unreleased]`: plan 007 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-009 (server-derived slugs, step-2 dedupe), KI-010 (slug validation stops path traversal; CORS removed; TrustedHost), KI-011 (escaped HTML), plus KI-021 and KI-038.
+- POST no longer upserts (409) and now normalises slugs; the API is same-origin only. When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–006 are done (see `docs/ai/plans/INDEX.md`). No active plan. Everything is committed and pushed.
+- Plans 003–007 are done (see `docs/ai/plans/INDEX.md`). No active plan. Everything is committed and pushed.
 
 ## Suggested next up (from `docs/technical/09`, by impact)
 1. KI-016: refine merge saves unvalidated LLM values (entity becomes unloadable).
 2. KI-014: the summariser sees only the first 3000 chars (continuity loses chapter endings).
-3. KI-010/KI-011: unvalidated slugs as filenames, open CORS, unescaped `innerHTML`.
-4. Quick Low fixes: KI-038 (empty slug → `.json`), KI-037 (cursor never hides, a one-line CSS fix), KI-018 (`warning` events ignored), KI-024 (pipeline panel styles not reset).
+3. KI-019 (false-success model pulls) and KI-031 (no concurrency guard or cancel for generations).
+4. Quick Low fixes: KI-037 (cursor never hides, a one-line CSS fix), KI-018 (`warning` events ignored), KI-024 (pipeline panel styles not reset).
 
 ## Environment facts (dev machine, verified 2026-11-22)
 - Windows 11, Git Bash. `py` → Python 3.14.5 (has fastapi 0.141.1, pydantic 2.13.4, uvicorn 0.52.3, httpx 0.28.1). `python` → Python 3.14.0 (separate install).

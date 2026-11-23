@@ -12,7 +12,7 @@
 2. **A missing Python package** (`ModuleNotFoundError: No module named '…'`): run `pip install -r app/requirements.txt` from the repo root. Since plan 005, `app/start.bat` checks every package on launch and installs or upgrades as needed. The backend also starts without `ollama`; generation then fails with the message in A2.
 3. **`Error loading ASGI app. Could not import module "main"`**: you ran `uvicorn main:app` from the wrong folder. Run it from `app/backend/`, or from the repo root with `--app-dir app/backend`.
 4. **Port in use** (`[Errno 10048]` / `address already in use`): another process holds port 8000, often an old backend window. Close it, or change the port in all three places ([06 §2.1](06-configuration.md#21-network--process)).
-5. You opened `http://localhost:8000` instead of `http://127.0.0.1:8000`. That usually still works (CORS is open), but prefer `127.0.0.1`.
+5. `http://localhost:8000` and `http://127.0.0.1:8000` both work (the UI calls `/api` on its own origin since plan 007). Other host names (e.g. your machine name) get **400 Invalid host header** by design.
 
 ### A2. Generation fails immediately with "Pipeline error: …"
 | Message contains | Cause | Fix |
@@ -66,7 +66,7 @@ Cosmetic (KI-024): fade and error styles are not reset between runs. Reload the 
 
 ### A14. "Failed to save character: … 409 … already exists"
 Creating never overwrites an existing character or location (since plan 004, KI-036). The name you typed turns into the same file name (slug) as an existing entry. For example, "Elder Wu", "elder  wu" and "Elder-Wu!" all become `elder_wu`. **Either** give the new one a distinct name, **or** close the form and use **Edit** on the existing card. In the Build tabs, choose it under **Update Existing**. During chapter generation the same situation is handled silently: the existing profile is kept.
-A name made only of symbols (e.g. `???`) gets an empty slug and is saved as `data/characters/.json`, which can't be edited or deleted from the UI (KI-038). Delete that file by hand.
+A name made only of symbols (e.g. `???`) is refused with **422** "name must contain at least one letter or digit" (since plan 007, KI-038). A `data/characters/.json` (or `data/scenes/.json`) left by an older version can't be edited or deleted from the UI; delete that file by hand.
 
 ## Part B — FAQ
 

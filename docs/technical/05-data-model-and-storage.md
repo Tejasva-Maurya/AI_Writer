@@ -21,7 +21,7 @@ data/
 |---|---|
 | Encoding | UTF-8, `ensure_ascii=False` (non-Latin names are stored as-is), `indent=2` |
 | Directory creation | Lazy: `characters/`, `scenes/` and `chapters/` are created on first access. The root file's parent is created on save. |
-| Identity | Filename stem = `slug` (or chapter number). Renaming a character does **not** rename its file. |
+| Identity | Filename stem = `slug` (or chapter number). Renaming a character does **not** rename its file. Slugs must match `[\w-]+` (letters/digits of any script, `_`, `-`); anything else is refused before touching the disk. New slugs are always derived by the server (`make_slug`: lowercase, `_` separators), so new files are snake_case; older hyphenated files (e.g. `xiao-fan-scientist-inventor`) stay valid and are matched by the equivalence check (plan 007, KI-009/KI-010). |
 | Atomicity | Updates (`save`) overwrite the file directly, with no temp file and no locking. Creating a character or scene (`create`) uses an exclusive `open(…, "x")`, so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
 | Corruption handling | List operations skip unreadable/invalid files **silently**. Single-item reads raise (→ 500). |
 | Versioning / migrations | None. Files are validated against the current Pydantic model on read, so **adding a required field or renaming a field breaks every existing file**. Always add new fields with defaults. |

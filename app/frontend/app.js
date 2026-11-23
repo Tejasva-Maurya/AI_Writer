@@ -3,7 +3,7 @@
    Pure Vanilla JS  |  No external dependencies
    ═══════════════════════════════════════════════════════════════ */
 
-const API = 'http://127.0.0.1:8000/api';
+const API = '/api';  // same origin as the page, so the server needs no CORS (KI-010, KI-021)
 
 // ─────────────────────────────────────────────
 // APPLICATION STATE
@@ -1478,13 +1478,14 @@ function renderWorldSnapshot() {
   if (!snap) return;
   const w = state.world || {};
   const parts = [];
-  if (w.world_name)          parts.push(`<strong>World:</strong> ${w.world_name}`);
-  if (w.genre_tags?.length)  parts.push(`<strong>Genre:</strong> ${w.genre_tags.join(', ')}`);
-  if (w.cultivation_system)  parts.push(`<strong>Cultivation:</strong> ${w.cultivation_system.substring(0,120)}${w.cultivation_system.length>120?'…':''}`);
-  if (w.magic_system)        parts.push(`<strong>Magic:</strong> ${w.magic_system.substring(0,100)}${w.magic_system.length>100?'…':''}`);
-  if (w.hierarchy_levels?.length) parts.push(`<strong>Hierarchy:</strong> ${w.hierarchy_levels.join(' → ')}`);
-  if (w.factions?.length)    parts.push(`<strong>Factions:</strong> ${w.factions.join(', ')}`);
-  if (w.rules_of_the_world)  parts.push(`<strong>World Rules:</strong> ${w.rules_of_the_world.substring(0,120)}…`);
+  // World fields can come from LLM output: escape every value (KI-011)
+  if (w.world_name)          parts.push(`<strong>World:</strong> ${escHtml(w.world_name)}`);
+  if (w.genre_tags?.length)  parts.push(`<strong>Genre:</strong> ${w.genre_tags.map(escHtml).join(', ')}`);
+  if (w.cultivation_system)  parts.push(`<strong>Cultivation:</strong> ${escHtml(w.cultivation_system.substring(0,120))}${w.cultivation_system.length>120?'…':''}`);
+  if (w.magic_system)        parts.push(`<strong>Magic:</strong> ${escHtml(w.magic_system.substring(0,100))}${w.magic_system.length>100?'…':''}`);
+  if (w.hierarchy_levels?.length) parts.push(`<strong>Hierarchy:</strong> ${w.hierarchy_levels.map(escHtml).join(' → ')}`);
+  if (w.factions?.length)    parts.push(`<strong>Factions:</strong> ${w.factions.map(escHtml).join(', ')}`);
+  if (w.rules_of_the_world)  parts.push(`<strong>World Rules:</strong> ${escHtml(w.rules_of_the_world.substring(0,120))}…`);
 
   if (parts.length > 0) {
     snap.innerHTML = parts.join('<br>');
@@ -1685,8 +1686,8 @@ function populateModelSelects(installed, currentWriter, currentSpec) {
   [...allModels].forEach(m => {
     const isInstalled = installed.includes(m);
     const label = isInstalled ? m : `${m} (not installed)`;
-    writerSel.insertAdjacentHTML('beforeend', `<option value="${m}">${label}</option>`);
-    specSel.insertAdjacentHTML('beforeend',   `<option value="${m}">${label}</option>`);
+    writerSel.insertAdjacentHTML('beforeend', `<option value="${escHtml(m)}">${escHtml(label)}</option>`);
+    specSel.insertAdjacentHTML('beforeend',   `<option value="${escHtml(m)}">${escHtml(label)}</option>`);
   });
 
   if (currentWriter) writerSel.value = currentWriter;
@@ -1742,25 +1743,28 @@ function renderModelBrowser(data) {
     if (isWriter)    badges.push(`<span class="model-badge-writer">Writer</span>`);
     if (isSpec)      badges.push(`<span class="model-badge-specialist">Specialist</span>`);
 
+    // Model names come from Ollama: escape them everywhere (KI-011). pullModel looks the ids up unescaped.
+    const name = escHtml(model.name);
+    const safeId = escHtml(model.name.replace(/[:.]/g,'_'));
     const actions = [];
     if (isInstalled) {
-      if (!isWriter)  actions.push(`<button class="btn-set-writer"   data-model="${model.name}">Set Writer</button>`);
-      if (!isSpec)    actions.push(`<button class="btn-set-specialist" data-model="${model.name}">Set Specialist</button>`);
+      if (!isWriter)  actions.push(`<button class="btn-set-writer"   data-model="${name}">Set Writer</button>`);
+      if (!isSpec)    actions.push(`<button class="btn-set-specialist" data-model="${name}">Set Specialist</button>`);
     } else {
-      actions.push(`<button class="btn-pull-model" data-model="${model.name}">⬇ Pull</button>`);
+      actions.push(`<button class="btn-pull-model" data-model="${name}">⬇ Pull</button>`);
     }
 
     entry.innerHTML = `
       <div class="model-entry-info">
         <div class="model-entry-name">
-          <span>${model.name}</span>
+          <span>${name}</span>
           ${badges.join('')}
         </div>
-        <div class="model-entry-meta">${model.size ? `${model.size} &bull; ` : ''}${model.quality ? `${model.quality} &bull; ` : ''}${model.note || ''}</div>
-        <div class="pull-progress-bar" id="pb-${model.name.replace(/[:.]/g,'_')}">
-          <div class="pull-progress-fill" id="pf-${model.name.replace(/[:.]/g,'_')}"></div>
+        <div class="model-entry-meta">${model.size ? `${escHtml(model.size)} &bull; ` : ''}${model.quality ? `${escHtml(model.quality)} &bull; ` : ''}${escHtml(model.note || '')}</div>
+        <div class="pull-progress-bar" id="pb-${safeId}">
+          <div class="pull-progress-fill" id="pf-${safeId}"></div>
         </div>
-        <div class="pull-status-text" id="ps-${model.name.replace(/[:.]/g,'_')}"></div>
+        <div class="pull-status-text" id="ps-${safeId}"></div>
       </div>
       <div class="model-entry-actions">${actions.join('')}</div>
     `;

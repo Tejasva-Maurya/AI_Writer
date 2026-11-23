@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 from models import (
@@ -28,13 +28,9 @@ from pipeline.chapter_pipeline import run_pipeline
 
 app = FastAPI(title="AI Novel Writer", version="1.0.0")
 
-# CORS for dev
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
+# No CORS: the UI is served from this origin and calls /api, so other websites can't call the API.
+# Only accept local Host headers, which blocks DNS-rebinding attacks (KI-010).
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
 # Managers' create() never overwrites: a taken slug becomes 409 Conflict (KI-036)
 @app.exception_handler(FileExistsError)
@@ -74,8 +70,9 @@ async def get_characters():
 @app.post("/api/characters", response_model=Character)
 async def create_character(req: UpdateCharacterRequest):
     char = req.character
+    char.slug = character_manager.make_slug(char.slug or char.name)  # always server-derived (KI-009)
     if not char.slug:
-        char.slug = character_manager.make_slug(char.name)
+        raise HTTPException(422, "Character name must contain at least one letter or digit")
     character_manager.create(char)
     return char
 
@@ -107,8 +104,9 @@ async def get_scenes():
 @app.post("/api/scenes", response_model=Scene)
 async def create_scene(req: UpdateSceneRequest):
     scene = req.scene
+    scene.slug = scene_manager.make_slug(scene.slug or scene.name)  # always server-derived (KI-009)
     if not scene.slug:
-        scene.slug = scene_manager.make_slug(scene.name)
+        raise HTTPException(422, "Location name must contain at least one letter or digit")
     scene_manager.create(scene)
     return scene
 
@@ -330,8 +328,11 @@ async def refine_character(req: RefineRequest):
         character_manager.save(existing)
         return existing
     else:
+        slug = character_manager.make_slug(str(result.get("name") or ""))  # never the LLM's slug (KI-009)
+        if not slug:
+            raise HTTPException(422, "Could not create character: the profile has no usable name")
         try:
-            char = Character(**result)
+            char = Character(**{**result, "slug": slug})
             character_manager.create(char)
             return char
         except Exception as e:
@@ -357,8 +358,11 @@ async def refine_scene(req: RefineRequest):
         scene_manager.save(existing)
         return existing
     else:
+        slug = scene_manager.make_slug(str(result.get("name") or ""))  # never the LLM's slug (KI-009)
+        if not slug:
+            raise HTTPException(422, "Could not create scene: the profile has no usable name")
         try:
-            scene = Scene(**result)
+            scene = Scene(**{**result, "slug": slug})
             scene_manager.create(scene)
             return scene
         except Exception as e:

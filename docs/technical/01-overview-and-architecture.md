@@ -128,7 +128,7 @@ flowchart TB
 ### Dependency rules (as implemented)
 
 1. `models.py` depends on nothing in the project. Every other module imports it.
-2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:215` writes export files into `data/` directly.
+2. `managers/*` depend only on `models` plus the standard library. **Managers are the only code that touches `data/`.** One exception: `main.py:213` writes export files into `data/` directly.
 3. `agents/*` depend on `models` and the `ollama` library. They never touch disk.
 4. `pipeline/*` depends on managers, agents and models.
 5. `main.py` depends on everything. The refine endpoints import `agents.specialist` lazily, inside the handler.
@@ -215,11 +215,11 @@ AI_Writer/
 └── .gitignore
 ```
 
-How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:45`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
+How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, and `main.py`'s export uses `parents[2]`, i.e. the repo-root `data/` (see 05 §1). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:41`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
 
 ## 8. Process & runtime model
 
-- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:395-397`).
+- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:399-401`).
 - **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast.
 - **No background jobs, queues or locks.** A generation lives exactly as long as its HTTP response stream. Two generations at once are not prevented on the server; the frontend blocks a second one only within the same tab (`state.isGenerating`).
 - **State.** All durable state is in `data/`. The server keeps no in-memory state between requests, apart from the module-level constant `RECOMMENDED_MODELS`.
@@ -230,7 +230,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 |---|---|
 | Network exposure | Bound to loopback (`127.0.0.1`) only. |
 | Authentication | None. |
-| CORS | `allow_origins=["*"]`, all methods and headers (`main.py:32-37`). Any web page open in the same browser can call the local API. |
+| Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:33`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
 | Input → filesystem | `slug` values (from the URL path, request bodies or LLM output) become filenames without sanitisation (KI-010). |
 | HTML injection | Most rendering goes through `escHtml()`. The world snapshot and the model browser do not (KI-011). |
 | Secrets | None used or stored. |

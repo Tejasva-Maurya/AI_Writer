@@ -60,3 +60,15 @@
 - **Outcome:** Frontend only (`app.js`). `openSettingsModal` fills and refreshes the model lists (the second button listener was removed). `saveSettings` round-trips `state.novelMeta`, and an empty select keeps the stored model. `complete` also reloads novel meta. The UI no longer sends `chapter_number`; `nextChapterNumber()` (highest + 1) drives the hint and badge. Sandbox UI verified: Alt+S lists filled and Save kept models; total 7 and `created_at` kept by Settings and title edit; with chapters 1 and 3, the request was `{plot}`, 004 was created and 003 untouched; a stale count (3→4) was not written back.
 - **Plan:** 006 (done).
 - **Open threads:** Committed and pushed in the same session. Real LLM not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-009, KI-010, KI-011 (plan 007)
+- **Goal:** Consistent server-side slugs without duplicates; no path traversal or cross-site API access; escaped HTML.
+- **Outcome:**
+  - Managers validate slugs (`[\w-]+`) through `_path()`; `create()` refuses equivalent stems.
+  - `main.py`: CORS removed, TrustedHost (127.0.0.1/localhost) added; POST and refine create derive slugs, 422 when empty.
+  - Pipeline: `_canonical_entities` for step 2; step 3 slugs from the profile name.
+  - `app.js`: `API = '/api'`; `escHtml` in the world snapshot and model selects/browser.
+  - **Confirmed before the fix** on a copy: `DELETE /api/characters/..%5Cnovel_meta` deleted `novel_meta.json` (and the scenes route deleted `world_settings.json`). The fixed code returns 404.
+  - Old vs new verified for CORS preflight, Host header, pipeline duplicate and the nameless-entry crash; XSS payloads verified in the UI (world fields plus a fake Ollama on 11434). KI-021 and KI-038 fixed by the same change.
+- **Plan:** 007 (done).
+- **Open threads:** Committed and pushed in the same session. Real LLM not exercised.

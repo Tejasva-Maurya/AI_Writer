@@ -23,6 +23,29 @@ def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+def _canonical_entities(entries, existing, make_slug) -> list:
+    """Map the specialist's step-2 matches onto real slugs (KI-009). An entry whose slug or name matches an existing
+    entity (ignoring case, "-" vs "_" and punctuation) becomes "existing" with that entity's slug; anything else is
+    "new" with a server-derived slug. Entries without a usable name, and repeats, are dropped."""
+    known = {}
+    for e in existing:
+        known.setdefault(make_slug(e.name), e.slug)
+    for e in existing:
+        known[make_slug(e.slug)] = e.slug  # a slug match wins over a name match
+    out, seen = [], set()
+    for item in entries if isinstance(entries, list) else []:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not make_slug(name):
+            continue
+        raw = item.get("slug") if isinstance(item.get("slug"), str) else ""
+        slug = known.get(make_slug(raw)) or known.get(make_slug(name))
+        entry = {**item, "slug": slug or make_slug(name), "status": "existing" if slug else "new"}
+        if entry["slug"] not in seen:
+            seen.add(entry["slug"])
+            out.append(entry)
+    return out
+
+
 async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) -> AsyncGenerator[str, None]:
     """
     Full 7-step pipeline. Yields SSE-formatted strings.
@@ -62,8 +85,8 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         existing_scenes = [{"name": s.name, "slug": s.slug} for s in all_scenes]
 
         resolution = await specialist.resolve_entities(entity_mentions, existing_chars, existing_scenes, spec_model)
-        resolved_chars = resolution.get("characters", [])
-        resolved_scenes = resolution.get("scenes", [])
+        resolved_chars = _canonical_entities(resolution.get("characters"), all_chars, character_manager.make_slug)
+        resolved_scenes = _canonical_entities(resolution.get("scenes"), all_scenes, scene_manager.make_slug)
 
         new_char_names = [c["name"] for c in resolved_chars if c.get("status") == "new"]
         new_scene_names = [s["name"] for s in resolved_scenes if s.get("status") == "new"]
@@ -77,7 +100,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
 
             for char_data in profiles.get("characters", []):
                 try:
-                    char = Character(**char_data)
+                    char = Character(**{**char_data, "slug": character_manager.make_slug(str(char_data.get("name") or ""))})
                     character_manager.create(char)
                     yield _sse("new_character", name=char.name, slug=char.slug)
                 except Exception as e:
@@ -85,7 +108,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
 
             for scene_data in profiles.get("scenes", []):
                 try:
-                    scene = Scene(**scene_data)
+                    scene = Scene(**{**scene_data, "slug": scene_manager.make_slug(str(scene_data.get("name") or ""))})
                     scene_manager.create(scene)
                     yield _sse("new_scene", name=scene.name, slug=scene.slug)
                 except Exception as e:

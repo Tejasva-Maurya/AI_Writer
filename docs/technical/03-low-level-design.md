@@ -44,31 +44,33 @@ Contents
 | `UpdateSceneRequest` | `scene: Scene` | |
 | `UpdateWorldRequest` | `settings: WorldSettings` | |
 | `UpdateNovelMetaRequest` | `meta: NovelMeta` | |
-| `RefineRequest` *(defined in `main.py:306`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
+| `RefineRequest` *(defined in `main.py:304`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
 
 ### 2.2 `app/backend/main.py`
 
 | Symbol | Lines | Behaviour |
 |---|---|---|
 | `app = FastAPI(title="AI Novel Writer", version="1.0.0")` | 29 | **Version source of truth** (keep in sync with CHANGELOG). |
-| CORS middleware | 32-37 | `allow_origins=["*"]`, all methods and headers. |
-| `FRONTEND_DIR` + `/static` mount | 40-42 | Mounts `app/frontend/` at `/static` if it exists (not used by `index.html`). |
-| `serve_index()` `GET /` | 45-50 | Reads and returns `index.html` on every request (so HTML edits need no restart). |
-| `serve_css()` `GET /style.css`, `serve_js()` `GET /app.js` | 53-60 | `FileResponse`. |
-| Character routes | 64-93 | `get_characters`, `create_character` (auto-slug if empty), `update_character` (404 if missing, forces slug), `delete_character`. |
-| Scene routes | 97-126 | Mirror of the character routes. |
-| World routes | 130-138 | `GET` load, `PUT` save (full replace). |
-| Chapter routes | 142-153 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
-| `generate_chapter` | 157-174 | SSE wrapper around `run_pipeline` (see 02-W3). |
-| Novel-meta routes | 178-186 | `GET` load, `PUT` save (full replace). |
-| `export_novel(fmt)` | 190-212 | `txt`/`md` only (400 otherwise). Writes into `data/` and returns a `FileResponse`. |
-| `health()` | 216-218 | `{"status":"ok","timestamp": ISO}`. |
-| `RECOMMENDED_MODELS` | 222-229 | 6 entries: `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b`, `phi4-mini:3.8b`, `qwen2.5:7b`, `deepseek-r1:7b`, each with `size/quality/note`. |
-| `get_models()` | 231-260 | `httpx` GET `http://localhost:11434/api/tags` (5 s). Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. |
-| `pull_model(body: dict)` | 263-297 | Untyped body. `model` is required (400). Streams Ollama `/api/pull` progress as SSE. |
-| `refine_character` / `refine_scene` | 307-360 | See 02-W4. Lazy `from agents import specialist`. |
-| `refine_world` | 363-387 | See 02-W5. |
-| `__main__` | 390-392 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
+| `TrustedHostMiddleware` | 33 | Accepts only `Host: 127.0.0.1` or `localhost` (any port); other hosts get **400**. Blocks DNS rebinding. There is **no CORS middleware**: the UI calls `/api` on its own origin, so other websites can't call the API (KI-010, plan 007). |
+| `file_exists_handler` | 36-38 | App-wide `FileExistsError` → **409** `{"detail": …}` (a manager's `create()` conflict, KI-036). |
+| `FRONTEND_DIR` + `/static` mount | 41-43 | Mounts `app/frontend/` at `/static` if it exists (not used by `index.html`). |
+| `serve_index()` `GET /` | 46-51 | Reads and returns `index.html` on every request (so HTML edits need no restart). |
+| `serve_css()` `GET /style.css`, `serve_js()` `GET /app.js` | 54-61 | `FileResponse`. |
+| Character routes | 65-95 | `get_characters`; `create_character` (slug = `make_slug(slug or name)`, **422** if empty, **409** if taken); `update_character` (404 if missing or invalid slug, forces the path slug); `delete_character` (404 if missing or invalid slug). |
+| Scene routes | 99-129 | Mirror of the character routes. |
+| World routes | 133-141 | `GET` load, `PUT` save (full replace). |
+| Chapter routes | 145-156 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
+| `generate_chapter` | 160-177 | SSE wrapper around `run_pipeline` (see 02-W3). |
+| Novel-meta routes | 181-189 | `GET` load, `PUT` save (full replace). |
+| `export_novel(fmt)` | 193-215 | `txt`/`md` only (400 otherwise). Writes into `data/` and returns a `FileResponse`. |
+| `health()` | 219-221 | `{"status":"ok","timestamp": ISO}`. |
+| `RECOMMENDED_MODELS` | 225-232 | 6 entries: `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b`, `phi4-mini:3.8b`, `qwen2.5:7b`, `deepseek-r1:7b`, each with `size/quality/note`. |
+| `get_models()` | 234-263 | `httpx` GET `http://localhost:11434/api/tags` (5 s). Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. |
+| `pull_model(body: dict)` | 266-300 | Untyped body. `model` is required (400). Streams Ollama `/api/pull` progress as SSE. |
+| `RefineRequest` | 304-307 | Request body of the three refine routes. |
+| `refine_character` / `refine_scene` | 310-369 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
+| `refine_world` | 372-396 | See 02-W5. |
+| `__main__` | 399-401 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
 
 ### 2.3 `app/backend/managers/*`
 
@@ -76,7 +78,7 @@ All five managers follow the same pattern. Directories are created lazily by `en
 
 | Module | Functions | Details |
 |---|---|---|
-| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; **unreadable or invalid files are silently skipped**), `get_by_slug(slug) -> Optional[Character]`, `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (exclusive `open(…, "x")`: never overwrites, raises `FileExistsError("Character 'x' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool`, `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
+| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; **unreadable or invalid files are silently skipped**), `is_valid_slug(slug)` (`[\w-]+`: letters/digits of any script, `_`, `-`; never `.`, `/`, `\` or empty, KI-010), `_path(slug)` (raises `ValueError` for an invalid slug; every file access goes through it), `get_by_slug(slug) -> Optional[Character]` (`None` for an invalid slug), `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (refuses a slug equivalent to an existing file stem, i.e. same `_slugify` result, so `elder-wu` blocks `elder_wu`; then exclusive `open(…, "x")`: never overwrites, raises `FileExistsError("Character '<existing stem>' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool` (`False` for an invalid slug), `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
 | `scene_manager` | identical API for `Scene` | identical `_slugify` (duplicated code). |
 | `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
 | `world_manager` | `load() -> WorldSettings` (defaults if missing), `save(settings)` | `data/world_settings.json` |
@@ -149,6 +151,8 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
 
 ### 2.7 `app/backend/pipeline/chapter_pipeline.py`
 
+`_canonical_entities(entries, existing, make_slug)` (plan 007, KI-009) post-processes the step-2 result for characters and scenes: an entry whose slug or name normalises (`make_slug`) to an existing entity's slug or name becomes `existing` with that entity's **real** slug; anything else becomes `new` with `slug = make_slug(name)`. Non-dict entries, entries without a usable name, and repeats are dropped. Step 3 then saves each profile under `make_slug(profile name)`, never the LLM's slug.
+
 - `_sse(event_type, **kwargs) -> str` → `f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"`.
 - `async def run_pipeline(plot, chapter_number, novel_meta) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy).
 - Local data structures:
@@ -204,7 +208,7 @@ state = {
 }
 ```
 
-Constant `API = 'http://127.0.0.1:8000/api'` (`app.js:6`) is hard-coded (KI-021).
+Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works whether the UI is opened as `127.0.0.1` or `localhost`, and the server needs no CORS (KI-010/KI-021, fixed in plan 007).
 
 ### 4.3 API helpers (`app.js:119-155`)
 
@@ -288,9 +292,9 @@ There is **no logging framework**. The only diagnostics are uvicorn access logs 
 |---|---|
 | `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
 | `chapter_manager.get_recent_n` | `chapter_manager.py:53` |
-| `update_predictions` result | `chapter_pipeline.py:160` |
-| `featured_scene_slugs` alias, `scene_profiles` param | `chapter_pipeline.py:191`, `specialist.py:235` |
+| `update_predictions` result | `chapter_pipeline.py:183` |
+| `featured_scene_slugs` alias, `scene_profiles` param | `chapter_pipeline.py:214`, `specialist.py:235` |
 | `novel_meta` param of `analyze_plot` | `specialist.py:58` |
-| `/static` mount | `main.py:46-47` |
+| `/static` mount | `main.py:42-43` |
 | `state._profileContext` (written, never read) | `app.js` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |

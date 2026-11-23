@@ -28,6 +28,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   [plan 001] [plan 002]
 
 ### Changed
+- `POST /api/characters` and `/api/scenes` always store a server-derived slug (`make_slug(slug or name)`: lowercase, `_` separators, letters of any script kept), so a client-supplied `"Elder-Wu"` becomes `elder_wu`. The API is same-origin only: no CORS, and the `Host` must be `127.0.0.1` or `localhost`. [plan 007] [KI-009] [KI-010]
 - `app/requirements.txt` uses lower bounds instead of stale exact pins: `fastapi>=0.111`, `uvicorn[standard]>=0.30`, `pydantic>=2.9,<3`, `httpx>=0.27` (was missing), `ollama>=0.4,<1` (was 0.3.3, incompatible with the code). `pip install -r app/requirements.txt` works again on Python 3.11–3.14. [plan 005] [KI-004]
 - **Repository reorganized into three areas** [plan 002]:
   - `app/`: the application. `backend/`, `frontend/`, `start.bat` and `requirements.txt` moved here from the root. **Launch with `app/start.bat`**. Manual runs: `cd app/backend`, then `python -m uvicorn main:app`.
@@ -59,6 +60,15 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Alt+S** opens Settings with the model lists filled, like the ⚙ button, so saving can no longer blank the writer or specialist model. [plan 006] [KI-006]
 - Saving Settings or renaming the novel no longer resets `total_chapters` and `created_at` in `novel_meta.json`, including right after a generation (novel settings now reload when a chapter completes). [plan 006] [KI-007]
 - New chapters are numbered highest + 1 by the backend instead of count + 1 by the page, so a gap in the numbering no longer makes the next generation overwrite an existing chapter. [plan 006] [KI-008]
+- No more duplicate characters or locations from slug mismatches: the pipeline maps the specialist's matches onto real slugs (ignoring case and `-`/`_`), saves new profiles under a server-derived slug, and no longer crashes on a nameless match; creating anything whose slug is equivalent to an existing one returns 409. [plan 007] [KI-009]
+- The UI works the same when opened as `http://localhost:8000` (the frontend calls `/api` on its own origin). [plan 007] [KI-021]
+- A name with no letters or digits (e.g. `???`) is refused with 422 instead of being saved as `.json`. [plan 007] [KI-038]
+
+
+### Security
+- Path traversal: a backslash in a URL slug (e.g. `DELETE /api/characters/..%5Cnovel_meta`) could delete files outside the character/scene folders, such as `novel_meta.json` and `world_settings.json` (confirmed on a copy). Slugs are now validated (`[\w-]+`) before any file access. [plan 007] [KI-010]
+- Other websites can no longer call the local API: CORS (previously `*`) is removed, and requests with a foreign `Host` header (DNS rebinding) get 400. [plan 007] [KI-010]
+- World settings (which can come from the AI) and Ollama model names are HTML-escaped in the World Build snapshot, the model dropdowns and the model browser. [plan 007] [KI-011]
 
 ---
 

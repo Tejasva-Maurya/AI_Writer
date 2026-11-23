@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 007  
-**Total plans:** 6
+**Next number:** 008  
+**Total plans:** 7
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -16,3 +16,4 @@
 | 004 | [Stop create from overwriting existing characters/locations (KI-036)](004-stop-create-from-overwriting-existing-characters-locations.md) | `done` | 2026-11-22 | — |
 | 005 | [Fix startup without ollama, dependency pins, and event-loop blocking (KI-003, KI-004, KI-005)](005-fix-startup-without-ollama-dependency-pins-and-event-loop.md) | `done` | 2026-11-22 | — |
 | 006 | [Fix Settings via Alt+S, Settings save resets, and next chapter number (KI-006, KI-007, KI-008)](006-fix-settings-via-alt-s-settings-save-resets-and-next.md) | `done` | 2026-11-23 | — |
+| 007 | [Consistent, validated slugs, no cross-site API access, escaped HTML (KI-009, KI-010, KI-011)](007-consistent-validated-slugs-no-cross-site-api-access-escaped.md) | `done` | 2026-11-23 | — |

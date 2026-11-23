@@ -1,7 +1,7 @@
 # 04 — API Reference
 
 > **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
-> Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. CORS is open (`*`).
+> Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
 ## Endpoint index
@@ -63,13 +63,13 @@ Body: `{"meta": NovelMeta}`. Omitted fields take **model defaults**: a body with
 **200** `Character[]` sorted by `name`. Files that fail to parse are skipped silently.
 
 ### `POST /api/characters`
-Body: `{"character": Character}`. **`character.slug` is required by the schema.** If it is sent as `""`, the server derives it from the name (`"Elder Wu"` → `elder_wu`).
+Body: `{"character": Character}`. **`character.slug` is required by the schema** (send `""`). The server always stores `make_slug(slug or name)`: lowercase, punctuation removed, spaces/`-`/`_` → `_` (`"Elder Wu"` → `elder_wu`, `"Zz-Test-Two!"` → `zz_test_two`; letters of any script are kept, e.g. `林凡`). **422** `Character name must contain at least one letter or digit` if that is empty (KI-009/KI-038, plan 007).
 **200** `Character`. **422** if `slug` is missing. (The v1.0.0 UI omitted it, KI-001. Since plan 003 the UI sends `""` on create.)
-**409** `Character '{slug}' already exists` if a file with that slug exists. Create never overwrites; use `PUT` to change an existing character. On Windows, a slug that differs only in case also conflicts. (Before plan 004 the existing file was silently overwritten, KI-036.)
+**409** `Character '{existing}' already exists` if a file with that slug, or an *equivalent* one (same letters ignoring case and `-`/`_`, e.g. existing `xiao-fan-scientist-inventor` vs new `Xiao Fan Scientist Inventor`), exists. Create never overwrites; use `PUT` to change an existing character. On Windows, a slug that differs only in case also conflicts. (Before plan 004 the existing file was silently overwritten, KI-036.)
 
 ### `PUT /api/characters/{slug}`
 Body: `{"character": Character}` (body `slug` required but ignored; the path slug wins).
-**200** `Character` · **404** `Character '{slug}' not found` · **422** invalid body.
+**200** `Character` · **404** `Character '{slug}' not found` (also for a slug that isn't `[\w-]+`, e.g. one containing `\` or `.`; such slugs never reach the file system, KI-010) · **422** invalid body.
 
 ### `DELETE /api/characters/{slug}`
 **200** `{"success": true}` · **404** if missing.
@@ -83,7 +83,7 @@ curl -X POST http://127.0.0.1:8000/api/characters -H "Content-Type: application/
 ## Scenes (locations)
 
 Same contract as characters, with the body key `scene` and model `Scene`:
-`GET /api/scenes` · `POST /api/scenes` (`{"scene": Scene}`) · `PUT /api/scenes/{slug}` · `DELETE /api/scenes/{slug}`. 404 messages say `Scene '{slug}' not found`. POST returns **409** `Scene '{slug}' already exists` for a taken slug.
+`GET /api/scenes` · `POST /api/scenes` (`{"scene": Scene}`) · `PUT /api/scenes/{slug}` · `DELETE /api/scenes/{slug}`. 404 messages say `Scene '{slug}' not found`. POST normalises the slug the same way (**422** `Location name must contain at least one letter or digit`) and returns **409** `Scene '{existing}' already exists` for a taken or equivalent slug.
 
 ## World settings
 
@@ -125,7 +125,7 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:249`). Writer errors carry `message` only (`chapter_pipeline.py:182`).
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:272`). Writer errors carry `message` only (`chapter_pipeline.py:205`).
 
 Consuming it from a shell:
 ```bash
@@ -142,8 +142,8 @@ The response arrives when the specialist finishes (seconds to minutes). The call
 
 ### `POST /api/refine/character`
 - `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.
-  ⚠ The merge uses plain `setattr` (`main.py:329`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:356`).
-- Otherwise → `Character(**llm_result)` (LLM slug used verbatim) → created → **200**. If that slug is already taken → **409** `Could not create character: Character 'x' already exists`, and nothing is written (use **Update Existing** / `existing_slug` instead).
+  ⚠ The merge uses plain `setattr` (`main.py:327`), and the models have no `validate_assignment`, so **invalid LLM values are saved without validation** (e.g. `type:"supporting"`, `age:17`). That file then fails to load: the character vanishes from `GET /api/characters`, and later PUT/refine calls for that slug return 500 (verified, KI-016). The same applies to scenes (`main.py:357`).
+- Otherwise → `Character(**llm_result)` with `slug = make_slug(LLM name)` (never the LLM's slug, plan 007) → created → **200**. **422** if the profile has no usable name. If that slug is already taken → **409** `Could not create character: Character 'x' already exists`, and nothing is written (use **Update Existing** / `existing_slug` instead).
 - **500** `Failed to generate character profile` (empty LLM result) · **500** `Could not create character: …` (validation failure, e.g. missing slug, `type:"supporting"`, int `age`). Transport errors (Ollama down) → **500** Internal Server Error.
 
 ### `POST /api/refine/scene`
