@@ -52,7 +52,7 @@ A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. T
   - "Ollama ended the download without confirming success": the download stopped early. Pull again.
   - "All connection attempts failed": Ollama isn't running.
 - Before plan 010 every pull ended with "installed".
-- "Installed" badges still match any tag of the same family (KI-020). Verify with `ollama list`, and pull manually with `ollama pull <exact:tag>`.
+- "Installed" badges match the exact model since plan 012 (KI-020). Before, any tag of the same family counted, so `gemma3:12b` could show as installed when only `gemma3:4b` was pulled. Verify with `ollama list`, and pull manually with `ollama pull <exact:tag>`.
 
 ### A9. A character/location I added by hand doesn't show up
 `get_all()` silently skips files that are invalid JSON or have no `name`/`slug`. Wrong-typed values (an unknown `type`, a numeric `age`, a string for a list) are coerced since plan 009, so such files load again. Validate the file: start Python in `app/backend/` and run `Character(**json.load(open(path)))`.

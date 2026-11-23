@@ -170,7 +170,7 @@ async function loadNovelMeta() {
       author: '',
       total_chapters: 0,
       writer_model: 'gemma3:12b',
-      specialist_model: 'gemma3:12b',
+      specialist_model: 'phi4-mini:3.8b',  // the backend default (models.py NovelMeta), KI-028
     };
   }
 }

@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012).
 > v1.0.0 has **no configuration file and reads no environment variables of its own**. Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
@@ -22,13 +22,13 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:478` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:478` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:482` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:482` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
 | Frontend API base | `/api` (same origin) | `app.js:6` | Works for `http://127.0.0.1:8000` and `http://localhost:8000` alike (KI-021, fixed in plan 007). |
-| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:281`, `main.py:319` | Edit the source. |
+| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:287`, `main.py:323` | Edit the source. |
 | Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
 | Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:34` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:478` | — |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:482` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
@@ -85,7 +85,7 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 | Sidebar reload delay after a new entity | 300 ms | `app.js:481,482` |
 | Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:700-702` |
 | Refine status auto-clear | 5000 ms | `app.js:1607` etc. |
-| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, **specialist `gemma3:12b`** (differs from the backend default) | `app.js:167-174` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
+| Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, specialist `phi4-mini:3.8b`, the same as the backend defaults (plan 012; before, the specialist was `gemma3:12b`, KI-028) | `app.js:167-174` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)
 

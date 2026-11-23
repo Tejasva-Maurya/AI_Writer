@@ -1,25 +1,23 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 011. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 012. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 11 open · 1 partly fixed (KI-023) · 27 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-021, KI-022, KI-024, KI-027, KI-031, KI-036, KI-037, KI-038, KI-039).
+**At a glance:** 9 open · 1 partly fixed (KI-023) · 29 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-024, KI-027, KI-028, KI-031, KI-036, KI-037, KI-038, KI-039).
 
-### Open (12)
+### Open (10)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
-| KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family | Open |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
-| KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) | Open |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
 | KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) | Open |
@@ -27,7 +25,7 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 
-### Fixed (27)
+### Fixed (29)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -51,10 +49,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Fixed in Unreleased [plan 009] |
 | KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Fixed in Unreleased [plan 009] |
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error ✔ | Fixed in Unreleased [plan 010] |
+| KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family ✔ | Fixed in Unreleased [plan 012] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs ✔ | Fixed in Unreleased [plan 011] |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
+| KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) ✔ | Fixed in Unreleased [plan 012] |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
@@ -166,7 +166,11 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Status: Fixed in Unreleased [plan 010].** `pull_model` (`main.py:306-364`) turns a non-200 response into `{"status": "error", "message": "Ollama returned <code>: <Ollama's error>"}`, stops at the first `{"error": …}` line, and ends with `success` only after Ollama's own `{"status": "success"}`. A stream that ends without it reports "Ollama ended the download without confirming success". Verified against a fake Ollama: the old code reported `success` for an HTTP 404, an error line and a truncated stream; the new code reports each as an error, and Settings shows "Pull failed: …". The evidence below describes the pre-fix code.
 - `pull_model` neither checks `resp.status_code` nor detects `{"error": …}` lines. After the loop it always yields `success` (`main.py:273-294`). **Fix:** check the status, detect the `error` key, and only emit success after a final `{"status":"success"}` from Ollama.
 
-### KI-020 — Family-prefix "installed" detection · Low
+### KI-020 — Family-prefix "installed" detection · Low · ✅ Fixed in Unreleased (plan 012)
+- **Status: Fixed in Unreleased [plan 012].** `get_models()` (`main.py:280-307`) flags a recommended model as installed only when Ollama lists that exact model. Names are compared through `_model_key()` (`main.py:275-277`): a name without a tag counts as `:latest`, as Ollama treats it, and a registry host's `:port` is not a tag.
+  - Verified against a fake Ollama listing `gemma3:4b`, `llama3.1:latest`, `phi4-mini:3.8b` and `mistral-nemo:12b-instruct-2407-q4_0`: the old code flagged `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b` and `phi4-mini:3.8b`; the new code flags only `phi4-mini:3.8b`.
+  - In Settings the three wrongly flagged entries now offer **⬇ Pull**, and the installed tags still appear as their own "Installed" entries.
+  - The evidence below describes the pre-fix code.
 - `main.py:292-295`: `inst.startswith(family + ":")` marks every tag of a family as installed. **Fix:** exact match (also treat `name` ≡ `name:latest`).
 
 ### KI-021 — Hard-coded API base · Low · ✅ Fixed in Unreleased (plan 007)
@@ -200,7 +204,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Status: Fixed in Unreleased [plan 003]** (UI side, by round-tripping all fields). On edit, `saveCharacter`/`saveScene` send `{...existing, ...form}`, where `existing` is the record in `state`. To keep `state.characters` fresh, the `generateChapter` `complete` handler now also reloads characters, because step 7 updates their profiles on disk. `PUT` is still a full replace for other API clients. Verified in a sandbox: edits kept `first/last` = 3/5 and `first_appeared_chapter` = 4.
 - The character modal sends neither `first_appeared_chapter` nor `last_seen_chapter`, so once KI-001 is fixed they will reset to 1 on every edit. Same for the scene's `first_appeared_chapter`. **Fix:** merge the payload into the existing record server-side (PATCH semantics), or round-trip all fields.
 
-### KI-028 — Fallback specialist mismatch · Low
+### KI-028 — Fallback specialist mismatch · Low · ✅ Fixed in Unreleased (plan 012)
+- **Status: Fixed in Unreleased [plan 012].** The `loadNovelMeta()` fallback (`app.js:167-174`) uses `specialist_model: 'phi4-mini:3.8b'`, the backend default. Verified in the browser with `/api/novel-meta` made to fail: old `gemma3:12b`, new `phi4-mini:3.8b`; the writer stays `gemma3:12b` on both. The evidence below describes the pre-fix code.
 - `app.js:173` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:148`).
 
 ### KI-029 — Specialist stays resident after refine · Low
@@ -226,7 +231,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.
 
 ### KI-033 — Partial `OLLAMA_HOST` support · Low
-- ollama-python honours `OLLAMA_HOST`, but `main.py:281,319` hard-code `http://localhost:11434`.
+- ollama-python honours `OLLAMA_HOST`, but `main.py:287,323` hard-code `http://localhost:11434`.
 
 ### KI-034 — "Fully offline" claim · Low
 - Google Fonts are loaded **twice**: `<link>` tags in `index.html:9-11` and an `@import` in `style.css:6`. The app works offline with fallback fonts. Either self-host the fonts (change both files) or soften the README claim.

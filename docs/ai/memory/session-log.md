@@ -114,4 +114,13 @@
   - `app.js`: `resetPipeline()` cancels the pending fade (`_pipelineFadeTimer`), clears the opacity and the steps' inline red styles.
   - Browser, old vs new with a stub: wrongly visible `[hidden]` elements on load, old 2 (cursor, notice) vs new 0; cursor after completion `inline` vs `none`; the notice stayed vs cleared on the next run; next-run opacity 0.4 vs full, including the run started within 2 s; the red step stayed vs cleared. Console clean.
 - **Plan:** 011 (done).
-- **Open threads:** Not committed yet (waiting for the user).
+- **Open threads:** Committed and pushed in the same session.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-020, KI-028 (plan 012)
+- **Goal:** Stop Settings from calling a recommended model installed because another tag of its family is pulled, and align the frontend's fallback specialist with the backend default.
+- **Outcome:**
+  - `main.py`: `_model_key()` (a name without a tag counts as `:latest`; a registry `:port` is not a tag) and an exact key match in `get_models()`.
+  - `app.js`: the `loadNovelMeta` fallback specialist is `phi4-mini:3.8b`.
+  - Old vs new against a fake `/api/tags` (`gemma3:4b`, `llama3.1:latest`, `phi4-mini:3.8b`, `mistral-nemo:12b-instruct-…`): old flagged 4 recommended models, new flags only `phi4-mini:3.8b`. In the Settings browser the three wrong ones now offer Pull and the real tags stay listed as installed. The fallback with `/api/novel-meta` failing: old `gemma3:12b`, new `phi4-mini:3.8b`.
+- **Plan:** 012 (done).
+- **Open threads:** Not committed yet (waiting for the user). Real Ollama `/api/tags` not exercised.

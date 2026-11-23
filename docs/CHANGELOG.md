@@ -77,6 +77,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The blinking `▍` cursor disappears when a chapter finishes, fails or is opened from History, instead of staying under the text. [plan 011] [KI-037]
 - The "This plot may span multiple chapters" notice appears only when the plot really does, and clears at the next generation (it was always visible). [plan 011] [KI-039]
 - Each generation starts with a fresh pipeline panel: no longer dimmed from the previous chapter, and no step left red from an earlier error. [plan 011] [KI-024]
+- Settings → Available Models marks a recommended model as installed only when that exact model is pulled; a different size of the same family (e.g. `gemma3:4b` for `gemma3:12b`) no longer counts, so **⬇ Pull** is offered instead of a model that would fail. [plan 012] [KI-020]
+- When the backend can't be reached, the page's placeholder settings now use the same specialist model as the backend (`phi4-mini:3.8b`, was `gemma3:12b`). [plan 012] [KI-028]
 
 
 ### Security

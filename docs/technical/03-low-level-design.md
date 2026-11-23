@@ -44,7 +44,7 @@ Contents
 | `UpdateSceneRequest` | `scene: Scene` | |
 | `UpdateWorldRequest` | `settings: WorldSettings` | |
 | `UpdateNovelMetaRequest` | `meta: NovelMeta` | |
-| `RefineRequest` *(defined in `main.py:368`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
+| `RefineRequest` *(defined in `main.py:372`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
 
 ### 2.2 `app/backend/main.py`
 
@@ -67,12 +67,13 @@ Contents
 | `export_novel(fmt)` | 233-255 | `txt`/`md` only (400 otherwise). Writes into `data/` and returns a `FileResponse`. |
 | `health()` | 259-261 | `{"status":"ok","timestamp": ISO}`. |
 | `RECOMMENDED_MODELS` | 265-272 | 6 entries: `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b`, `phi4-mini:3.8b`, `qwen2.5:7b`, `deepseek-r1:7b`, each with `size/quality/note`. |
-| `get_models()` | 274-303 | `httpx` GET `http://localhost:11434/api/tags` (5 s). Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. |
-| `pull_model(body: dict)` | 306-364 | Untyped body. `model` is required (400). Streams Ollama `/api/pull` progress as SSE. Ends with `success` only after Ollama's own `success` line; a non-200 status, an `{"error": …}` line or a missing confirmation ends with `error` (plan 010, KI-019). |
-| `RefineRequest` | 368-371 | Request body of the three refine routes. |
-| `refine_character` / `refine_scene` | 374-443 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
-| `refine_world` | 446-473 | See 02-W5. |
-| `__main__` | 476-478 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
+| `_model_key(name)` | 275-277 | Compare key for model names: adds `:latest` when the last path segment has no tag (a registry host's `:port` is not a tag), as Ollama does (plan 012, KI-020). |
+| `get_models()` | 280-307 | `httpx` GET `http://localhost:11434/api/tags` (5 s). Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. A recommended model is `installed` only if its `_model_key` equals one of the installed models' keys: an exact match, not the family prefix (plan 012, KI-020). |
+| `pull_model(body: dict)` | 310-368 | Untyped body. `model` is required (400). Streams Ollama `/api/pull` progress as SSE. Ends with `success` only after Ollama's own `success` line; a non-200 status, an `{"error": …}` line or a missing confirmation ends with `error` (plan 010, KI-019). |
+| `RefineRequest` | 372-375 | Request body of the three refine routes. |
+| `refine_character` / `refine_scene` | 378-447 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
+| `refine_world` | 450-477 | See 02-W5. |
+| `__main__` | 480-482 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
 
 ### 2.3 `app/backend/managers/*`
 

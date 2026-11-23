@@ -208,7 +208,7 @@ sequenceDiagram
 ## W4 — Character / Scene build (refine)
 
 Frontend: `refineCharacter()` (`app.js:1567-1609`) / `refineScene()` (`app.js:1614-1654`).
-Backend: `refine_character` (`main.py:374-408`) / `refine_scene` (`main.py:411-443`).
+Backend: `refine_character` (`main.py:378-412`) / `refine_scene` (`main.py:415-447`).
 
 ```mermaid
 sequenceDiagram
@@ -243,10 +243,10 @@ Merge semantics for "Update Existing":
 
 ## W5 — World build (refine + merge)
 
-Frontend `refineWorld()` (`app.js:1659-1691`) → `POST /api/refine/world` (`main.py:446-473`).
+Frontend `refineWorld()` (`app.js:1659-1691`) → `POST /api/refine/world` (`main.py:450-477`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
-2. Merge into the existing world (`main.py:455-471`):
+2. Merge into the existing world (`main.py:459-475`):
    - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): the LLM value is read as a list (a single string is one item), then each truthy item that is not already present is appended (exact-string dedupe, order kept). Before plan 009 a string replaced the whole list or caused a 500.
    - **String fields:** replaced when the new value is non-empty.
    - Unknown keys are ignored.
@@ -273,8 +273,8 @@ Frontend `refineWorld()` (`app.js:1659-1691`) → `POST /api/refine/world` (`mai
 ## W8 — Model management
 
 1. Opening **⚙ Settings** (button or **Alt+S**: both call `openSettingsModal`) first fills both `<select>`s with the current models, then `loadModels()` → `GET /api/models` (cached in `_cachedModels` until **↻ Refresh**) refreshes the lists and the model browser, keeping any choice made meanwhile.
-2. Backend (`main.py:274-303`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
-   ⚠ "Installed" matches **any tag in the same family**, so `gemma3:4b` installed marks `gemma3:12b` as installed (KI-020).
+2. Backend (`main.py:280-307`) calls `GET http://localhost:11434/api/tags` (5 s timeout) and annotates `RECOMMENDED_MODELS` with an `installed` flag.
+   "Installed" means Ollama lists that exact model (a name without a tag counts as `:latest`, `_model_key`). Since plan 012 a different tag of the same family no longer counts: with only `gemma3:4b` pulled, `gemma3:12b` offers **⬇ Pull**, and `gemma3:4b` appears as its own installed entry (before, it was shown as installed, KI-020).
 3. The UI fills both `<select>`s (installed models + current selections, the latter tagged "(not installed)") and renders the model browser cards with **Set Writer / Set Specialist** (installed) or **⬇ Pull** (not installed).
 4. **Pull** → `POST /api/models/pull {model}` → the backend streams `POST /api/pull` from Ollama, re-emitting `data: {status, percent, total, completed}`, then `{status:"success", model}` or `{status:"error", message}`.
    - `success` comes only after Ollama's own `{"status": "success"}` line.

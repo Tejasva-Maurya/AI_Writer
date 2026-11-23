@@ -177,7 +177,7 @@ Same as above for `Scene`.
 }
 ```
 If Ollama is unreachable: `installed: []`, `ollama_running: false`, `ollama_error: "Cannot reach Ollama: …"` (still **200**).
-⚠ `installed` on recommended entries is true if **any** installed tag shares the family prefix (KI-020).
+`installed` on a recommended entry is true only if Ollama lists that exact model; a name without a tag counts as `:latest`. Before plan 012 any installed tag of the same family counted (e.g. `gemma3:4b` made `gemma3:12b` "installed", KI-020).
 
 ### `POST /api/models/pull` — **SSE**
 Body `{"model": "llama3.1:8b"}` (**400** `model name required` if empty). The body is an untyped `dict`.

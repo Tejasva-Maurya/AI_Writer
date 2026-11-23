@@ -271,6 +271,12 @@ RECOMMENDED_MODELS = [
     {"name": "deepseek-r1:7b",  "size": "~4.7 GB", "quality": "Good",  "note": "Strong reasoning"},
 ]
 
+
+def _model_key(name: str) -> str:
+    """Ollama treats a name without a tag as name:latest (KI-020). A registry host's :port is not a tag."""
+    return name if ":" in name.rsplit("/", 1)[-1] else f"{name}:latest"
+
+
 @app.get("/api/models")
 async def get_models():
     """Fetch installed Ollama models and return with recommendations."""
@@ -285,14 +291,12 @@ async def get_models():
     except Exception as e:
         ollama_error = f"Cannot reach Ollama: {e}"
 
-    # Annotate recommended models with installed status
+    # Annotate recommended models with installed status: exact model only, not any tag of the family (KI-020)
+    installed_keys = {_model_key(name) for name in installed}
     recommended = []
     for rec in RECOMMENDED_MODELS:
         rec_copy = dict(rec)
-        rec_copy["installed"] = any(
-            inst == rec["name"] or inst.startswith(rec["name"].split(":")[0] + ":")
-            for inst in installed
-        )
+        rec_copy["installed"] = _model_key(rec["name"]) in installed_keys
         recommended.append(rec_copy)
 
     return {
