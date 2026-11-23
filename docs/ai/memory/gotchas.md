@@ -11,5 +11,6 @@
 - **Pydantic v2 does not coerce int → str.** An LLM returning `"age": 17` or `"type": "supporting"` fails `Character(**…)`, and the entity is silently dropped (KI-016). (2026-11-22)
 - **Two Pythons on the dev machine.** `py` (3.14.5) has the web deps; `python` (3.14.0) is a different install. Use `py` for backend checks. Running `py -I` hides user-site packages. (2026-11-22)
 - **Inline scripts with apostrophes break the Bash tool.** A heredoc Python script containing `'` inside strings (e.g. "doesn't") fails with "unexpected EOF while looking for matching `''", and nothing runs. Write the script to a temp file and run that instead. (2026-11-22)
+- **Git identity is per clone.** The machine-wide git identity is the work account; this repo overrides it in `.git/config` (D-010). Check `git config user.email` = `mauryatejasva512004@gmail.com` before committing, and set it again after a fresh clone, or GitHub credits the work account. (2026-11-23)
 - **Git Bash noise.** Every Bash call on this machine prints `/etc/mtab`, `/etc/hosts` … "Permission denied" lines from the shell profile. They are harmless; ignore them. (2026-11-22)
 - **`data/` is the user's novel.** Never use it as a scratch area. Test with `zz_test_` entities and delete them afterwards. (2026-11-22)

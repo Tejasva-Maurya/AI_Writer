@@ -48,3 +48,9 @@
   - Verified against the real ollama 0.4.0/0.6.3 sources and an isolated 0.6.3 install. Responsiveness during specialist work: max 0.07 s vs 14.9 s before. Launcher block tested in 3 scenarios. Fresh resolve on Python 3.14 is all wheels.
 - **Plan:** 005 (done).
 - **Open threads:** Committed and pushed in the same session. Real LLM not exercised. `start.bat` not run end-to-end (it would install into the user's Python and open windows).
+
+### 2026-11-23 — Claude Code (Opus 5.5) — re-credit commits to the personal GitHub account
+- **Goal:** The four commits pushed on 2026-11-22 showed the work account Tejasva-Maurya-Cognizant as author, although the push token is the personal account's.
+- **Outcome:** Cause: the global git identity is the work email, and GitHub credits by author email. Set a repo-local identity (Tejasva_Maurya / gmail). Re-credited the four commits via REST with a lease check (`14dd6aa`→`3e61415`, `5960228`→`058caae`, `eedf02f`→`78ab1ea`, `d1e3f85`→`2b4f3c2`; trees verified identical). The API now maps all six commits to Tejasva-Maurya. Recorded D-010 and a gotcha.
+- **Plan:** none (git housekeeping on user request).
+- **Open threads:** GitHub's cached contributor list may lag.

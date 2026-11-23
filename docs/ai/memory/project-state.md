@@ -10,13 +10,13 @@
 
 ## Version
 - Released: **1.0.0** (2026-07-13, commits `0f22226`, `dead3e3`). `app/backend/main.py` says `version="1.0.0"`.
-- `[Unreleased]`: documentation set, CHANGELOG, AI governance + hooks (plan 001); repo reorganisation (plan 002). **Pushed** as `14dd6aa`; it was reworded on 2026-11-22 to drop the Claude co-author trailer (was `02d6e6d`, D-008).
-- `[Unreleased]`: plans 003 + 004 committed and **pushed** on 2026-11-22 as `5960228` (via the github-push API; the local SHA was `c02ce8a`, realigned).
+- `[Unreleased]`: documentation set, CHANGELOG, AI governance + hooks (plan 001); repo reorganisation (plan 002). Pushed; now `3e61415` (reworded to drop the Claude trailer, D-008, then re-credited to the personal account, D-010).
+- `[Unreleased]`: plans 003 + 004 pushed 2026-11-22; now `058caae` (re-credited, D-010).
   - plan 003: frontend fixes for KI-001, KI-002 and KI-027
   - plan 004: KI-036, so create returns 409 instead of overwriting
-- `[Unreleased]`: plan 005 (committed and pushed 2026-11-22, see `git log origin/main`) fixes KI-003 (server starts without ollama; launcher `DEP_CHECK`), KI-004 (requirements are lower bounds, D-009) and KI-005 (async specialist).
+- `[Unreleased]`: plan 005 (pushed 2026-11-22; now `2b4f3c2`, re-credited, D-010) fixes KI-003 (server starts without ollama; launcher `DEP_CHECK`), KI-004 (requirements are lower bounds, D-009) and KI-005 (async specialist).
 - POST no longer upserts (409). When releasing, decide whether that counts as an API break for SemVer.
-- Commits carry **no AI attribution trailers** (RULES §8.7, D-008).
+- Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
 - Plans 003–005 are done (see `docs/ai/plans/INDEX.md`). No active plan. Everything is committed and pushed.

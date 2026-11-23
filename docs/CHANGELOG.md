@@ -38,7 +38,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - User guide (formerly `README.md`): corrected the *Architecture* section (it listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json`, "JSON/SQLite"), corrected the storage description (JSON files, not a database), and added a *Documentation* section. [plan 001] [KI-023]
 - `.gitignore`: ignore Claude Code local settings, the hook error log, and the local CodeAssist index (`.codeassist/`). [plan 001]
 - `docs/technical/09`: the summary is split into **Open** and **Fixed** tables, and fixed issues are marked **✅ Fixed** in their headings, so fixed KIs no longer read as open. KI-022 is marked fixed (no bytecode tracked since the plan 002 commit). [KI-022]
-- AI rules: commits and PRs carry no AI `Co-Authored-By` / "Generated with" attribution (`docs/ai/RULES.md` §8, decision D-008). The already-published docs/reorganisation commit was reworded without the trailer (`02d6e6d` → `14dd6aa`, same content).
+- AI rules: commits and PRs carry no AI `Co-Authored-By` / "Generated with" attribution (`docs/ai/RULES.md` §8, decision D-008). The already-published docs/reorganisation commit was reworded without the trailer (`02d6e6d` → `14dd6aa`, same content; since re-credited as `3e61415`, see the next line).
+- Repository history: the four commits published on 2026-11-22 were authored with the global work identity, so GitHub credited the work account. They were re-credited to the personal account (Tejasva_Maurya) with the same content, messages and dates (`14dd6aa`→`3e61415`, `5960228`→`058caae`, `eedf02f`→`78ab1ea`, `d1e3f85`→`2b4f3c2`). This repo now sets its own git identity (decision D-010).
 
 ### Removed
 - Unused dependencies `aiofiles` and `python-multipart` from `app/requirements.txt` (nothing imports them). [plan 005] [KI-004]
