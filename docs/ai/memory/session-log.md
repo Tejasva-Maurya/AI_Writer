@@ -123,4 +123,13 @@
   - `app.js`: the `loadNovelMeta` fallback specialist is `phi4-mini:3.8b`.
   - Old vs new against a fake `/api/tags` (`gemma3:4b`, `llama3.1:latest`, `phi4-mini:3.8b`, `mistral-nemo:12b-instruct-…`): old flagged 4 recommended models, new flags only `phi4-mini:3.8b`. In the Settings browser the three wrong ones now offer Pull and the real tags stay listed as installed. The fallback with `/api/novel-meta` failing: old `gemma3:12b`, new `phi4-mini:3.8b`.
 - **Plan:** 012 (done).
-- **Open threads:** Not committed yet (waiting for the user). Real Ollama `/api/tags` not exercised.
+- **Open threads:** Committed and pushed in the same session. Real Ollama `/api/tags` not exercised.
+
+### 2026-11-23 — Claude Code (Opus 5.5) — fix KI-032, KI-029 (plan 013)
+- **Goal:** Fix three small UI glitches (empty Full View tags after generation, a held-back first paragraph, Alt shortcuts vs Caps Lock), and stop the specialist from staying in VRAM forever.
+- **Outcome:**
+  - `app.js`: `complete` keeps `characters_featured`/`scenes_featured`; the `token` handler creates the first paragraph before splitting; the shortcuts compare `e.key.toLowerCase()`.
+  - `specialist.py`: `_call()` defaults to `keep_alive=300`. The user chose 5 minutes and to apply it to steps 1–3 as well (D-011).
+  - Verified: with the real ollama 0.6.3 client and a logging fake Ollama, old sent `-1`, new sends `300` for refine and steps 1–2; `0` for the unload and step 7 on both. In the browser, old vs new: first-chunk text empty vs shown; Full View tags none vs the same slugs as History; Alt+S/W (upper case) nothing vs Settings/World.
+- **Plan:** 013 (done).
+- **Open threads:** Not committed yet (waiting for the user). Real VRAM release after 5 minutes not observable here.

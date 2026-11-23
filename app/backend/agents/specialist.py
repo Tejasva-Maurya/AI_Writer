@@ -38,8 +38,10 @@ def _extract_json(text: str) -> Dict:
     return {}
 
 
-async def _call(model: str, system: str, user: str, keep_alive: int = -1) -> Dict:
-    """Make one ollama call and parse the JSON reply. Async, so the server stays responsive (KI-005)."""
+async def _call(model: str, system: str, user: str, keep_alive: int = 300) -> Dict:
+    """Make one ollama call and parse the JSON reply. Async, so the server stays responsive (KI-005).
+    keep_alive=300: after a Build-tab call or an interrupted generation the specialist leaves VRAM after 5 idle
+    minutes instead of staying loaded forever (KI-029, D-011). Steps 5 and 7 still unload explicitly (0)."""
     if ollama is None:
         raise RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")
     response = await ollama.AsyncClient().chat(

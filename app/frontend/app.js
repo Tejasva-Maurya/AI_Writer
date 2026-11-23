@@ -494,21 +494,23 @@ async function generateChapter() {
 
         // Smart paragraph splitting: detect double newlines
         if (content.includes('\n\n')) {
-          // Finalize current paragraph, start new one
-          if (currentParagraph) {
-            const parts = streamedText.split('\n\n');
-            currentParagraph.textContent = parts[0].trim();
-            // Move cursor to new paragraph
-            for (let i = 1; i < parts.length - 1; i++) {
-              const p = document.createElement('p');
-              p.textContent = parts[i].trim();
-              DOM.chapterTextArea.appendChild(p);
-            }
+          // Finalize current paragraph, start new one (a first chunk may already contain \n\n: KI-032)
+          if (!currentParagraph) {
             currentParagraph = document.createElement('p');
-            currentParagraph.textContent = parts[parts.length - 1];
             DOM.chapterTextArea.appendChild(currentParagraph);
-            streamedText = parts[parts.length - 1];
           }
+          const parts = streamedText.split('\n\n');
+          currentParagraph.textContent = parts[0].trim();
+          // Move cursor to new paragraph
+          for (let i = 1; i < parts.length - 1; i++) {
+            const p = document.createElement('p');
+            p.textContent = parts[i].trim();
+            DOM.chapterTextArea.appendChild(p);
+          }
+          currentParagraph = document.createElement('p');
+          currentParagraph.textContent = parts[parts.length - 1];
+          DOM.chapterTextArea.appendChild(currentParagraph);
+          streamedText = parts[parts.length - 1];
         } else {
           if (!currentParagraph) {
             currentParagraph = document.createElement('p');
@@ -534,6 +536,8 @@ async function generateChapter() {
           chapter_number: data.chapter_number,
           title: data.title,
           word_count: data.word_count,
+          characters_featured: data.characters || [],  // Full View tags (KI-032)
+          scenes_featured: data.scenes || [],
         };
         await Promise.all([loadChapters(), loadCharacters(), loadNovelMeta()]); // step 7 updated profiles and total_chapters
         showToast(`✓ Chapter ${data.chapter_number} complete — ${data.word_count?.toLocaleString()} words`, 'success');
@@ -1437,23 +1441,24 @@ function bindStaticEvents() {
 // KEYBOARD SHORTCUTS
 // ─────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
+  const key = (e.key || '').toLowerCase();  // also with Caps Lock or Shift (KI-032)
   // Alt+G — Generate chapter
-  if (e.altKey && e.key === 'g') {
+  if (e.altKey && key === 'g') {
     e.preventDefault();
     if (!state.isGenerating) generateChapter();
   }
   // Alt+N — New character
-  if (e.altKey && e.key === 'n') {
+  if (e.altKey && key === 'n') {
     e.preventDefault();
     openCharacterModal();
   }
   // Alt+S — Settings
-  if (e.altKey && e.key === 's') {
+  if (e.altKey && key === 's') {
     e.preventDefault();
     openSettingsModal();
   }
   // Alt+W — World settings
-  if (e.altKey && e.key === 'w') {
+  if (e.altKey && key === 'w') {
     e.preventDefault();
     openWorldModal();
   }

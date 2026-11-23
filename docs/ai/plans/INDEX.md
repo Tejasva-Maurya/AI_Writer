@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 013  
-**Total plans:** 12
+**Next number:** 014  
+**Total plans:** 13
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -22,3 +22,4 @@
 | 010 | [Honest model-pull results, one generation at a time with Cancel (KI-019, KI-031)](010-honest-model-pull-results-one-generation-at-a-time-with.md) | `done` | 2026-11-23 | — |
 | 011 | [Hide the streaming cursor and the multi-chapter notice, reset the pipeline panel between runs (KI-037, KI-024, KI-039)](011-hide-the-streaming-cursor-and-the-multi-chapter-notice.md) | `done` | 2026-11-23 | — |
 | 012 | [Exact "installed" detection for recommended models, matching frontend fallback specialist (KI-020, KI-028)](012-exact-installed-detection-for-recommended-models-matching.md) | `done` | 2026-11-23 | — |
+| 013 | [Full View tags after generation, first-chunk paragraphs, Caps-Lock-proof shortcuts, 5-minute specialist keep-alive (KI-032, KI-029)](013-full-view-tags-after-generation-first-chunk-paragraphs-caps.md) | `done` | 2026-11-23 | — |

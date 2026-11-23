@@ -1,16 +1,16 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 012. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-23, through plan 013. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 9 open · 1 partly fixed (KI-023) · 29 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-024, KI-027, KI-028, KI-031, KI-036, KI-037, KI-038, KI-039).
+**At a glance:** 7 open · 1 partly fixed (KI-023) · 31 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-036, KI-037, KI-038, KI-039).
 
-### Open (10)
+### Open (8)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
@@ -18,14 +18,12 @@ Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
-| KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
-| KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) | Open |
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 
-### Fixed (29)
+### Fixed (31)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -55,7 +53,9 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs ✔ | Fixed in Unreleased [plan 011] |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) ✔ | Fixed in Unreleased [plan 012] |
+| KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) ✔ | Fixed in Unreleased [plan 013] |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
+| KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) ✔ | Fixed in Unreleased [plan 013] |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
@@ -208,7 +208,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Status: Fixed in Unreleased [plan 012].** The `loadNovelMeta()` fallback (`app.js:167-174`) uses `specialist_model: 'phi4-mini:3.8b'`, the backend default. Verified in the browser with `/api/novel-meta` made to fail: old `gemma3:12b`, new `phi4-mini:3.8b`; the writer stays `gemma3:12b` on both. The evidence below describes the pre-fix code.
 - `app.js:173` (`loadNovelMeta`, used when the backend is unreachable) falls back to `gemma3:12b` for the specialist (the second fallback, in `openSettingsModal`, was removed in plan 006); the backend default is `phi4-mini:3.8b` (`models.py:148`).
 
-### KI-029 — Specialist stays resident after refine · Low
+### KI-029 — Specialist stays resident after refine · Low · ✅ Fixed in Unreleased (plan 013)
+- **Status: Fixed in Unreleased [plan 013].** `specialist._call()` defaults to `keep_alive=300` (`specialist.py:41`), the writer's value, chosen by the user (decision D-011).
+  - It applies to the three refine calls and to pipeline steps 1–3, so a generation that fails or is cancelled before step 5 no longer pins the specialist in VRAM either.
+  - Step 5 (`unload`) and step 7 (`post_write_update`) still send `0`.
+  - Verified with the real ollama 0.6.3 client against a logging fake Ollama: old sent `keep_alive=-1` for refine character/scene/world and steps 1–2; new sends `300`. Both send `0` for the unload and step 7.
+  - The evidence below describes the pre-fix code.
 - Refine endpoints call `_call` with the default `keep_alive=-1`. **Fix:** use `0` or a finite value (e.g. `120`) for refine calls.
 
 ### KI-030 — User/sample data in VCS · Low
@@ -225,7 +230,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The evidence below describes the pre-fix code.
 - Two tabs (or API clients) can generate the same chapter at once. Writes race and can overwrite each other. There is no cancel button. Closing the tab aborts the stream and loses unsaved work. **Fix:** a server-side lock per novel, plus a cancel endpoint or `AbortController` in the UI.
 
-### KI-032 — Minor UI glitches · Low
+### KI-032 — Minor UI glitches · Low · ✅ Fixed in Unreleased (plan 013)
+- **Status: Fixed in Unreleased [plan 013]**, all three. Verified in the browser, old vs new with a stub:
+  - **Full View tags:** the `complete` handler now keeps `characters_featured`/`scenes_featured` from the event's `characters`/`scenes` (`app.js:535-541`). Full View right after a generation showed no tags on old; on new it showed the same character and location slugs as the chapter reopened from History.
+  - **First chunk with `\n\n`:** the `token` handler creates the first paragraph before splitting (`app.js:498-501`). Text 0.6 s into a stream whose first chunk was `"Opening line.\n\nSecond"`: old empty, new "Opening line." + "Second". The final paragraphs are identical.
+  - **Shortcuts:** they compare `e.key.toLowerCase()` (`app.js:1444`). Alt+`S` and Alt+`W` (upper case, as with Caps Lock or Shift) opened nothing on old and Settings/World on new; Alt+`s` works on both.
+  - The evidence below describes the pre-fix code.
 - After generation, `state.currentChapter` lacks `characters_featured`/`scenes_featured`, so Full View tags are empty (`app.js:533-537`).
 - If the very first token chunk contains `\n\n`, its text is held back by the `app.js:498` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.

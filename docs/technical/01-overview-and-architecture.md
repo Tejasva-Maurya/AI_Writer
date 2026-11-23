@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010).
+> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -138,7 +138,7 @@ flowchart TB
 
 | Role | Default model | Used for | Ollama options | `keep_alive` |
 |---|---|---|---|---|
-| **Specialist** | `phi4-mini:3.8b` (`models.py:148`) | Plot analysis, entity resolution, profiling, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `-1` (stay loaded) for steps 1–3 and the refine endpoints. **`0` (unload right away)** at step 5 (explicit `unload`: an empty `generate`, no generation) and after step 7 (`post_write_update`). |
+| **Specialist** | `phi4-mini:3.8b` (`models.py:148`) | Plot analysis, entity resolution, profiling, post-write summarisation, refine endpoints | `num_ctx 8192`, `temperature 0.1` | `300` s (unloaded after 5 idle minutes) for steps 1–3 and the refine endpoints (plan 013, KI-029; was `-1`, stay loaded forever). **`0` (unload right away)** at step 5 (explicit `unload`: an empty `generate`, no generation) and after step 7 (`post_write_update`). |
 | **Writer** | `gemma3:12b` (`models.py:147`) | Chapter prose (streamed) | `num_ctx 32768`, `temperature 0.8`, `top_p 0.9` | `300` seconds (stays warm for the next chapter) |
 
 Timeline of one chapter generation:
@@ -149,7 +149,7 @@ gantt
     axisFormat %s
     title VRAM residency during one generation (illustrative)
     section Specialist
-    Steps 1-3 (keep_alive -1)        :a1, 0, 4
+    Steps 1-3 (keep_alive 300s)      :a1, 0, 4
     Step 5 unload (keep_alive 0, nothing generated) :a2, 4, 5
     Step 7 post_write_update (load, then unload)  :a3, 9, 10
     section Writer

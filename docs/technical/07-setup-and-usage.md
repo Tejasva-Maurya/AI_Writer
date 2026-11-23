@@ -160,6 +160,8 @@ Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (
 | `Escape` | Close the open modal |
 | `Enter` / `,` in a tag field | Add tag |
 
+The `Alt` shortcuts work with Caps Lock on or Shift held (since plan 013, KI-032).
+
 ## 6. Backup, reset and multiple novels
 
 - **Everything is in `data/`.** Back up by copying the folder while the server is stopped.

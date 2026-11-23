@@ -33,7 +33,7 @@ The full traceback is in the SSE `error.detail` field. Watch it with the `curl -
 ### A4. Out of memory / VRAM errors, or the system becomes very slow
 - Use smaller models (e.g. writer `llama3.1:8b`, specialist `phi4-mini:3.8b`).
 - The writer requests `num_ctx 32768`. Lowering it in `writer.py:63` greatly reduces memory use.
-- After using the Build tabs, the specialist stays loaded (`keep_alive=-1`). Run `ollama stop <model>` or restart Ollama to free it.
+- After using the Build tabs, the specialist stays loaded for 5 idle minutes, then Ollama unloads it (since plan 013, KI-029; before, it stayed until Ollama restarted). To free it at once, run `ollama stop <model>`.
 - Close other GPU-heavy applications.
 
 ### A5. "Failed to save character: … 422 …" when using the New Character / Edit modal

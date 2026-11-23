@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012).
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013).
 > v1.0.0 has **no configuration file and reads no environment variables of its own**. Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
@@ -35,12 +35,12 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Parameter | Specialist | Writer | Location |
 |---|---|---|---|
-| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:53`, `writer.py:63` |
+| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:55`, `writer.py:63` |
 | `temperature` | 0.1 | 0.8 | same |
 | `top_p` | (Ollama default) | 0.9 | `writer.py:63` |
-| `keep_alive` | `-1` (keep loaded) by default. `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,197,237`, `writer.py:62` |
+| `keep_alive` | `300` s by default: refine and steps 1–3, unloaded after 5 idle minutes (plan 013, KI-029, D-011; was `-1`). `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,199,239`, `writer.py:62` |
 | Streaming | no | yes | — |
-| JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:52` |
+| JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:54` |
 
 > `num_ctx 32768` on a 12B model can need much more VRAM than the model weights alone. If you hit out-of-memory errors, lowering this is the first knob to try, together with picking a smaller model.
 
@@ -51,12 +51,12 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Target chapter length | ~2000 words (stated twice) | `writer.py:23`, `writer.py:48` |
 | Narrative perspective | third-person limited unless world settings say otherwise | `writer.py:24` |
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
-| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:77` |
+| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:79` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
 | Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:153-165` (the only copy since plan 008) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
-| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:175` (`_chapter_excerpt`) |
-| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:219-221` |
+| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:177` (`_chapter_excerpt`) |
+| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:221-223` |
 
 ### 2.4 Model catalogue (shown in Settings)
 
@@ -80,11 +80,11 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 
 | Constant | Value | Location |
 |---|---|---|
-| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1326`, `app.js:1469` |
-| Connection check timeout | 3000 ms | `app.js:1467` |
+| Toast default duration | 4000 ms (8000 ms for the connection error) | `app.js:1330`, `app.js:1474` |
+| Connection check timeout | 3000 ms | `app.js:1472` |
 | Sidebar reload delay after a new entity | 300 ms | `app.js:481,482` |
-| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:700-702` |
-| Refine status auto-clear | 5000 ms | `app.js:1607` etc. |
+| Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:704-706` |
+| Refine status auto-clear | 5000 ms | `app.js:1612` etc. |
 | Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, specialist `phi4-mini:3.8b`, the same as the backend defaults (plan 012; before, the specialist was `gemma3:12b`, KI-028) | `app.js:167-174` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)

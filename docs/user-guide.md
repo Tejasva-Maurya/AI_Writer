@@ -158,6 +158,8 @@ The launcher will:
 | `Alt+W` | Open world settings |
 | `Escape` | Close open modal |
 
+The `Alt` shortcuts also work with Caps Lock on.
+
 ### Exporting Your Novel
 
 Click **📤 Export** in the top-right header:

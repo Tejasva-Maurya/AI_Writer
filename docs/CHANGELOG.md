@@ -29,6 +29,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **✕ Cancel** button next to **Generate Chapter**, and `POST /api/generate-chapter/cancel`: stops the running generation within a moment; nothing is saved unless the last step had already run. [plan 010] [KI-031]
 
 ### Changed
+- The specialist model no longer stays in VRAM indefinitely after a Character/Scene/World Build or an interrupted generation: Ollama unloads it after 5 idle minutes (`keep_alive=300`, like the writer; it was `-1`). Normal generations are unchanged: it is still unloaded before writing and after the summary. [plan 013] [KI-029]
 - Specialist calls use Ollama's JSON mode (`format="json"`), and auto-created characters default to supporting (`temporary`) unless the model marks them as central. Character, location and world fields accept near-miss types (e.g. `"age": 17`, `"type": "supporting"`, a single string for a list) and store them coerced, instead of rejecting them. [plan 009] [KI-016]
 - Each chapter makes two fewer specialist-model calls: step 4 (Optimize Context) now applies its rules directly instead of asking the model to restate them, and step 5 unloads the specialist with Ollama's unload request instead of a full prediction prompt whose answer was never used. A failed unload is reported as a warning and no longer stops the chapter. [plan 008] [KI-012] [KI-013]
 - `POST /api/characters` and `/api/scenes` always store a server-derived slug (`make_slug(slug or name)`: lowercase, `_` separators, letters of any script kept), so a client-supplied `"Elder-Wu"` becomes `elder_wu`. The API is same-origin only: no CORS, and the `Host` must be `127.0.0.1` or `localhost`. [plan 007] [KI-009] [KI-010]
@@ -79,6 +80,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Each generation starts with a fresh pipeline panel: no longer dimmed from the previous chapter, and no step left red from an earlier error. [plan 011] [KI-024]
 - Settings → Available Models marks a recommended model as installed only when that exact model is pulled; a different size of the same family (e.g. `gemma3:4b` for `gemma3:12b`) no longer counts, so **⬇ Pull** is offered instead of a model that would fail. [plan 012] [KI-020]
 - When the backend can't be reached, the page's placeholder settings now use the same specialist model as the backend (`phi4-mini:3.8b`, was `gemma3:12b`). [plan 012] [KI-028]
+- **⛶ Full View** right after a generation lists the chapter's characters and locations (it was empty until the chapter was reopened from History); text whose first piece already contains a paragraph break appears at once instead of being held back; and the `Alt+G/N/S/W` shortcuts work with Caps Lock on or Shift held. [plan 013] [KI-032]
 
 
 ### Security

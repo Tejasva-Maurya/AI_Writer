@@ -97,15 +97,15 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`. All fu
 |---|---|---|---|
 | `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:25`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
 | `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, format="json", options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`, returned only if it is a dict, else `{}` (plan 009, KI-015). `format="json"` is Ollama's JSON mode (KI-016). Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
-| `analyze_plot` | `(plot, model)` | Step 1 (the unused `novel_meta` argument was removed in plan 008) | -1 |
-| `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | -1 |
-| `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | -1 |
+| `analyze_plot` | `(plot, model)` | Step 1 (the unused `novel_meta` argument was removed in plan 008) | 300 |
+| `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | 300 |
+| `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | 300 |
 | `_chapter_excerpt` | `(text, budget=5000) -> str` | What the summariser sees (KI-014): the whole chapter if its estimated size (¼ token per ASCII char, 1 per other char, so CJK counts safely) fits `budget`; otherwise the opening (40 %) + `[… middle of the chapter omitted …]` + the ending (60 %). | — |
 | `unload` | `(model) -> None` | Step 5: `AsyncClient().generate(model=model, keep_alive=0)`, Ollama's unload request (body `{model, stream:false, keep_alive:0}`, verified with ollama 0.4.0 and 0.6.3); generates nothing (KI-012) | **0** |
 | `post_write_update` | `(chapter_text, char_profiles, scene_profiles, model)` | Step 7: whole chapter via `_chapter_excerpt`, character and scene briefs | **0** |
-| `refine_character` | `(description, name, world, model)` | Character Build | -1 |
-| `refine_scene` | `(description, name, world, model)` | Scene Build | -1 |
-| `refine_world` | `(description, existing_world, model)` | World Build | -1 |
+| `refine_character` | `(description, name, world, model)` | Character Build | 300 |
+| `refine_scene` | `(description, name, world, model)` | Scene Build | 300 |
+| `refine_world` | `(description, existing_world, model)` | World Build | 300 |
 
 ### 2.5 `app/backend/agents/writer.py`
 
@@ -198,7 +198,7 @@ Prompt-engineering notes:
 ```js
 state = {
   characters: [], scenes: [], world: {}, chapters: [], novelMeta: {},
-  currentChapter: null,      // full Chapter from GET /chapters/{n}, or {chapter_number,title,word_count} after generation
+  currentChapter: null,      // full Chapter from GET /chapters/{n}, or {chapter_number,title,word_count,characters_featured,scenes_featured} after generation
   isGenerating: false,       // this tab's lock; the server also allows only one generation (409, plan 010)
   activeModal: null,         // id of the open modal overlay
   _abilities, _habits, _inhabitants, _genreTags, _professions, _hierarchy, _factions: [],  // tag-input stores
@@ -248,18 +248,18 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 |---|---|---|
 | `#btn-generate` click, `Ctrl+Enter` in `#plot-input` | `bindStaticEvents` | `generateChapter()` |
 | `#btn-cancel-generate` click (visible only while generating) | `bindStaticEvents` | `cancelGeneration()` (plan 010) |
-| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1439-1460` | Generate / new character / settings (loads models like the button since plan 006) / world settings. Lower-case key check only, so these do not fire with Caps Lock on. |
+| Global `Alt+G` / `Alt+N` / `Alt+S` / `Alt+W` | `app.js:1443-1465` | Generate / new character / settings (loads models like the button since plan 006) / world settings. The key is lower-cased first, so they also work with Caps Lock or Shift (plan 013, KI-032). |
 | `Escape` | `bindStaticEvents` | Close the active modal |
 | Click on an overlay background, `.modal-close`, or `.btn-cancel[data-modal]` | delegated on `document` | Close modal |
 | Click anywhere | `document` | Close the export dropdown |
 | `#btn-settings` click | `bindStaticEvents` | `openSettingsModal` (which also loads the models; the old second listener was removed in plan 006) |
 
-### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:491-525`)
+### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:491-527`)
 
 - `streamedText` accumulates text since the last paragraph break. `currentParagraph` is the `<p>` being filled.
 - A chunk **without** `\n\n` is appended to `currentParagraph.textContent` (a `<p>` is created on first use).
 - A chunk **with** `\n\n` → split the accumulated `streamedText` on `\n\n`. The first part finalises the current `<p>`, middle parts become new `<p>`s, and the last part starts a new current `<p>`.
-- Edge cases: a single `\n` stays inside the paragraph (rendered as a space). If the first chunk contains `\n\n` before any paragraph exists, its text is **held back** (it stays in `streamedText` because of the `if (currentParagraph)` guard). It appears when the next chunk containing `\n\n` arrives, and is lost from the live view only if no later chunk contains `\n\n`. The saved chapter is unaffected.
+- Edge cases: a single `\n` stays inside the paragraph (rendered as a space). If the first chunk already contains `\n\n`, the handler first creates the paragraph and then splits, so that text shows at once (plan 013; before, an `if (currentParagraph)` guard held it back until a later chunk with `\n\n`, KI-032).
 - The cursor element `#text-cursor` is re-appended at the end after every token, with `scrollIntoView({block:'nearest'})`.
 
 ### 4.7 Design system (CSS tokens, `style.css:8-61`)
