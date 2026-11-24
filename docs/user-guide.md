@@ -64,13 +64,12 @@ Open a terminal and pull your preferred models:
 REM Recommended writer model (best quality)
 ollama pull gemma3:12b
 
-REM Recommended specialist model
-ollama pull gemma3:12b
+REM Recommended specialist model (the default: small and fast, for the JSON analysis steps)
+ollama pull phi4-mini:3.8b
 
-REM Or lighter alternatives:
+REM Or other writers:
 ollama pull llama3.1:8b
 ollama pull mistral-nemo:12b
-ollama pull phi4-mini:3.8b
 ```
 
 > **Note:** Models will download several GB each. Keep them running in the background — Ollama handles model management automatically.
@@ -96,7 +95,7 @@ The launcher will:
 | `llama3.1:8b` | ~6 GB | Fast drafts, general writing | Fast |
 | `phi4-mini:3.8b` | ~3 GB | Low-VRAM systems | Very Fast |
 
-**Recommended setup:** Use `gemma3:12b` for both Writer and Specialist models for best quality. If you have limited VRAM, use `llama3.1:8b` for writing and `phi4-mini:3.8b` for the specialist tasks.
+**Recommended setup:** the defaults, `gemma3:12b` as the Writer and `phi4-mini:3.8b` as the Specialist. The specialist only does short analysis and summary tasks, so a small model is enough and leaves VRAM for the writer. A larger specialist (e.g. `gemma3:12b`) can give better chapter summaries, at the cost of speed and VRAM. If you have limited VRAM, use `llama3.1:8b` for writing and keep `phi4-mini:3.8b` for the specialist.
 
 ---
 
@@ -263,7 +262,8 @@ AI_Writer/
 │   ├── frontend/                   Pure HTML/CSS/JS (no build step)
 │   │   ├── index.html              Application shell
 │   │   ├── style.css               Dark glass design system
-│   │   └── app.js                  All application logic
+│   │   ├── app.js                  All application logic
+│   │   └── fonts/                  Bundled web fonts (no internet needed)
 │   ├── requirements.txt            Python dependencies
 │   └── start.bat                   Windows launcher
 ├── data/                           YOUR NOVEL (JSON files, created on demand)

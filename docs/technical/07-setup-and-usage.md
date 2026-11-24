@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -15,7 +15,7 @@
 | Hardware | A GPU with ≥ 8 GB VRAM for the default `gemma3:12b` writer. ≈ 3–6 GB works with smaller models (see [06 §2.4](06-configuration.md#24-model-catalogue-shown-in-settings)). CPU-only works but is slow. |
 | Disk | Several GB per model. |
 | Browser | Any modern Chromium/Firefox/Edge (uses `fetch` streaming and `AbortSignal.timeout`). |
-| Internet | Needed once to install packages and pull models. The UI fonts load from Google Fonts but fall back gracefully when offline. |
+| Internet | Needed once to install packages and pull models. After that the app runs fully offline: the UI fonts are bundled (plan 014). |
 
 ## 2. Installation
 

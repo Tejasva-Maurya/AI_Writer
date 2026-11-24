@@ -132,4 +132,14 @@
   - `specialist.py`: `_call()` defaults to `keep_alive=300`. The user chose 5 minutes and to apply it to steps 1–3 as well (D-011).
   - Verified: with the real ollama 0.6.3 client and a logging fake Ollama, old sent `-1`, new sends `300` for refine and steps 1–2; `0` for the unload and step 7 on both. In the browser, old vs new: first-chunk text empty vs shown; Full View tags none vs the same slugs as History; Alt+S/W (upper case) nothing vs Settings/World.
 - **Plan:** 013 (done).
-- **Open threads:** Not committed yet (waiting for the user). Real VRAM release after 5 minutes not observable here.
+- **Open threads:** Committed 2026-11-23. The API push failed three times that day (blob uploads: a connection reset, then GitHub 400 twice; the ref never moved) and succeeded unchanged on 2026-11-24. Real VRAM release after 5 minutes not observable here.
+
+### 2026-11-24 — Claude Code (Opus 5.5) — push plan 013; fix KI-023, KI-034 (plan 014)
+- **Goal:** Push plan 013 (failed on 2026-11-23), then make the "fully offline" claim true and fix the remaining copy drift.
+- **Outcome:**
+  - Plan 013 pushed on the first retry (`819a98d`).
+  - `app/frontend/fonts/`: 14 woff2 files, `fonts.css` (27 `@font-face`), 3 OFL licences. The user chose self-hosting (D-012).
+  - `index.html` links `/static/fonts/fonts.css` (the Google preconnects and `<link>` are gone); `style.css` lost its `@import`. The model-browser subtitle is accurate; the user guide recommends `phi4-mini:3.8b` as specialist.
+  - Old vs new in the browser: old requested `fonts.googleapis.com`, new made no external request. The same six faces loaded, from `/static/fonts/` on new. All files are served as `font/woff2`.
+- **Plan:** 014 (done).
+- **Open threads:** Not committed yet (waiting for the user).

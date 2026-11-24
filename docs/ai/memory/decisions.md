@@ -76,3 +76,10 @@
 - **Decision:** `_call()` defaults to `keep_alive=300`, the writer's value. Step 5 (`unload`, an empty `generate`) and step 7 (`post_write_update`) keep sending `0`, so the VRAM choreography of a normal generation is unchanged.
 - **Alternatives considered:** `0` for refine (frees VRAM at once, but every build reloads the model from disk); `120` (KI-029's suggestion; a shorter warm window than the writer's); changing refine only (failed or cancelled generations would still pin the specialist).
 - **Consequences:** consecutive builds stay fast for 5 minutes; an idle specialist frees VRAM by itself. A step-1–3 call more than 5 minutes after the previous one would reload the model (only a delay; these calls run back to back).
+
+## D-012 — Web fonts are self-hosted
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 014 (user choice, asked during planning)
+- **Context:** The user guide calls the app "fully offline", but the page loaded Cinzel, Crimson Pro and JetBrains Mono from Google Fonts on every load (twice: an `index.html` `<link>` and a `style.css` `@import`), contacting Google and falling back to system fonts offline (KI-034).
+- **Decision:** Bundle the fonts in `app/frontend/fonts/`: the 14 woff2 files Google serves for these families (all subsets, ~247 KB), a `fonts.css` with the same 27 `@font-face` rules pointing at `/static/fonts/`, and the three SIL OFL 1.1 licences (required when redistributing). `index.html` links `/static/fonts/fonts.css`; the existing `/static` mount serves it, so the backend is unchanged.
+- **Alternatives considered:** keep Google Fonts and reword the claim (no new files, but the page still contacts Google and looks different offline); only the latin subsets (smaller, but names with other scripts would switch to fallback fonts).
+- **Consequences:** No outside request from the UI. The fonts are frozen at the 2026-11-24 versions; the `fonts.css` header says how to regenerate them. Keep the OFL files next to the fonts.

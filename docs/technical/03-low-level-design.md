@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -191,7 +191,8 @@ Prompt-engineering notes:
 |---|---|
 | `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, pipeline panel with 7 steps, output panel, multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings`, `modal-chapter`, `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
 | `app.js` | One global script, no modules. Sections in order: state → DOM cache → init → API helpers → loaders/renderers (meta, characters, scenes, world, chapters) → chapter view → `generateChapter` → SSE parser → pipeline UI → character modal → scene modal → world modal → settings modal → chapter view modal → export → modal system → tag input → relationship editor → title edit → toasts → `escHtml` → static bindings → keyboard shortcuts → connection check → boot → **mode switcher** → world snapshot → existing-entity dropdowns → refine (char/scene/world) → **model browser** → second `DOMContentLoaded`. The part from "mode switcher" on was evidently appended later; it is a separate binding block. |
-| `style.css` | Sections: fonts, `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser. **No `@media` queries**, so the layout is desktop-only. |
+| `fonts/` | `fonts.css` (27 `@font-face` rules for Cinzel, Crimson Pro and JetBrains Mono, all subsets, `src` under `/static/fonts/`), the 14 woff2 files they point to, and the three SIL OFL licences. Linked first in `index.html`; served by the `/static` mount. Regeneration steps are in the `fonts.css` header (plan 014, KI-034). |
+| `style.css` | Sections: fonts (a pointer to `fonts/fonts.css`; the Google `@import` was removed in plan 014), `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser. **No `@media` queries**, so the layout is desktop-only. |
 
 ### 4.2 Global state (`app.js:11-34`)
 
@@ -262,7 +263,7 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 - Edge cases: a single `\n` stays inside the paragraph (rendered as a space). If the first chunk already contains `\n\n`, the handler first creates the paragraph and then splits, so that text shows at once (plan 013; before, an `if (currentParagraph)` guard held it back until a later chunk with `\n\n`, KI-032).
 - The cursor element `#text-cursor` is re-appended at the end after every token, with `scrollIntoView({block:'nearest'})`.
 
-### 4.7 Design system (CSS tokens, `style.css:8-61`)
+### 4.7 Design system (CSS tokens, `style.css:7-60`)
 
 | Token group | Values |
 |---|---|

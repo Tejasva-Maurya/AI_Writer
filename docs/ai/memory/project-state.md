@@ -2,7 +2,7 @@
 
 > Auto-loaded into every Claude session (root `CLAUDE.md` → `docs/ai/RULES.md` → this file). Keep under ~40 lines. Update at the end of every working session.
 
-**Last updated:** 2026-11-23
+**Last updated:** 2026-11-24
 
 ## Repository layout (plan 002, D-007)
 - `app/` = application (`backend/`, `frontend/`, `start.bat`, `requirements.txt`) · `data/` = the novel · `docs/` = user guide, `technical/`, `CHANGELOG.md`, `ai/` (RULES, plans, memory, templates).
@@ -22,17 +22,18 @@
 - `[Unreleased]`: plan 010 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-019 (pull ends with `success` only after Ollama's own) and KI-031 (one generation at a time: 409 while one runs; `POST /api/generate-chapter/cancel` + **✕ Cancel** button; disconnect cancels).
 - `[Unreleased]`: plan 011 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-037 (cursor hides), KI-024 (pipeline panel reset per run) and the newly found KI-039 (multi-chapter notice hides), in `style.css` and `app.js`.
 - `[Unreleased]`: plan 012 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-020 (exact "installed" detection via `_model_key` in `main.py`) and KI-028 (frontend fallback specialist = `phi4-mini:3.8b`).
-- `[Unreleased]`: plan 013 (done 2026-11-23, **not committed yet**) fixes KI-032 (Full View tags after generation, first-chunk paragraph, Caps-Lock-proof Alt shortcuts) and KI-029 (specialist `keep_alive` 300 by default, D-011).
+- `[Unreleased]`: plan 013 (committed 2026-11-23, pushed 2026-11-24, see `git log origin/main`) fixes KI-032 (Full View tags after generation, first-chunk paragraph, Caps-Lock-proof Alt shortcuts) and KI-029 (specialist `keep_alive` 300 by default, D-011).
+- `[Unreleased]`: plan 014 (done 2026-11-24, **not committed yet**) fixes KI-034 (fonts self-hosted in `app/frontend/fonts/`, D-012) and the rest of KI-023 (model-browser subtitle, user-guide model recommendation).
 - POST no longer upserts (409) and now normalises slugs; the API is same-origin only. Generate can now return 409 too (plan 010). When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–013 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–012 are committed and pushed; plan 013 is in the working tree, waiting for the user to ask for a commit.
+- Plans 003–014 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–013 are committed and pushed; plan 014 is in the working tree, waiting for the user to ask for a commit.
 
 ## Suggested next up (from `docs/technical/09`, by impact)
 1. KI-025: no tests, lint, CI or logging (the only open Medium). A pytest + `TestClient` suite with a stubbed `ollama` would replace the ad-hoc sandbox checks.
-2. Quick Low fixes: KI-023 (the "Shift+click" model-browser copy), KI-034 ("fully offline" claim vs Google Fonts), KI-017 (export writes into `data/`).
-3. KI-026 (non-atomic writes), KI-033 (`OLLAMA_HOST` ignored by model list/pull), KI-030 (user data in VCS), KI-035 (desktop-only layout).
+2. Quick Low fixes: KI-017 (export writes into `data/`; illegal filename characters), KI-033 (`OLLAMA_HOST` ignored by model list/pull).
+3. KI-026 (non-atomic writes), KI-030 (user data in VCS), KI-035 (desktop-only layout).
 
 ## Environment facts (dev machine, verified 2026-11-22)
 - Windows 11, Git Bash. `py` → Python 3.14.5 (has fastapi 0.141.1, pydantic 2.13.4, uvicorn 0.52.3, httpx 0.28.1). `python` → Python 3.14.0 (separate install).

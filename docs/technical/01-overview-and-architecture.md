@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013).
+> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -35,7 +35,7 @@ Besides chapter generation it offers:
 
 | Characteristic | Detail |
 |---|---|
-| **Local-only** | Backend binds to `127.0.0.1:8000`; LLM inference goes to Ollama on `localhost:11434`. No cloud API is called. (Fonts are loaded from Google Fonts. Without internet they fall back to Georgia/Consolas.) |
+| **Local-only** | Backend binds to `127.0.0.1:8000`; LLM inference goes to Ollama on `localhost:11434`. No cloud API is called, and the UI makes no outside request: its fonts are bundled in `app/frontend/fonts/` (plan 014, KI-034; before, they came from Google Fonts). |
 | **Single user / single novel** | One `data/` folder = one novel. No accounts, no authentication, no multi-tenancy. |
 | **No database** | All persistence is plain JSON files under `data/` (one file per character, scene and chapter). |
 | **No build step** | Frontend is three static files (`index.html`, `style.css`, `app.js`), vanilla JS with no framework and no bundler. They are served by FastAPI. |
@@ -54,7 +54,7 @@ Besides chapter generation it offers:
 | LLM client | `ollama` (ollama-python) | `>=0.4,<1` (0.6.3) | Both agents use `ollama.AsyncClient`. Attribute access (`response.message.content`) needs ≥ 0.4, and ollama ≥ 0.4 itself needs pydantic ≥ 2.9. The import is optional at startup (KI-003). |
 | HTTP client | `httpx` | `>=0.27` (0.28.1) | Used directly in `main.py` for `/api/tags` and `/api/pull`. |
 | LLM runtime | Ollama server | any recent | HTTP API on `http://localhost:11434`. |
-| Frontend | HTML5 + CSS3 + vanilla ES2020 JS | — | Google Fonts: *Cinzel* (display), *Crimson Pro* (body), *JetBrains Mono* (mono). |
+| Frontend | HTML5 + CSS3 + vanilla ES2020 JS | — | Fonts *Cinzel* (display), *Crimson Pro* (body), *JetBrains Mono* (mono), self-hosted as woff2 under `app/frontend/fonts/` (SIL OFL 1.1, licences alongside; plan 014). |
 | Launcher | Windows batch (`app/start.bat`) | — | Detects Python, checks every dependency (incl. ollama ≥ 0.4) and installs/upgrades if needed, starts server, polls health, opens browser. |
 
 > **Dependencies (plan 005, D-009):** `app/requirements.txt` holds lower bounds plus a comment with the verified versions. In v1.0.0 it held stale exact pins (`ollama==0.3.3`, `pydantic==2.7.1`) that matched no working environment, and the backend could not even import without `ollama`. Both are fixed (KI-003, KI-004).
@@ -69,7 +69,6 @@ flowchart LR
     BE -->|"httpx<br/>/api/tags, /api/pull"| OL
     OL --> GPU[(GPU VRAM / CPU RAM)]
     BE -->|"read/write JSON"| FS[("data/<br/>characters/ scenes/ chapters/<br/>novel_meta.json world_settings.json")]
-    FE -.->|"fonts (optional)"| GF[(fonts.googleapis.com)]
 ```
 
 ## 5. Component architecture (backend)
@@ -192,7 +191,8 @@ AI_Writer/
 │   ├── frontend/
 │   │   ├── index.html         (830 LOC) App shell: header, 3-column layout, 4 mode tabs, pipeline UI, 6 modals
 │   │   ├── app.js            (1890 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
-│   │   └── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
+│   │   ├── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
+│   │   └── fonts/                       Self-hosted woff2 fonts + fonts.css (@font-face) + OFL licences (plan 014)
 │   ├── start.bat                        Windows launcher (double-click)
 │   └── requirements.txt                 Python dependencies (lower bounds; verified versions in a comment)
 ├── data/                                NOVEL DATA (created/updated by the app; sample content is committed)

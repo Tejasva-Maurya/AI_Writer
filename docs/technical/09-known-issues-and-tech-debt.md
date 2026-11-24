@@ -1,29 +1,27 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-23, through plan 013. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 014. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 7 open · 1 partly fixed (KI-023) · 31 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-036, KI-037, KI-038, KI-039).
+**At a glance:** 6 open · 33 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-034, KI-036, KI-037, KI-038, KI-039).
 
-### Open (8)
+### Open (6)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
 | KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
-| KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | README part fixed in Unreleased; UI copy open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
-| KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 
-### Fixed (31)
+### Fixed (33)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -50,12 +48,14 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family ✔ | Fixed in Unreleased [plan 012] |
 | KI-021 | Low | Frontend | API base URL hard-coded to `http://127.0.0.1:8000/api` | Fixed in Unreleased [plan 007] |
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
+| KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | Fixed in Unreleased [plan 001] (README) and [plan 014] (UI copy, user-guide model recommendation) |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs ✔ | Fixed in Unreleased [plan 011] |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) ✔ | Fixed in Unreleased [plan 012] |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) ✔ | Fixed in Unreleased [plan 013] |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) ✔ | Fixed in Unreleased [plan 013] |
+| KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts ✔ | Fixed in Unreleased [plan 014] (fonts self-hosted) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
@@ -182,7 +182,11 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - At v1.0.0, 14 `.pyc` files under `backend/__pycache__`, `backend/agents/__pycache__`, `backend/managers/__pycache__` and `backend/pipeline/__pycache__` were tracked (committed before `.gitignore` existed).
 - **Resolution (plan 002):** the folders moved with the code into `app/backend/…/__pycache__`, where `.gitignore` (`__pycache__/`) excludes them. When the reorganisation is committed, git records the old tracked copies as deleted and never adds the new ones. No `git rm` needed. Verify after the commit with `git ls-files | grep pyc` (expect nothing).
 
-### KI-023 — Documentation/UI copy drift · Low
+### KI-023 — Documentation/UI copy drift · Low · ✅ Fixed in Unreleased (plans 001, 014)
+- **Status: Fixed in Unreleased.** The README part was fixed in plan 001. Plan 014 fixed the rest:
+  - The model-browser subtitle now reads "Use Set Writer / Set Specialist on an installed model, or ⬇ Pull to download one." (`index.html:764`), describing the real buttons. Verified in the browser.
+  - The user guide's Step 2 and "Recommended setup" recommend the defaults (`gemma3:12b` writer, `phi4-mini:3.8b` specialist) instead of `gemma3:12b` for both.
+  - The evidence below describes the pre-fix state.
 - README "Architecture" listed non-existent `storage.py`, `pipeline.py`, `ollama.py`, `data/world.json` and "JSON/SQLite" storage → **corrected in [Unreleased]**.
 - Still open: the Settings model browser subtitle says "Click a model to set as writer. Shift+click to set as specialist." (`index.html:766`), but only explicit buttons exist. The README recommends `gemma3:12b` for both roles while the default specialist is `phi4-mini:3.8b` (a recommendation, not an error).
 
@@ -243,7 +247,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 ### KI-033 — Partial `OLLAMA_HOST` support · Low
 - ollama-python honours `OLLAMA_HOST`, but `main.py:287,323` hard-code `http://localhost:11434`.
 
-### KI-034 — "Fully offline" claim · Low
+### KI-034 — "Fully offline" claim · Low · ✅ Fixed in Unreleased (plan 014)
+- **Status: Fixed in Unreleased [plan 014].** The fonts are self-hosted, so the "fully offline" claim is now true (user decision; D-012).
+  - `app/frontend/fonts/` holds the 14 woff2 files Google served for these families (all subsets, 247 KB), `fonts.css` with the same 27 `@font-face` rules pointing at `/static/fonts/`, and the three SIL OFL licences.
+  - `index.html` links `/static/fonts/fonts.css` instead of Google (`index.html:9`), and `style.css` lost its `@import`.
+  - Verified in the browser, old vs new: old requested `fonts.googleapis.com`; new made no request outside `127.0.0.1`. The same six font faces loaded on both, from `/static/fonts/` on new. All 14 files are served as `font/woff2`.
+  - The evidence below describes the pre-fix code.
 - Google Fonts are loaded **twice**: `<link>` tags in `index.html:9-11` and an `@import` in `style.css:6`. The app works offline with fallback fonts. Either self-host the fonts (change both files) or soften the README claim.
 
 ### KI-035 — Desktop-only layout · Low (design limitation)

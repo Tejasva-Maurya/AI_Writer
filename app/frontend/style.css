@@ -2,8 +2,7 @@
    NovelForge AI — Premium Dark Design System
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Google Fonts ── */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+/* ── Fonts ── self-hosted in fonts/fonts.css, linked from index.html (KI-034) */
 
 /* ── CSS Custom Properties ── */
 :root {

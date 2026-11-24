@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 
 ## Part A — Troubleshooting
 
@@ -86,7 +86,7 @@ Only one chapter is generated at a time (since plan 010, KI-031). Another tab or
 ## Part B — FAQ
 
 **Does anything leave my machine?**
-No novel content does. The backend talks only to Ollama on `localhost`. The browser fetches web fonts from Google (no content is sent). Pulling models downloads from the Ollama registry.
+No. The backend talks only to Ollama on `localhost`, and the page loads everything, fonts included, from the local server (since plan 014; before, the browser fetched web fonts from Google, without any novel content). Only pulling models downloads from the Ollama registry.
 
 **Where is my novel stored?**
 In `data/` as plain JSON. See [05 — Data Model & Storage](05-data-model-and-storage.md). There is no database.

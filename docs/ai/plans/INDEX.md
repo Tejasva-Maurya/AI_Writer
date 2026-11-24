@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 014  
-**Total plans:** 13
+**Next number:** 015  
+**Total plans:** 14
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -23,3 +23,4 @@
 | 011 | [Hide the streaming cursor and the multi-chapter notice, reset the pipeline panel between runs (KI-037, KI-024, KI-039)](011-hide-the-streaming-cursor-and-the-multi-chapter-notice.md) | `done` | 2026-11-23 | — |
 | 012 | [Exact "installed" detection for recommended models, matching frontend fallback specialist (KI-020, KI-028)](012-exact-installed-detection-for-recommended-models-matching.md) | `done` | 2026-11-23 | — |
 | 013 | [Full View tags after generation, first-chunk paragraphs, Caps-Lock-proof shortcuts, 5-minute specialist keep-alive (KI-032, KI-029)](013-full-view-tags-after-generation-first-chunk-paragraphs-caps.md) | `done` | 2026-11-23 | — |
+| 014 | [Self-hosted fonts so the app is truly offline, accurate model-browser copy and model recommendations (KI-034, KI-023)](014-self-hosted-fonts-so-the-app-is-truly-offline-accurate.md) | `done` | 2026-11-24 | — |
