@@ -1,27 +1,25 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 014. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 015. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 6 open · 33 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-034, KI-036, KI-037, KI-038, KI-039).
+**At a glance:** 4 open · 35 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-017, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-033, KI-034, KI-036, KI-037, KI-038, KI-039).
 
-### Open (6)
+### Open (4)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail | Open |
 | KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
 | KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
-| KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 
-### Fixed (33)
+### Fixed (35)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -43,6 +41,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-014 | Medium | Pipeline | Post-write summariser sees only the first 3000 chars of the chapter | Fixed in Unreleased [plan 008] |
 | KI-015 | Low | Pipeline | `estimated_chapters > 1` crashes when the LLM returns a string | Fixed in Unreleased [plan 009] |
 | KI-016 | Medium | Pipeline/Backend | LLM output that fails validation (type enum, int age, missing slug) silently drops entities; refine *merge* saves invalid values unvalidated, so the entity becomes unloadable; prompt template biases `type: main` ✔ | Fixed in Unreleased [plan 009] |
+| KI-017 | Low | Backend | Export writes into `data/`; titles with illegal filename chars fail ✔ | Fixed in Unreleased [plan 015] |
 | KI-018 | Low | Frontend | `warning` SSE events have no handler (silently dropped) | Fixed in Unreleased [plan 009] |
 | KI-019 | Medium | Backend | Model pull reports `success` even when Ollama returned an error ✔ | Fixed in Unreleased [plan 010] |
 | KI-020 | Low | Backend | "Installed" detection matches any tag of the same model family ✔ | Fixed in Unreleased [plan 012] |
@@ -55,6 +54,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) ✔ | Fixed in Unreleased [plan 013] |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) ✔ | Fixed in Unreleased [plan 013] |
+| KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) ✔ | Fixed in Unreleased [plan 015] |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts ✔ | Fixed in Unreleased [plan 014] (fonts self-hosted) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
@@ -155,7 +155,14 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - **Evidence:** `Character(type="supporting")` and `Character(age=17)` both raise (verified). In step 3 these become `warning` events, which the UI ignores (KI-018). In the refine **create** branch they become HTTP 500 (`main.py:334-339`, `356-360`). **Worse, in the refine *merge* branch** (`existing_slug` found), values are applied with `setattr` (`main.py:327`, `:357`) without validation (no `validate_assignment`), so the invalid value is **saved** and the endpoint returns 200. The file then fails to load: `get_all()` silently skips it (the entity vanishes from the sidebar) and `get_by_slug()` raises (later PUT/merge → 500). Reproduced: `setattr(c, "type", "supporting")` then `model_dump()` then re-construct → `ValidationError`. The step-3 template hard-codes `"type": "main"` (`specialist.py:139`), so auto-discovered characters skew to MAIN CAST.
 - **Fix:** normalise LLM output before construction (map unknown types → `temporary`, `str()` the age, derive a missing slug). Pass `format="json"` to Ollama.
 
-### KI-017 — Export side effects · Low
+### KI-017 — Export side effects · Low · ✅ Fixed in Unreleased (plan 015)
+- **Status: Fixed in Unreleased [plan 015].** `export_novel` (`main.py:243-266`) returns the text from memory (`Response` with `Content-Disposition: attachment`, built as Starlette's `FileResponse` does) and writes nothing to `data/`. `_export_filename` (`main.py:237-240`) turns spaces and characters Windows forbids into `_`, strips trailing dots and spaces, and falls back to `novel`.
+  - Verified old vs new on sandbox copies, with titles `Untitled Novel`, `Test: A/B?` and `林凡传奇`:
+    - Old rewrote or created `data/<title>.txt|md` on every export and returned 500 for `Test: A/B?`.
+    - New returned 200 for all, with the same headers, and left `data/` untouched.
+    - The text is identical apart from line endings: old wrote the file in Windows text mode, so downloads had CRLF; new sends LF on every OS.
+  - Existing `data/*.txt|md` exports from older versions stay where they are (user data); delete them by hand if unwanted.
+  - The evidence below describes the pre-fix code.
 - `main.py:251-255` writes `data/{title}.{fmt}` and leaves it there (e.g. `data/Untitled_Novel.txt`). Characters illegal in Windows filenames cause failures. **Fix:** stream from memory (`Response(content, headers={"Content-Disposition": …})`) and sanitise the filename.
 
 ### KI-018 — `warning` SSE ignored · Low · ✅ Fixed in Unreleased (plan 009)
@@ -244,7 +251,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 - If the very first token chunk contains `\n\n`, its text is held back by the `app.js:498` guard. It appears only when a later chunk containing `\n\n` arrives (lost from the live view if none does). The saved text is unaffected.
 - Alt shortcuts compare `e.key === 'g'` etc. (lower case only), so they fail with Caps Lock or Shift.
 
-### KI-033 — Partial `OLLAMA_HOST` support · Low
+### KI-033 — Partial `OLLAMA_HOST` support · Low · ✅ Fixed in Unreleased (plan 015)
+- **Status: Fixed in Unreleased [plan 015].** `OLLAMA_BASE_URL` (`main.py:315`) is `_ollama_base_url(os.getenv("OLLAMA_HOST"))`, a port of ollama-python's `_parse_host` (`main.py:291-312`); the model list and pull use it (`main.py:325, 361`).
+  - It was identical to the library's parser for all 35 inputs tested (its 30 doctest cases plus 5 more). The default is `http://127.0.0.1:11434`, as for generation.
+  - When Ollama is unreachable, `ollama_error` and the Settings status line name the address tried.
+  - Verified with `OLLAMA_HOST=127.0.0.1:11999` and a fake Ollama there: old reported Ollama unreachable and the pull failed (it called `:11434`); new listed the fake's models and the pull succeeded.
+  - The evidence below describes the pre-fix code.
 - ollama-python honours `OLLAMA_HOST`, but `main.py:287,323` hard-code `http://localhost:11434`.
 
 ### KI-034 — "Fully offline" claim · Low · ✅ Fixed in Unreleased (plan 014)

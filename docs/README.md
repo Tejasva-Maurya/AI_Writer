@@ -51,7 +51,7 @@ Reading paths:
 
 ## Conventions
 
-- `path:line` references are repo-relative (e.g. `app/backend/main.py:30`, or the short form `main.py:30`) and point at the code version named in each doc header. Line numbers drift; search by symbol name if they don't match.
+- `path:line` references are repo-relative (e.g. `app/backend/main.py:34`, or the short form `main.py:34`) and point at the code version named in each doc header. Line numbers drift; search by symbol name if they don't match.
 - ⚠ marks behaviour that differs from what a user would expect, usually with a `KI-NNN` link. "Verified ✔" means the claim was checked by execution.
 - Mermaid diagrams render on GitHub/GitLab and in VS Code (with a Mermaid extension).
 

@@ -11,7 +11,7 @@
 |---|---|
 | OS | Windows 10/11 for `app/start.bat`. The backend also runs on macOS/Linux with the manual steps below. |
 | Python | 3.11+ (per the user guide). Developed on 3.13 and seen on 3.14. Tick **"Add Python to PATH"** when installing. |
-| Ollama | Install from https://ollama.com. The Ollama service must be running (tray icon or `ollama serve`). It listens on `localhost:11434`. |
+| Ollama | Install from https://ollama.com. The Ollama service must be running (tray icon or `ollama serve`). It listens on `127.0.0.1:11434`. To use another address (e.g. Ollama on another machine), set `OLLAMA_HOST` before starting the app; generation, the model list and pulls all use it. |
 | Hardware | A GPU with ≥ 8 GB VRAM for the default `gemma3:12b` writer. ≈ 3–6 GB works with smaller models (see [06 §2.4](06-configuration.md#24-model-catalogue-shown-in-settings)). CPU-only works but is slow. |
 | Disk | Several GB per model. |
 | Browser | Any modern Chromium/Firefox/Edge (uses `fetch` streaming and `AbortSignal.timeout`). |
@@ -146,7 +146,7 @@ Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (
 ### 5.6 Reading and exporting
 
 - Click a **HISTORY** pill to load a chapter. **⛶ Full View** opens a distraction-free reader with featured characters/locations (shown as slugs).
-- **📤 Export → .txt / .md** downloads the whole novel in chapter order. A copy is also written into `data/`.
+- **📤 Export → .txt / .md** downloads the whole novel in chapter order. Nothing is written into `data/` (since plan 015), and any title works: characters not allowed in file names become `_` in the download name.
 
 ### 5.7 Keyboard shortcuts
 

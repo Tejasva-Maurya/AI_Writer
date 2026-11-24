@@ -23,17 +23,18 @@
 - `[Unreleased]`: plan 011 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-037 (cursor hides), KI-024 (pipeline panel reset per run) and the newly found KI-039 (multi-chapter notice hides), in `style.css` and `app.js`.
 - `[Unreleased]`: plan 012 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-020 (exact "installed" detection via `_model_key` in `main.py`) and KI-028 (frontend fallback specialist = `phi4-mini:3.8b`).
 - `[Unreleased]`: plan 013 (committed 2026-11-23, pushed 2026-11-24, see `git log origin/main`) fixes KI-032 (Full View tags after generation, first-chunk paragraph, Caps-Lock-proof Alt shortcuts) and KI-029 (specialist `keep_alive` 300 by default, D-011).
-- `[Unreleased]`: plan 014 (done 2026-11-24, **not committed yet**) fixes KI-034 (fonts self-hosted in `app/frontend/fonts/`, D-012) and the rest of KI-023 (model-browser subtitle, user-guide model recommendation).
+- `[Unreleased]`: plan 014 (committed and pushed 2026-11-24, see `git log origin/main`) fixes KI-034 (fonts self-hosted in `app/frontend/fonts/`, D-012) and the rest of KI-023 (model-browser subtitle, user-guide model recommendation).
+- `[Unreleased]`: plan 015 (done 2026-11-24, **not committed yet**) fixes KI-017 (export served from memory, safe filename, nothing written to `data/`) and KI-033 (`OLLAMA_HOST` for model list/pull via `_ollama_base_url`, a port of ollama-python's `_parse_host`).
 - POST no longer upserts (409) and now normalises slugs; the API is same-origin only. Generate can now return 409 too (plan 010). When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–014 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–013 are committed and pushed; plan 014 is in the working tree, waiting for the user to ask for a commit.
+- Plans 003–015 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–014 are committed and pushed; plan 015 is in the working tree, waiting for the user to ask for a commit.
 
 ## Suggested next up (from `docs/technical/09`, by impact)
 1. KI-025: no tests, lint, CI or logging (the only open Medium). A pytest + `TestClient` suite with a stubbed `ollama` would replace the ad-hoc sandbox checks.
-2. Quick Low fixes: KI-017 (export writes into `data/`; illegal filename characters), KI-033 (`OLLAMA_HOST` ignored by model list/pull).
-3. KI-026 (non-atomic writes), KI-030 (user data in VCS), KI-035 (desktop-only layout).
+2. KI-026 (non-atomic writes; corrupt files silently skipped).
+3. KI-030 (user data in VCS; needs a decision on ignoring `data/`), KI-035 (desktop-only layout, a design limitation).
 
 ## Environment facts (dev machine, verified 2026-11-22)
 - Windows 11, Git Bash. `py` → Python 3.14.5 (has fastapi 0.141.1, pydantic 2.13.4, uvicorn 0.52.3, httpx 0.28.1). `python` → Python 3.14.0 (separate install).

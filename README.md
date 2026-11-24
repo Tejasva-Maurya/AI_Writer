@@ -9,7 +9,7 @@ This repository has **three areas**. Open the one that matches your task:
 | Folder | What's inside | Open it when you want to… |
 |---|---|---|
 | **[`app/`](app/)** | **The application**: `backend/` (Python/FastAPI), `frontend/` (HTML/CSS/JS), `start.bat` (launcher), `requirements.txt` | run the tool, fix a bug, add a feature |
-| **[`data/`](data/)** | **Your novel**: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`, exported `.txt`/`.md` files | look at or back up your story data |
+| **[`data/`](data/)** | **Your novel**: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json` | look at or back up your story data |
 | **[`docs/`](docs/README.md)** | **Supporting documents**: user guide, technical docs, changelog, AI rules, development plans and project memory | learn how the tool works, read the history, plan development |
 
 ```

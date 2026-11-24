@@ -83,6 +83,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - When the backend can't be reached, the page's placeholder settings now use the same specialist model as the backend (`phi4-mini:3.8b`, was `gemma3:12b`). [plan 012] [KI-028]
 - **⛶ Full View** right after a generation lists the chapter's characters and locations (it was empty until the chapter was reopened from History); text whose first piece already contains a paragraph break appears at once instead of being held back; and the `Alt+G/N/S/W` shortcuts work with Caps Lock on or Shift held. [plan 013] [KI-032]
 - The Settings model browser no longer promises a "Shift+click" that doesn't exist; it points to the Set Writer / Set Specialist / ⬇ Pull buttons. The user guide now recommends the default models (`gemma3:12b` writer, `phi4-mini:3.8b` specialist) instead of `gemma3:12b` for both. [plan 014] [KI-023]
+- **📤 Export** works for any novel title and no longer leaves a copy in `data/`: the file is sent straight from memory, and characters Windows forbids in file names (`: ? * " < > |`) become `_` in the download name. Exports now use LF line endings on every system. Older `data/*.txt|md` copies are left in place and can be deleted. [plan 015] [KI-017]
+- Setting `OLLAMA_HOST` now applies to Settings' model list and **⬇ Pull** as well as generation, so all of them use the same Ollama; when it can't be reached, Settings names the address it tried. Without `OLLAMA_HOST` the address is `127.0.0.1:11434`, as generation already used. [plan 015] [KI-033]
 
 
 ### Security

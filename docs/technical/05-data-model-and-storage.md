@@ -1,11 +1,11 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v1.0.0. **Last verified against code:** 2026-11-22.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
 
-All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root), and the export route in `main.py` uses `parents[2]`. The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these six lines must change together. There is no database.
+All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these five lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database.
 
 ```
 data/
@@ -14,7 +14,7 @@ data/
 ├── characters/{slug}.json              Character, 1 per file (character_manager)
 ├── scenes/{slug}.json                  Scene, 1 per file     (scene_manager)
 ├── chapters/{NNN}.json                 Chapter, 1 per file   (chapter_manager; NNN = zero-padded to 3 digits)
-└── {Title_With_Underscores}.{txt|md}   export side-effect files (main.py export route)
+└── {Title_With_Underscores}.{txt|md}   left by exports of older versions (since plan 015 export writes nothing here)
 ```
 
 | Property | Behaviour |
@@ -170,6 +170,6 @@ Because **every** chapter contributes at least its micro summary, the prompt gro
 | `data/world_settings.json` | All empty |
 | `data/characters/xiao-fan-scientist-inventor.json` | One main character (60-year-old scientist) |
 | `data/scenes/neuroscience-lab-night-stormy-weather.json` | One scene (it names "Dr. Hiroshi Nakamura" as inhabitant, a different character) |
-| `data/Untitled_Novel.txt` | Export of an empty novel (title + underline only) |
+| `data/Untitled_Novel.txt` | Export of an empty novel (title + underline only), left by the old export route; safe to delete |
 
 This is test/user content committed to version control. Consider whether `data/` should be ignored, with a seed/sample folder instead (tracked as tech debt KI-030).

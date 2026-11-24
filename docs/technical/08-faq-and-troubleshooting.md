@@ -64,7 +64,7 @@ Since plan 007 new slugs are always `make_slug(name)`, the pipeline maps the spe
 Since plan 006 the backend numbers new chapters as *highest existing number + 1*, so a gap (e.g. `002.json` deleted while `003.json` exists) just stays a gap, and nothing is overwritten. Chapters overwritten before that came from v1.0.0, which used *count + 1* (KI-008); restore them from a backup.
 
 ### A12. Export fails
-Titles containing `: ? * " < > |` produce an invalid Windows filename (KI-017). Rename the novel (click the header title) and export again.
+Fixed in [Unreleased] (plan 015, KI-017): any title exports now; characters Windows forbids in file names (`: ? * " < > |`) become `_` in the download name, and nothing is written into `data/`. A `.txt`/`.md` file already in `data/` was left by an older version and can be deleted. If you still get a server error, the browser may be using an old page: hard-reload (`Ctrl+F5`).
 
 ### A13. The pipeline panel looks dimmed or a step stays red on the next run
 Fixed in [Unreleased] (plan 011, KI-024): every run now starts with a full-opacity panel and no red step. If you still see it, your browser is running an old cached `app.js`; hard-reload the page (`Ctrl+F5`). The same plan fixed the blinking `▍` cursor staying after a chapter (KI-037) and the "may span multiple chapters" notice that never went away (KI-039).

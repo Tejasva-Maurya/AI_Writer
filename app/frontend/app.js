@@ -1751,7 +1751,7 @@ function renderModelBrowser(data) {
     if (data.ollama_running) {
       statusText.textContent = `Ollama running — ${data.installed.length} model(s) installed`;
     } else {
-      statusText.textContent = `Ollama not reachable. Make sure it's running on localhost:11434`;
+      statusText.textContent = `Ollama not reachable: ${data.ollama_error || 'no response'}`;  // names the address tried (KI-033)
     }
   }
 

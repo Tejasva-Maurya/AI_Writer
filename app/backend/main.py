@@ -2,9 +2,13 @@
 AI Novel Writer — FastAPI Backend
 Run from AI_Writer/app/backend/ with: uvicorn main:app --host 127.0.0.1 --port 8000
 """
+import os
+import re
 import sys
 import json
 import asyncio
+import ipaddress
+import urllib.parse
 import httpx
 from pathlib import Path
 from datetime import datetime
@@ -14,7 +18,7 @@ from typing import List, Optional, Dict
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
@@ -230,6 +234,12 @@ async def update_novel_meta(req: UpdateNovelMetaRequest):
 
 
 # ── EXPORT ────────────────────────────────────────────────────
+def _export_filename(title: str, fmt: str) -> str:
+    """Download name from the title: spaces and characters Windows forbids in filenames become "_" (KI-017)."""
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", title.replace(" ", "_")).rstrip(" .")
+    return f"{stem if re.search(r'[^\W_]', stem) else 'novel'}.{fmt}"
+
+
 @app.get("/api/export/{fmt}")
 async def export_novel(fmt: str):
     if fmt not in ("txt", "md"):
@@ -248,11 +258,12 @@ async def export_novel(fmt: str):
             lines.append(f"\nChapter {ch.chapter_number}: {ch.title}\n" + "-" * 40 + "\n")
         lines.append(ch.full_text + "\n")
     content = "\n".join(lines)
-    filename = f"{meta.title.replace(' ', '_')}.{fmt}"
-    # Write to data dir and serve
-    tmp = Path(__file__).resolve().parents[2] / "data" / filename  # <repo>/data (outside app/)
-    tmp.write_text(content, encoding="utf-8")
-    return FileResponse(str(tmp), filename=filename)
+    # Served from memory: nothing is written to data/ (KI-017). Content-Disposition as Starlette's FileResponse builds it.
+    filename = _export_filename(meta.title, fmt)
+    quoted = urllib.parse.quote(filename)
+    disposition = f'attachment; filename="{filename}"' if quoted == filename else f"attachment; filename*=utf-8''{quoted}"
+    return Response(content, media_type="text/markdown" if fmt == "md" else "text/plain",
+                    headers={"Content-Disposition": disposition})
 
 
 # ── HEALTH ────────────────────────────────────────────────────
@@ -277,6 +288,33 @@ def _model_key(name: str) -> str:
     return name if ":" in name.rsplit("/", 1)[-1] else f"{name}:latest"
 
 
+def _ollama_base_url(host: Optional[str]) -> str:
+    """OLLAMA_HOST -> base URL, the same way ollama-python's _parse_host resolves it (KI-033), so the model list and
+    pull talk to the same server as generation. Default http://127.0.0.1:11434."""
+    host, port = host or "", 11434
+    scheme, _, hostport = host.partition("://")
+    if not hostport:
+        scheme, hostport = "http", host
+    elif scheme == "http":
+        port = 80
+    elif scheme == "https":
+        port = 443
+    split = urllib.parse.urlsplit(f"{scheme}://{hostport}")
+    host = split.hostname or "127.0.0.1"
+    port = split.port or port
+    try:
+        if isinstance(ipaddress.ip_address(host), ipaddress.IPv6Address):
+            host = f"[{host}]"  # urlsplit drops the brackets
+    except ValueError:
+        pass
+    if path := split.path.strip("/"):
+        return f"{scheme}://{host}:{port}/{path}"
+    return f"{scheme}://{host}:{port}"
+
+
+OLLAMA_BASE_URL = _ollama_base_url(os.getenv("OLLAMA_HOST"))  # read once at startup
+
+
 @app.get("/api/models")
 async def get_models():
     """Fetch installed Ollama models and return with recommendations."""
@@ -284,12 +322,12 @@ async def get_models():
     ollama_error = None
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get("http://localhost:11434/api/tags")
+            resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             if resp.status_code == 200:
                 data = resp.json()
                 installed = [m["name"] for m in data.get("models", [])]
     except Exception as e:
-        ollama_error = f"Cannot reach Ollama: {e}"
+        ollama_error = f"Cannot reach Ollama at {OLLAMA_BASE_URL}: {e}"
 
     # Annotate recommended models with installed status: exact model only, not any tag of the family (KI-020)
     installed_keys = {_model_key(name) for name in installed}
@@ -320,7 +358,7 @@ async def pull_model(body: dict):
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream(
                     "POST",
-                    "http://localhost:11434/api/pull",
+                    f"{OLLAMA_BASE_URL}/api/pull",
                     json={"name": model_name, "stream": True}
                 ) as resp:
                     # Ollama reports failures as a non-200 status or an {"error": ...} line (KI-019)

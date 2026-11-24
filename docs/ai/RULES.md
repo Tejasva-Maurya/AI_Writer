@@ -20,10 +20,10 @@
 | Folder | Holds | Open it when you… |
 |---|---|---|
 | `app/` | The application: `backend/`, `frontend/`, `start.bat`, `requirements.txt` | change, fix, run or install the tool |
-| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`, exports | inspect or back up novel content (**never modify without approval**, §5) |
+| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json` | inspect or back up novel content (**never modify without approval**, §5) |
 | `docs/` | Everything written *about* the tool: `user-guide.md`, `technical/01…09`, `CHANGELOG.md`, `ai/` (these rules, `plans/`, `memory/`, `templates/`) | read or update documentation, plans, the changelog or project memory |
 
-Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager and in `main.py`'s export (docs/technical/05 §1).
+Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).
 
 - **What:** NovelForge AI. A local, single-user light-novel writer. A FastAPI backend drives local LLMs through **Ollama**: a small *specialist* model (JSON tasks) and a large *writer* model (streamed prose), in a **7-step chapter pipeline** streamed to the browser over **SSE**.
 - **Stack:** Python 3.11+ · FastAPI · Pydantic v2 · ollama-python (needs ≥ 0.4) · httpx · vanilla HTML/CSS/JS (no build step) · JSON files under `data/` (no DB) · Windows `app/start.bat`.
@@ -48,7 +48,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 |---|---|---|
 | `app/backend/main.py` | All HTTP routes, static serving, refine endpoints, model mgmt, export | Route changes → update docs/technical/04 + frontend callers |
 | `app/backend/models.py` | Pydantic schemas = **on-disk JSON schema** = API schema | New fields **must have defaults** (existing `data/*.json` must keep loading). Never rename/remove fields without a migration plan |
-| `app/backend/managers/*.py` | The **only** code that reads/writes `data/` (exception: export in `main.py`) | Keep one module per entity, same function names |
+| `app/backend/managers/*.py` | The **only** code that reads/writes `data/` (export serves from memory since plan 015) | Keep one module per entity, same function names |
 | `app/backend/agents/specialist.py` | Specialist LLM calls; JSON-only prompts (`format="json"`); `_extract_json`; `_call` always returns a dict | Consumers must tolerate `{}` and wrong types: coerce with `models.as_text`/`as_str_list`/`as_int`, and build entities through the models (they coerce, plan 009) |
 | `app/backend/agents/writer.py` | Streaming writer; `WRITER_SYSTEM` prompt | |
 | `app/backend/pipeline/chapter_pipeline.py` | 7-step orchestration; emits SSE | **SSE contract** (below) |

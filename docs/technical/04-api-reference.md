@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-23.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -130,7 +130,7 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:284`). Writer errors carry `message` only (`chapter_pipeline.py:198`). A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}` (`main.py:163`).
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:284`). Writer errors carry `message` only (`chapter_pipeline.py:198`). A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}` (`main.py:167`).
 
 Consuming it from a shell:
 ```bash
@@ -176,7 +176,8 @@ Same as above for `Scene`.
   "ollama_error": null
 }
 ```
-If Ollama is unreachable: `installed: []`, `ollama_running: false`, `ollama_error: "Cannot reach Ollama: …"` (still **200**).
+The backend asks `{OLLAMA_BASE_URL}/api/tags`: the `OLLAMA_HOST` environment variable, or `http://127.0.0.1:11434`, resolved exactly as ollama-python does for generation (plan 015, KI-033; before, list and pull always used `localhost:11434`). `POST /api/models/pull` uses the same address.
+If Ollama is unreachable: `installed: []`, `ollama_running: false`, `ollama_error: "Cannot reach Ollama at http://127.0.0.1:11434: …"` (still **200**; the Settings status line shows this text).
 `installed` on a recommended entry is true only if Ollama lists that exact model; a name without a tag counts as `:latest`. Before plan 012 any installed tag of the same family counted (e.g. `gemma3:4b` made `gemma3:12b` "installed", KI-020).
 
 ### `POST /api/models/pull` — **SSE**
@@ -197,5 +198,6 @@ Before plan 010 every pull ended with `success`, even a failed one.
 ## Export
 
 ### `GET /api/export/{fmt}`
-`fmt` ∈ `txt` | `md` (**400** otherwise). **200** file download (`Content-Disposition` filename `{title with spaces→_}.{fmt}`).
-Side effect: the same file is written to `data/` and left there.
+`fmt` ∈ `txt` | `md` (**400** otherwise). **200** download: `text/plain` or `text/markdown` (`charset=utf-8`), with `Content-Disposition: attachment; filename="…"`, or `filename*=utf-8''…` for non-ASCII names.
+Filename: the title with spaces and the characters Windows forbids (`< > : " / \ | ? *`) turned into `_`, trailing dots/spaces dropped, `novel` if nothing is left; e.g. `Test: A/B?` → `Test__A_B_.txt`.
+The text is built in memory with LF line endings; nothing is written to disk (plan 015, KI-017; before, a copy was written to `data/`, and forbidden characters gave **500**).

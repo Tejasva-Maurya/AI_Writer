@@ -1,7 +1,7 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013).
-> v1.0.0 has **no configuration file and reads no environment variables of its own**. Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015).
+> There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
 
@@ -22,13 +22,13 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:482` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:482` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:520` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:520` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
 | Frontend API base | `/api` (same origin) | `app.js:6` | Works for `http://127.0.0.1:8000` and `http://localhost:8000` alike (KI-021, fixed in plan 007). |
-| Ollama base URL (model list / pull) | `http://localhost:11434` | `main.py:287`, `main.py:323` | Edit the source. |
-| Ollama base URL (chat / generation) | ollama-python default (`http://localhost:11434`; the library honours the `OLLAMA_HOST` env var) | `specialist.py` / `writer.py` use library defaults | Setting `OLLAMA_HOST` moves **generation only**, not the model list or pull (KI-033). |
-| Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:34` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:482` | — |
+| Ollama base URL (model list / pull) | `OLLAMA_HOST`, else `http://127.0.0.1:11434` | `main.py:291-315` (`_ollama_base_url`, `OLLAMA_BASE_URL`), used at `main.py:325`, `main.py:361` | Set `OLLAMA_HOST` before starting the server (read once at startup). Parsed exactly like ollama-python (`host`, `host:port`, `http(s)://…`, IPv6 in brackets; plan 015, KI-033). |
+| Ollama base URL (chat / generation) | ollama-python default: `OLLAMA_HOST`, else `http://127.0.0.1:11434` | `specialist.py` / `writer.py` use library defaults | The same address as the model list and pull (since plan 015; before, `OLLAMA_HOST` moved generation only, KI-033). |
+| Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:38` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:520` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
@@ -60,7 +60,7 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 ### 2.4 Model catalogue (shown in Settings)
 
-`RECOMMENDED_MODELS` (`main.py:265-272`):
+`RECOMMENDED_MODELS` (`main.py:276-283`):
 
 | Model | Size (as listed) | Quality | Note |
 |---|---|---|---|

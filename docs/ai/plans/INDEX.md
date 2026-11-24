@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 015  
-**Total plans:** 14
+**Next number:** 016  
+**Total plans:** 15
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -24,3 +24,4 @@
 | 012 | [Exact "installed" detection for recommended models, matching frontend fallback specialist (KI-020, KI-028)](012-exact-installed-detection-for-recommended-models-matching.md) | `done` | 2026-11-23 | — |
 | 013 | [Full View tags after generation, first-chunk paragraphs, Caps-Lock-proof shortcuts, 5-minute specialist keep-alive (KI-032, KI-029)](013-full-view-tags-after-generation-first-chunk-paragraphs-caps.md) | `done` | 2026-11-23 | — |
 | 014 | [Self-hosted fonts so the app is truly offline, accurate model-browser copy and model recommendations (KI-034, KI-023)](014-self-hosted-fonts-so-the-app-is-truly-offline-accurate.md) | `done` | 2026-11-24 | — |
+| 015 | [Export from memory with a safe filename, OLLAMA_HOST for model list and pull (KI-017, KI-033)](015-export-from-memory-with-a-safe-filename-ollama-host-for.md) | `done` | 2026-11-24 | — |

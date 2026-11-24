@@ -142,4 +142,15 @@
   - `index.html` links `/static/fonts/fonts.css` (the Google preconnects and `<link>` are gone); `style.css` lost its `@import`. The model-browser subtitle is accurate; the user guide recommends `phi4-mini:3.8b` as specialist.
   - Old vs new in the browser: old requested `fonts.googleapis.com`, new made no external request. The same six faces loaded, from `/static/fonts/` on new. All files are served as `font/woff2`.
 - **Plan:** 014 (done).
-- **Open threads:** Not committed yet (waiting for the user).
+- **Open threads:** Committed and pushed in the same session (the binary fonts went through the API push on the first try).
+
+### 2026-11-24 — Claude Code (Opus 5.5) — fix KI-017, KI-033 (plan 015)
+- **Goal:** Stop export from writing into `data/` (and failing on some titles), and make `OLLAMA_HOST` apply to the model list and pull.
+- **Outcome:**
+  - `main.py`: `_export_filename` and an in-memory `Response` with a `Content-Disposition` like `FileResponse`'s. `_ollama_base_url` (a port of ollama-python's `_parse_host`) and `OLLAMA_BASE_URL` drive `/api/tags` and `/api/pull`; `ollama_error` names the address.
+  - `app.js`: the Settings status shows that error instead of "localhost:11434".
+  - Verified: parity with the real `_parse_host` on 35 inputs; 7/7 filename cases.
+  - Old vs new, export: old rewrote/created `data/` files and returned 500 for `Test: A/B?`; new returned 200 for all and left `data/` untouched. The text is the same apart from line endings (old CRLF via a text-mode write on Windows, new LF).
+  - Old vs new, `OLLAMA_HOST`: with it set to a fake Ollama, old failed on `:11434`; new listed and pulled. In the browser, an unreachable host names `http://127.0.0.1:11998`.
+- **Plan:** 015 (done).
+- **Open threads:** Not committed yet (waiting for the user). `data/Untitled_Novel.txt` (an old export copy) left in place, as it is user data.
