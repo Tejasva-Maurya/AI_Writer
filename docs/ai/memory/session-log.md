@@ -221,4 +221,8 @@
     - Sandbox UI with a stub `ollama`: a refine during writing shows "A chapter is already being generated…"; a refine while the draft waits works.
     - Real `data/` unchanged. Real Ollama: not verified.
 - **Plan:** 020 (done).
-- **Open threads:** Branch `fix/refine-busy-guard` → push and PR, merge on the user's go-ahead. The release-type question (3.0.0 vs 2.1.0, D-017) is for release time.
+- **Open threads:**
+  - Pushed `fix/refine-busy-guard` with the github-push skill. The first attempt silently created nothing, so the remote was checked and the retry succeeded (`f27e286`).
+  - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (CI 8/8 green) and, on the user's go-ahead, rebase-merged it into `main` as `d0494b8`.
+  - The branch still exists (fully merged).
+  - The release-type question (3.0.0 vs 2.1.0, D-017) is for release time.
