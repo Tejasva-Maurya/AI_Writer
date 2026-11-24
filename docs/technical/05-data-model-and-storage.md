@@ -1,6 +1,6 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout

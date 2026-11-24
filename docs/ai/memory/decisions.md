@@ -114,3 +114,17 @@
   - Other clones lose the 5 files from their working copy when they pull the plan 017 commit.
   - "User data untouched" checks need a before/after listing of `data/`, because `git status` can't see it (RULES §9).
   - Rollback: `git add -f data/`.
+
+## D-015 — Release 2.0.0, tagged and published through the GitHub API
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 018 (user choices, asked during planning)
+- **Context:** The first release after 1.0.0. Three HTTP API behaviours changed since 1.0.0: create returns 409 instead of overwriting (plan 004), no CORS and a foreign `Host` gets 400 (plan 007), and generate returns 409 while one runs (plan 010). The CHANGELOG defines MAJOR as an incompatible change to the data files or the HTTP API contract. The repository had no tags, and `git push` is blocked by the proxy.
+- **Decision:**
+  - **Version 2.0.0**, applying the CHANGELOG's MAJOR rule literally. Data files from 1.0.0 still load.
+  - **Annotated tags** `v1.0.0` (retroactively, on `dead3e3`) and `v2.0.0`, plus a **GitHub Release** for 2.0.0 whose notes are the CHANGELOG section.
+  - Tags and Releases are created through the REST API after the API push, on the **remote** release commit (an API push gives commits new SHAs).
+  - The CHANGELOG compare links point at the tags.
+- **Alternatives considered:**
+  - 1.1.0 (treat the API changes as defect fixes; the only client is the bundled UI)
+  - tags without a Release page
+  - no tags (SHA-based links; the release commit's SHA isn't known until after the API push)
+- **Consequences:** future releases follow the same steps (RULES §7). The `[Unreleased]` section restarts empty, and doc 09 statuses read `Fixed in v2.0.0`.

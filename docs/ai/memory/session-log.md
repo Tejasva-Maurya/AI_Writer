@@ -175,4 +175,15 @@
   - Docs: 09 (0 open KIs), 05 §5, 07, 08, 03 §4, 01 (§7, and the stale §9 security rows), user guide, README, RULES §1/§9/§11.
   - Verified: a copy of `app/` with no `data/` works and creates the folders on the first save. In the browser pane, old vs new at 375, 768, 1100 and 1400 px: no sideways overflow on new; 1400 px identical. 71 tests pass, ruff is clean, and `node --check` passes.
 - **Plan:** 017 (done).
-- **Open threads:** Not committed yet. Other clones lose the 5 `data/` files when they pull this change. Every catalogued KI is now fixed; next up is a release.
+- **Open threads:** Committed and pushed in the same session (`0ca15eb` on GitHub). CI green on all 4 jobs without `data/`: https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45366046705. Other clones lose the 5 `data/` files when they pull this change. Every catalogued KI is now fixed; next up is a release.
+
+### 2026-11-24 — Claude Code (Opus 5.5) — release 2.0.0 (plan 018)
+- **Goal:** Release everything since 1.0.0.
+- **Outcome:**
+  - The user chose **2.0.0** (the API changed) and tags plus a GitHub Release (D-015).
+  - CHANGELOG `[Unreleased]` → `[2.0.0] - 2026-11-24`: an "Upgrading from 1.0.0" list, "Known issues at release: none", a fresh empty `[Unreleased]`, and tag-based compare links.
+  - `main.py` `version="2.0.0"`.
+  - Docs: doc 09 statuses `Fixed in v2.0.0` (120); docs 01–08 headers `Applies to: v2.0.0 + [Unreleased]`; doc 08 notes; doc 03 §2.2; RULES §1 and §7 (tags via the API); docs map (`../data/` link fixed, current release).
+  - project-state condensed to 34 lines.
+- **Plan:** 018 (done).
+- **Open threads:** Not committed yet. After the push: tags `v1.0.0`/`v2.0.0` and the GitHub Release via the REST API.

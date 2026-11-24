@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -50,7 +50,7 @@ Contents
 
 | Symbol | Lines | Behaviour |
 |---|---|---|
-| `app = FastAPI(title="AI Novel Writer", version="1.0.0")` | 39 | **Version source of truth** (keep in sync with CHANGELOG). |
+| `app = FastAPI(title="AI Novel Writer", version="2.0.0")` | 39 | **Version source of truth** (keep in sync with CHANGELOG). |
 | `logging.basicConfig`, `log` | 36-37 | Console logging for the app's modules at INFO (plan 016, KI-025); uvicorn keeps its own loggers. `pull_model` logs each failed pull; a cancelled generation is logged at INFO. |
 | `TrustedHostMiddleware` | 43 | Accepts only `Host: 127.0.0.1` or `localhost` (any port); other hosts get **400**. Blocks DNS rebinding. There is **no CORS middleware**: the UI calls `/api` on its own origin, so other websites can't call the API (KI-010, plan 007). |
 | `file_exists_handler` | 46-48 | App-wide `FileExistsError` → **409** `{"detail": …}` (a manager's `create()` conflict, KI-036). |

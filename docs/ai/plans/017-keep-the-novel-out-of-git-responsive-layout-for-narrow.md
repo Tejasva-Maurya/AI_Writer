@@ -182,9 +182,8 @@ The user asked to fix the last two open issues, KI-030 and KI-035 (both Low). Re
     - **1400×900:** all 521 elements have the same position and size, except the animated orbs and button shimmer.
     - The console stayed clean.
   - **Suite:** `py -m pytest app/tests` → 71 passed; `py -m ruff check app` → all checks passed (pytest and ruff in a temp `--target` folder); `node --check app/frontend/app.js` OK. The suite also passed (71) in a copy of `app/` with no `data/`.
-  - **Not verified:**
-    - a real phone or touch device
-    - Python 3.11 locally (CI runs it on push)
+  - **CI after the push** (2026-11-24): the run for `0ca15eb`, the first checkout without `data/`, was green on all four jobs, Ubuntu and Windows × Python 3.11 and 3.14 (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45366046705).
+  - **Not verified:** a real phone or touch device.
 - **Follow-ups:**
   - **Other clones:** pulling this commit deletes the 5 `data/` files from their working copy, so back them up there first.
   - **History:** older commits still hold those files. Purging them would need a history rewrite and a force push.

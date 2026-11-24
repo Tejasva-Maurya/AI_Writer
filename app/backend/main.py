@@ -36,7 +36,7 @@ from pipeline.chapter_pipeline import run_pipeline
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="AI Novel Writer", version="1.0.0")
+app = FastAPI(title="AI Novel Writer", version="2.0.0")
 
 # No CORS: the UI is served from this origin and calls /api, so other websites can't call the API.
 # Only accept local Host headers, which blocks DNS-rebinding attacks (KI-010).

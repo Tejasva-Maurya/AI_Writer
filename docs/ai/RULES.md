@@ -27,7 +27,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 
 - **What:** NovelForge AI. A local, single-user light-novel writer. A FastAPI backend drives local LLMs through **Ollama**: a small *specialist* model (JSON tasks) and a large *writer* model (streamed prose), in a **7-step chapter pipeline** streamed to the browser over **SSE**.
 - **Stack:** Python 3.11+ · FastAPI · Pydantic v2 · ollama-python (needs ≥ 0.4) · httpx · vanilla HTML/CSS/JS (no build step) · JSON files under `data/` (no DB) · Windows `app/start.bat`.
-- **Version:** single source = `version=` in `app/backend/main.py` (`FastAPI(title=..., version="1.0.0")`). Keep it in sync with `docs/CHANGELOG.md`.
+- **Version:** single source = `version=` in `app/backend/main.py` (`FastAPI(title=..., version="2.0.0")`). Keep it in sync with `docs/CHANGELOG.md`.
 - **Run:** `cd app/backend` then `python -m uvicorn main:app --host 127.0.0.1 --port 8000`. Run from `app/backend/` (uvicorn resolves `main:app` from the CWD), or pass `--app-dir app/backend` from the repo root. Windows users double-click `app/start.bat`. UI at `http://127.0.0.1:8000`, API docs at `/docs`.
 - **Full documentation:** `docs/README.md` (map of docs/) → `docs/user-guide.md` (end users) · `docs/technical/` 01 architecture · 02 workflows · 03 LLD · 04 API · 05 data · 06 config · 07 setup/usage · 08 FAQ · 09 known issues.
 
@@ -118,7 +118,7 @@ When you change the left column, review and update the right column **in the sam
 - **Every** change to `app/backend/`, `app/frontend/`, `app/start.bat` or `app/requirements.txt` adds a line under `## [Unreleased]` in the right section (`Added`/`Changed`/`Deprecated`/`Removed`/`Fixed`/`Security`). Doc-only and `docs/ai/`-only changes should also be logged (under `Changed`/`Added`).
 - One line per change, written for the user, with references: `- Fixed manual character save returning 422 [plan 004] [KI-001]`.
 - If an existing `[Unreleased]` line already covers your follow-up, refine that line instead of adding a duplicate.
-- **Releasing** (only when the user asks): rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, bump `version=` in `app/backend/main.py`, add a new empty `[Unreleased]`, update the compare links at the bottom, and update `docs/ai/memory/project-state.md`.
+- **Releasing** (only when the user asks): rename `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, bump `version=` in `app/backend/main.py`, add a new empty `[Unreleased]`, update the compare links at the bottom (they point at `vX.Y.Z` tags), and update `docs/ai/memory/project-state.md`. When the user approves tagging, tag the **pushed** release commit `vX.Y.Z` and publish a GitHub Release through the REST API after the push: `git push` is blocked here, and an API push gives the commit a new SHA (D-015).
 - Enforcement: the Stop hook (`.claude/hooks/ai_workflow.py stop-check`) blocks the end of a turn **once** when source files have uncommitted changes and `docs/CHANGELOG.md` has none. If the changes are not yours (e.g. the user's own edits) or are a throwaway experiment, tell the user that instead of inventing an entry.
 
 ## 8. Plans workflow (`docs/ai/plans/`)

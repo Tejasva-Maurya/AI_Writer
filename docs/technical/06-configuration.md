@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016).
 > There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)

@@ -10,12 +10,22 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 **Rules (enforced for AI assistants via `docs/ai/RULES.md` and a Stop hook):**
 - Every change under `app/` (code, dependencies, launch script) adds a line under **[Unreleased]** in the same change set.
 - Use the sections `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Security`. Write one line per change, from the user's perspective, and add references in brackets: `[plan 003]`, `[KI-001]`, file names where useful.
-- On release, rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, bump `version=` in `app/backend/main.py`, add a fresh empty `[Unreleased]`, and update the compare links at the bottom.
+- On release, rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, bump `version=` in `app/backend/main.py`, add a fresh empty `[Unreleased]`, update the compare links at the bottom, and tag the release commit `vX.Y.Z`.
 - Paths in released sections are as they were **at that release** (e.g. 1.0.0 had `backend/` at the root, now `app/backend/`).
 
 ---
 
 ## [Unreleased]
+
+## [2.0.0] - 2026-11-24
+
+**Upgrading from 1.0.0.** This is a major release because the HTTP API changed (details under *Changed*, *Fixed* and *Security*):
+- Launch with `app/start.bat`: the application moved into `app/` (plan 002).
+- `POST /api/characters` and `/api/scenes` return **409** when the name's slug is taken, instead of overwriting, and always store a server-derived slug (plans 004, 007).
+- The API is same-origin only: no CORS, and a `Host` other than `127.0.0.1` or `localhost` gets **400** (plan 007).
+- `POST /api/generate-chapter` returns **409** while another generation runs; `POST /api/generate-chapter/cancel` is new (plan 010).
+- `data/` is no longer in git, so back it up yourself (plan 017).
+- Data files written by 1.0.0 still load; no migration is needed.
 
 ### Added
 - Technical documentation set in `docs/technical/` describing the v1.0.0 state: overview & architecture, workflows (incl. the SSE event contract), low-level design, API reference, data model & storage, configuration, setup & usage, FAQ & troubleshooting, known issues & tech debt (`KI-001`…`KI-035`). [plan 001]
@@ -103,6 +113,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Other websites can no longer call the local API: CORS (previously `*`) is removed, and requests with a foreign `Host` header (DNS rebinding) get 400. [plan 007] [KI-010]
 - World settings (which can come from the AI) and Ollama model names are HTML-escaped in the World Build snapshot, the model dropdowns and the model browser. [plan 007] [KI-011]
 
+### Known issues at release
+- None open: all 40 catalogued issues (KI-001 to KI-040) are fixed. See [`docs/technical/09-known-issues-and-tech-debt.md`](technical/09-known-issues-and-tech-debt.md).
+
 ---
 
 ## [1.0.0] - 2026-07-13
@@ -131,6 +144,7 @@ Initial release, committed as **"Version 01"** (`0f22226`), followed the same da
 
 ---
 
-<!-- Compare links. On release, add a tag (e.g. v1.0.1) and point the links at tags. -->
-[Unreleased]: https://github.com/Tejasva-Maurya/AI_Writer/compare/dead3e3...HEAD
-[1.0.0]: https://github.com/Tejasva-Maurya/AI_Writer/compare/0f22226...dead3e3
+<!-- Compare links point at release tags (vX.Y.Z). On release, tag the release commit, add a line for the new version and move [Unreleased] to start from its tag. -->
+[Unreleased]: https://github.com/Tejasva-Maurya/AI_Writer/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Tejasva-Maurya/AI_Writer/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v1.0.0

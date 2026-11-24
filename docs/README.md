@@ -1,7 +1,7 @@
 # NovelForge AI — Documentation map
 
-Everything written **about** the tool lives in this `docs/` folder. The application itself is in [`../app/`](../app/), and the novel data in [`../data/`](../data/).
-**Baseline:** v1.0.0 (git `dead3e3`), documented 2026-11-22 from a full read of the source code.
+Everything written **about** the tool lives in this `docs/` folder. The application itself is in [`../app/`](../app/), and the novel data in `../data/` (on your machine only; git-ignored since plan 017).
+**Baseline:** v1.0.0 (git `dead3e3`), documented 2026-11-22 from a full read of the source code. **Current release:** v2.0.0 (2026-11-24); the docs are kept current with the code.
 
 ```
 docs/

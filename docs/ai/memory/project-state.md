@@ -9,34 +9,19 @@
 - Root: `README.md` (map), `CLAUDE.md` (loader), `AGENTS.md`, `.claude/` (settings + hooks), `.gitignore`.
 
 ## Version
-- Released: **1.0.0** (2026-07-13, commits `0f22226`, `dead3e3`). `app/backend/main.py` says `version="1.0.0"`.
-- `[Unreleased]`: documentation set, CHANGELOG, AI governance + hooks (plan 001); repo reorganisation (plan 002). Pushed; now `3e61415` (reworded to drop the Claude trailer, D-008, then re-credited to the personal account, D-010).
-- `[Unreleased]`: plans 003 + 004 pushed 2026-11-22; now `058caae` (re-credited, D-010).
-  - plan 003: frontend fixes for KI-001, KI-002 and KI-027
-  - plan 004: KI-036, so create returns 409 instead of overwriting
-- `[Unreleased]`: plan 005 (pushed 2026-11-22; now `2b4f3c2`, re-credited, D-010) fixes KI-003 (server starts without ollama; launcher `DEP_CHECK`), KI-004 (requirements are lower bounds, D-009) and KI-005 (async specialist).
-- `[Unreleased]`: plan 006 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-006 (Alt+S Settings), KI-007 (Settings save kept fields) and KI-008 (backend numbers chapters highest + 1), all in `app/frontend/app.js`.
-- `[Unreleased]`: plan 007 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-009 (server-derived slugs, step-2 dedupe), KI-010 (slug validation stops path traversal; CORS removed; TrustedHost), KI-011 (escaped HTML), plus KI-021 and KI-038.
-- `[Unreleased]`: plan 008 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-012 (explicit unload at step 5), KI-013 (deterministic step 4, scene updates applied, dead args removed) and KI-014 (summariser sees the whole chapter).
-- `[Unreleased]`: plan 009 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-015 (type-safe pipeline), KI-016 (model coercion, validated merges, `format=json`) and KI-018 (warning toasts).
-- `[Unreleased]`: plan 010 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-019 (pull ends with `success` only after Ollama's own) and KI-031 (one generation at a time: 409 while one runs; `POST /api/generate-chapter/cancel` + **✕ Cancel** button; disconnect cancels).
-- `[Unreleased]`: plan 011 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-037 (cursor hides), KI-024 (pipeline panel reset per run) and the newly found KI-039 (multi-chapter notice hides), in `style.css` and `app.js`.
-- `[Unreleased]`: plan 012 (committed and pushed 2026-11-23, see `git log origin/main`) fixes KI-020 (exact "installed" detection via `_model_key` in `main.py`) and KI-028 (frontend fallback specialist = `phi4-mini:3.8b`).
-- `[Unreleased]`: plan 013 (committed 2026-11-23, pushed 2026-11-24, see `git log origin/main`) fixes KI-032 (Full View tags after generation, first-chunk paragraph, Caps-Lock-proof Alt shortcuts) and KI-029 (specialist `keep_alive` 300 by default, D-011).
-- `[Unreleased]`: plan 014 (committed and pushed 2026-11-24, see `git log origin/main`) fixes KI-034 (fonts self-hosted in `app/frontend/fonts/`, D-012) and the rest of KI-023 (model-browser subtitle, user-guide model recommendation).
-- `[Unreleased]`: plan 015 (committed and pushed 2026-11-24, see `git log origin/main`) fixes KI-017 (export served from memory, safe filename, nothing written to `data/`) and KI-033 (`OLLAMA_HOST` for model list/pull via `_ollama_base_url`, a port of ollama-python's `_parse_host`).
-- `[Unreleased]`: plan 016 (committed and pushed 2026-11-24, see `git log origin/main`; first CI run green on all 4 jobs) fixes KI-025 (pytest suite, ruff, CI, logging; D-013), KI-026 (atomic writes + logged skips via `managers/storage.py`) and the newly found KI-040 (`main.py` didn't parse on Python 3.11 since plan 015).
-- `[Unreleased]`: plan 017 (done 2026-11-24, **not committed yet**) fixes KI-030 (`data/` untracked and git-ignored, no history rewrite; D-014) and KI-035 (CSS-only responsive layout at 1200/900/600 px). The commit removes the 5 `data/` files from the repository, not from disk.
-- POST no longer upserts (409) and now normalises slugs; the API is same-origin only. Generate can now return 409 too (plan 010). When releasing, decide whether that counts as an API break for SemVer.
+- Released: **2.0.0** (2026-11-24, plan 018, D-015). `app/backend/main.py` says `version="2.0.0"`. Major because the HTTP API changed: create returns 409 instead of overwriting, same-origin only, generate returns 409 while one runs.
+- 2.0.0 contains plans 001–017 and fixes all 40 known issues; per-plan detail lives in `docs/CHANGELOG.md` and `docs/ai/plans/`. 1.0.0 was 2026-07-13 (`dead3e3`).
+- **Release commit not committed yet** (plan 018). Tags `v1.0.0` (on `dead3e3`) and `v2.0.0` plus a GitHub Release come after the push, via the REST API.
+- `[Unreleased]` is empty.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–017 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plan 017 is uncommitted; everything before it is committed and pushed. CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
+- Plan 018 (release 2.0.0) is done in the working tree, waiting for commit, push, tags and Release. Plans 001–017 are done.
+- CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
 - `data/` is git-ignored since plan 017, so `git status` no longer shows novel changes (gotchas).
 
-## Suggested next up (from `docs/technical/09`, by impact)
-1. No KI is open (40 fixed). New defects get KI-041 onwards.
-2. Consider a release (`[Unreleased]` → 1.1.0 or 2.0.0; decide whether the 409s count as an API break).
+## Suggested next up
+1. No KI is open (40 fixed). New defects get KI-041 onwards; new work goes under `[Unreleased]`.
 
 ## Environment facts (dev machine, verified 2026-11-22)
 - Windows 11, Git Bash. `py` → Python 3.14.5 (has fastapi 0.141.1, pydantic 2.13.4, uvicorn 0.52.3, httpx 0.28.1). `python` → Python 3.14.0 (separate install).
@@ -44,5 +29,5 @@
 - Browser pane: can't attach to a URL on this install. `.claude/launch.json` needs a command (`runtimeExecutable`), so use a temp launcher script and delete the file afterwards.
 - Node v24 available (`node --check` for JS syntax).
 - Tests and lint: `py -m pytest app/tests`, `py -m ruff check app`. pytest and ruff are **not** installed in `py`'s site-packages here. Use `py -m pip install -r app/requirements-dev.txt`, or install them into a temp `--target` folder on `PYTHONPATH` (plan 016).
-- Git: branch `main`, remote `origin` = https://github.com/Tejasva-Maurya/AI_Writer.git. No tags yet.
+- Git: branch `main`, remote `origin` = https://github.com/Tejasva-Maurya/AI_Writer.git. Tags `vX.Y.Z` from 2.0.0 on (created via the API).
 - Hooks are live: the ExitPlanMode auto-save fired on plan 002's approval.

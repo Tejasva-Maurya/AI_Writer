@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 
 ## Part A — Troubleshooting
 
@@ -37,13 +37,13 @@ The full traceback is in the SSE `error.detail` field. Watch it with the `curl -
 - Close other GPU-heavy applications.
 
 ### A5. "Failed to save character: … 422 …" when using the New Character / Edit modal
-A v1.0.0 defect (KI-001), **fixed in [Unreleased] (plan 003)**: the form now sends a `slug`, and edits keep the chapter-tracking fields (KI-027). If you still see a 422, your browser is running an old cached `app.js`. Hard-reload the page (`Ctrl+F5`).
+A v1.0.0 defect (KI-001), **fixed in v2.0.0 (plan 003)**: the form now sends a `slug`, and edits keep the chapter-tracking fields (KI-027). If you still see a 422, your browser is running an old cached `app.js`. Hard-reload the page (`Ctrl+F5`).
 
 ### A6. After World Build, the World Settings modal is empty / my world got wiped
-A v1.0.0 defect (KI-002), **fixed in [Unreleased] (plan 003)**: the World Settings modal now opens with the merged world. If you saved the empty modal while still on 1.0.0, the world file was overwritten. Restore `data/world_settings.json` from a backup. Git can't help here: `data/` is not in git since plan 017 (KI-030).
+A v1.0.0 defect (KI-002), **fixed in v2.0.0 (plan 003)**: the World Settings modal now opens with the merged world. If you saved the empty modal while still on 1.0.0, the world file was overwritten. Restore `data/world_settings.json` from a backup. Git can't help here: `data/` is not in git since plan 017 (KI-030).
 
 ### A7. The Build tab says "✓ Created: undefined"
-A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. The tab now shows the created name.
+A cosmetic v1.0.0 side effect of KI-002, **fixed in v2.0.0 (plan 003)**. The tab now shows the created name.
 
 ### A8. A model pull says "installed" but the model is not there, or "Pull failed: …"
 - Since plan 010 (KI-019) a pull reports success only when Ollama confirms it. Otherwise you see "Pull failed:" plus Ollama's reason:
@@ -64,10 +64,10 @@ Since plan 007 new slugs are always `make_slug(name)`, the pipeline maps the spe
 Since plan 006 the backend numbers new chapters as *highest existing number + 1*, so a gap (e.g. `002.json` deleted while `003.json` exists) just stays a gap, and nothing is overwritten. Chapters overwritten before that came from v1.0.0, which used *count + 1* (KI-008); restore them from a backup.
 
 ### A12. Export fails
-Fixed in [Unreleased] (plan 015, KI-017): any title exports now; characters Windows forbids in file names (`: ? * " < > |`) become `_` in the download name, and nothing is written into `data/`. A `.txt`/`.md` file already in `data/` was left by an older version and can be deleted. If you still get a server error, the browser may be using an old page: hard-reload (`Ctrl+F5`).
+Fixed in v2.0.0 (plan 015, KI-017): any title exports now; characters Windows forbids in file names (`: ? * " < > |`) become `_` in the download name, and nothing is written into `data/`. A `.txt`/`.md` file already in `data/` was left by an older version and can be deleted. If you still get a server error, the browser may be using an old page: hard-reload (`Ctrl+F5`).
 
 ### A13. The pipeline panel looks dimmed or a step stays red on the next run
-Fixed in [Unreleased] (plan 011, KI-024): every run now starts with a full-opacity panel and no red step. If you still see it, your browser is running an old cached `app.js`; hard-reload the page (`Ctrl+F5`). The same plan fixed the blinking `▍` cursor staying after a chapter (KI-037) and the "may span multiple chapters" notice that never went away (KI-039).
+Fixed in v2.0.0 (plan 011, KI-024): every run now starts with a full-opacity panel and no red step. If you still see it, your browser is running an old cached `app.js`; hard-reload the page (`Ctrl+F5`). The same plan fixed the blinking `▍` cursor staying after a chapter (KI-037) and the "may span multiple chapters" notice that never went away (KI-039).
 
 ### A13b. A yellow ⚠ toast appears during generation
 It is a pipeline `warning` (shown since plan 009, KI-018): something non-fatal failed and the chapter continued. Typical messages: "Could not save character profile: …" (the specialist returned a profile without a name), "Could not update character '…'" (an update the model couldn't validate; the character keeps its old values), "Could not unload the specialist model: …" (Ollama didn't confirm the unload; watch VRAM). The same text is in the browser console.

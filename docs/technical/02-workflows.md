@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
