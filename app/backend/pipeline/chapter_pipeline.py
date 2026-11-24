@@ -7,13 +7,13 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List, Optional, Tuple
 
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import Chapter, Character, Scene, NovelMeta, as_int, as_str_list, as_text
-from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager
+from models import Chapter, Character, Draft, Scene, NovelMeta, as_int, as_str_list, as_text
+from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager
 from agents import specialist, writer
 from pipeline.context_builder import build_master_prompt
 
@@ -53,18 +53,123 @@ def _canonical_entities(entries, existing, make_slug) -> list:
     return out
 
 
-async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) -> AsyncGenerator[str, None]:
+def _apply_tags(resolved: list, tagged, existing, importance: str) -> list:
+    """Entities the author picked with @ in the plot box are in the chapter for sure (plan 019): every tagged slug that
+    exists becomes an "existing" entry with the top importance, so the writer gets its full profile and step 3 never
+    profiles it again. Unknown slugs are ignored."""
+    by_slug = {e.slug: e for e in existing}
+    out = [dict(item) for item in resolved]
+    index = {item["slug"]: item for item in out}
+    for slug in tagged if isinstance(tagged, list) else []:
+        entity = by_slug.get(slug) if isinstance(slug, str) else None
+        if entity is None:
+            log.info("Ignored unknown tag %r", slug)
+        elif slug in index:
+            index[slug].update(status="existing", importance=importance)
+        else:
+            index[slug] = {"name": entity.name, "slug": slug, "status": "existing", "importance": importance}
+            out.append(index[slug])
+    return out
+
+
+async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List[str]]:
+    """Step 7 for a written draft: summarise it, save the chapter, update the featured profiles and the novel meta, then
+    delete the draft. Used by the one-click pipeline and by draft approval (plan 019). Profiles are read now, so edits
+    made while the draft was reviewed are kept. Returns the chapter and the non-fatal warnings. If the summary call
+    fails it raises, and the draft stays on disk (KI-041)."""
+    warnings: List[str] = []
+    chapter_number = draft.chapter_number
+    full_text = draft.full_text
+    primary_chars = list(draft.characters_featured)
+    main_scenes = list(draft.scenes_featured)
+    chars_dict = {c.slug: c for c in character_manager.get_all()}
+    scenes_dict = {s.slug: s for s in scene_manager.get_all()}
+
+    featured_char_profiles = [chars_dict[slug].model_dump() for slug in primary_chars if slug in chars_dict]
+    featured_scene_profiles = [scenes_dict[slug].model_dump() for slug in main_scenes if slug in scenes_dict]
+    post_data = await specialist.post_write_update(full_text, featured_char_profiles, featured_scene_profiles, spec_model)
+
+    # Save chapter (summary values are coerced to text, so a wrong type can't lose the written chapter, KI-015)
+    chapter = Chapter(
+        chapter_number=chapter_number,
+        title=draft.title.strip() or as_text(post_data.get("chapter_title")).strip() or f"Chapter {chapter_number}",
+        plot_input=draft.plot_input,
+        full_text=full_text,
+        micro_summary=as_text(post_data.get("micro_summary")),
+        short_summary=as_text(post_data.get("short_summary")),
+        full_summary=as_text(post_data.get("full_summary")),
+        characters_featured=primary_chars,
+        scenes_featured=main_scenes,
+        word_count=len(full_text.split()),
+        created_at=datetime.now().isoformat()
+    )
+    chapter_manager.save_chapter(chapter)
+
+    # Update character profiles: each change is validated (and coerced) by the model before saving (KI-015/KI-016)
+    char_updates = post_data.get("character_updates")
+    char_updates = char_updates if isinstance(char_updates, dict) else {}
+    for slug, updates in char_updates.items():
+        if slug not in chars_dict:
+            continue
+        updates = updates if isinstance(updates, dict) else {}
+        char = chars_dict[slug]
+        changes = {"last_seen_chapter": chapter_number}
+        if updates.get("arc_notes"):
+            changes["arc_notes"] = updates["arc_notes"]
+        if updates.get("cultivation_level"):
+            changes["cultivation_level"] = updates["cultivation_level"]
+        new_abilities = as_str_list(updates.get("new_abilities"))
+        if new_abilities:
+            changes["abilities"] = list(dict.fromkeys(char.abilities + new_abilities))
+        if isinstance(updates.get("relationship_updates"), dict):
+            changes["relationships"] = {**char.relationships, **updates["relationship_updates"]}
+        try:
+            updated = Character(**{**char.model_dump(), **changes})
+            chars_dict[slug] = updated
+            character_manager.save(updated)
+        except Exception as e:
+            warnings.append(f"Could not update character '{slug}': {e}")
+
+    # Update last_seen for all featured chars not already updated (including ones whose update was rejected)
+    for slug in primary_chars:
+        if slug in chars_dict and chars_dict[slug].last_seen_chapter != chapter_number:
+            char = chars_dict[slug]
+            char.last_seen_chapter = chapter_number
+            character_manager.save(char)
+
+    # Update featured locations (KI-013): only a non-empty text significance, only for scenes in this chapter
+    scene_updates = post_data.get("scene_updates")
+    for slug, updates in (scene_updates.items() if isinstance(scene_updates, dict) else []):
+        significance = updates.get("new_significance") if isinstance(updates, dict) else None
+        if slug in main_scenes and slug in scenes_dict and isinstance(significance, str) and significance.strip():
+            scene = scenes_dict[slug]
+            scene.significance = significance.strip()
+            scene_manager.save(scene)
+
+    # Update novel meta
+    meta = novel_meta_manager.load()
+    meta.total_chapters = max(meta.total_chapters, chapter_number)
+    novel_meta_manager.save(meta)
+
+    draft_manager.delete()  # last: if anything above failed, the draft can be approved again
+    return chapter, warnings
+
+
+async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, review: bool = False,
+                       tagged_characters: Optional[List[str]] = None,
+                       tagged_scenes: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
     """
     Full 7-step pipeline. Yields SSE-formatted strings.
     Steps:
       1. Analyze plot
-      2. Resolve entities
+      2. Resolve entities (+ the entities tagged with @)
       3. Profile new entities (conditional)
       4. Select context
-      5. Predict updates
+      5. Release the specialist
       [VRAM switch: specialist unloads, writer loads]
-      6. Write chapter (streaming)
-      7. Post-write: summarize + update profiles
+      6. Write chapter (streaming), then save it as the draft (data/draft.json)
+      7. Post-write: summarize + update profiles (finalize_chapter). With review=True the pipeline stops after step 6
+         with `draft_complete`, and step 7 runs when the author approves the draft (plan 019).
     """
     spec_model = novel_meta.specialist_model
     write_model = novel_meta.writer_model
@@ -98,12 +203,16 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         resolution = await specialist.resolve_entities(entity_mentions, existing_chars, existing_scenes, spec_model)
         resolved_chars = _canonical_entities(resolution.get("characters"), all_chars, character_manager.make_slug)
         resolved_scenes = _canonical_entities(resolution.get("scenes"), all_scenes, scene_manager.make_slug)
+        resolved_chars = _apply_tags(resolved_chars, tagged_characters, all_chars, "primary")
+        resolved_scenes = _apply_tags(resolved_scenes, tagged_scenes, all_scenes, "main")
 
         new_char_names = [c["name"] for c in resolved_chars if c.get("status") == "new"]
         new_scene_names = [s["name"] for s in resolved_scenes if s.get("status") == "new"]
         yield _sse("status", step=2, message=f"Found {len(new_char_names)} new characters, {len(new_scene_names)} new locations")
 
         # ── STEP 3: PROFILE NEW ENTITIES ────────────────────────────
+        created_chars: List[str] = []  # slugs saved here, so discarding the draft can offer to remove them (plan 019)
+        created_scenes: List[str] = []
         if new_char_names or new_scene_names:
             yield _sse("status", step=3, message=f"Creating profiles for {len(new_char_names)} new characters and {len(new_scene_names)} new locations...")
             world = world_manager.load()
@@ -117,6 +226,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
                 try:
                     char = Character(**{**char_data, "slug": character_manager.make_slug(str(char_data.get("name") or ""))})
                     character_manager.create(char)
+                    created_chars.append(char.slug)
                     yield _sse("new_character", name=char.name, slug=char.slug)
                 except Exception as e:
                     yield _sse("warning", message=f"Could not save character profile: {e}")
@@ -127,6 +237,7 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
                 try:
                     scene = Scene(**{**scene_data, "slug": scene_manager.make_slug(str(scene_data.get("name") or ""))})
                     scene_manager.create(scene)
+                    created_scenes.append(scene.slug)
                     yield _sse("new_scene", name=scene.name, slug=scene.slug)
                 except Exception as e:
                     yield _sse("warning", message=f"Could not save scene profile: {e}")
@@ -208,82 +319,42 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta) ->
         word_count = len(full_text.split())
         yield _sse("status", step=6, message=f"Chapter written: {word_count} words")
 
+        # The written chapter goes to disk before step 7, so a failed summary can't lose it (KI-041, plan 019)
+        now = datetime.now().isoformat()
+        draft = Draft(chapter_number=chapter_number, plot_input=plot, full_text=full_text,
+                      characters_featured=primary_chars, scenes_featured=main_scenes,
+                      new_characters=created_chars, new_scenes=created_scenes, created_at=now, updated_at=now)
+        draft_manager.save(draft)
+
+        if review:  # the author reviews the draft first; approving it runs step 7 (POST /api/draft/approve)
+            yield _sse("draft_complete",
+                       chapter_number=chapter_number,
+                       full_text=full_text,
+                       word_count=word_count,
+                       characters=primary_chars,
+                       scenes=main_scenes,
+                       new_characters=created_chars,
+                       new_scenes=created_scenes)
+            return
+
         # ── STEP 7: POST-WRITE UPDATE ─────────────────────────────────
         yield _sse("status", step=7, message="Summarizing and updating character records...")
-        featured_char_profiles = [chars_dict[slug].model_dump() for slug in primary_chars if slug in chars_dict]
-        featured_scene_slugs = main_scenes
-        featured_scene_profiles = [scenes_dict[slug].model_dump() for slug in main_scenes if slug in scenes_dict]
-
-        post_data = await specialist.post_write_update(full_text, featured_char_profiles, featured_scene_profiles, spec_model)
-
-        # Save chapter (summary values are coerced to text, so a wrong type can't lose the written chapter, KI-015)
-        chapter = Chapter(
-            chapter_number=chapter_number,
-            title=as_text(post_data.get("chapter_title")).strip() or f"Chapter {chapter_number}",
-            plot_input=plot,
-            full_text=full_text,
-            micro_summary=as_text(post_data.get("micro_summary")),
-            short_summary=as_text(post_data.get("short_summary")),
-            full_summary=as_text(post_data.get("full_summary")),
-            characters_featured=primary_chars,
-            scenes_featured=featured_scene_slugs,
-            word_count=word_count,
-            created_at=datetime.now().isoformat()
-        )
-        chapter_manager.save_chapter(chapter)
-
-        # Update character profiles: each change is validated (and coerced) by the model before saving (KI-015/KI-016)
-        char_updates = post_data.get("character_updates")
-        char_updates = char_updates if isinstance(char_updates, dict) else {}
-        for slug, updates in char_updates.items():
-            if slug not in chars_dict:
-                continue
-            updates = updates if isinstance(updates, dict) else {}
-            char = chars_dict[slug]
-            changes = {"last_seen_chapter": chapter_number}
-            if updates.get("arc_notes"):
-                changes["arc_notes"] = updates["arc_notes"]
-            if updates.get("cultivation_level"):
-                changes["cultivation_level"] = updates["cultivation_level"]
-            new_abilities = as_str_list(updates.get("new_abilities"))
-            if new_abilities:
-                changes["abilities"] = list(dict.fromkeys(char.abilities + new_abilities))
-            if isinstance(updates.get("relationship_updates"), dict):
-                changes["relationships"] = {**char.relationships, **updates["relationship_updates"]}
-            try:
-                updated = Character(**{**char.model_dump(), **changes})
-                chars_dict[slug] = updated
-                character_manager.save(updated)
-            except Exception as e:
-                yield _sse("warning", message=f"Could not update character '{slug}': {e}")
-
-        # Update last_seen for all featured chars not already updated (including ones whose update was rejected)
-        for slug in primary_chars:
-            if slug in chars_dict and chars_dict[slug].last_seen_chapter != chapter_number:
-                char = chars_dict[slug]
-                char.last_seen_chapter = chapter_number
-                character_manager.save(char)
-
-        # Update featured locations (KI-013): only a non-empty text significance, only for scenes in this chapter
-        scene_updates = post_data.get("scene_updates")
-        for slug, updates in (scene_updates.items() if isinstance(scene_updates, dict) else []):
-            significance = updates.get("new_significance") if isinstance(updates, dict) else None
-            if slug in main_scenes and slug in scenes_dict and isinstance(significance, str) and significance.strip():
-                scene = scenes_dict[slug]
-                scene.significance = significance.strip()
-                scene_manager.save(scene)
-
-        # Update novel meta
-        meta = novel_meta_manager.load()
-        meta.total_chapters = max(meta.total_chapters, chapter_number)
-        novel_meta_manager.save(meta)
+        try:
+            chapter, warnings = await finalize_chapter(draft, spec_model)
+        except Exception as e:
+            import traceback
+            yield _sse("error", message=f"Summary failed: {e}. The chapter is kept as a draft: approve it to try again.",
+                       detail=traceback.format_exc(), draft_saved=True)
+            return
+        for message in warnings:
+            yield _sse("warning", message=message)
 
         yield _sse("complete",
                    chapter_number=chapter_number,
                    title=chapter.title,
                    word_count=word_count,
                    characters=primary_chars,
-                   scenes=featured_scene_slugs,
+                   scenes=main_scenes,
                    micro_summary=chapter.micro_summary)
 
     except Exception as e:

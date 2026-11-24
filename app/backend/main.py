@@ -25,12 +25,13 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 from models import (
-    Character, Scene, WorldSettings, Chapter, NovelMeta,
+    Character, Scene, WorldSettings, Chapter, NovelMeta, Draft,
     GenerateChapterRequest, UpdateCharacterRequest, UpdateSceneRequest,
-    UpdateWorldRequest, UpdateNovelMetaRequest, as_str_list
+    UpdateWorldRequest, UpdateNovelMetaRequest, UpdateDraftRequest, RewriteRequest, ApproveDraftRequest, as_str_list
 )
-from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager
-from pipeline.chapter_pipeline import run_pipeline
+from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager
+from pipeline.chapter_pipeline import run_pipeline, finalize_chapter
+from agents import writer
 
 # Console logging for the app's own modules (KI-025); uvicorn keeps its own access/error loggers
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -167,9 +168,15 @@ async def get_chapter(number: int):
 
 
 # ── GENERATE CHAPTER (SSE) ────────────────────────────────────
-# One generation at a time (KI-031): the pipeline runs as a task that feeds the SSE stream
+# One LLM job at a time (KI-031, plan 019): a generation (a task that feeds the SSE stream), a draft approval or a
+# passage rewrite. Cancel stops only a generation.
 _generation: Dict[str, Optional[asyncio.Task]] = {"task": None}
+_job: Dict[str, Optional[str]] = {"kind": None}  # "approve" or "rewrite" while one runs
 _CANCELLED_EVENT = f"data: {json.dumps({'type': 'error', 'message': 'Generation cancelled', 'cancelled': True})}\n\n"
+_JOB_BUSY = {
+    "approve": "The draft is being approved. Wait for it to finish.",
+    "rewrite": "A passage is being rewritten. Wait for it to finish.",
+}
 
 
 def _generation_running() -> bool:
@@ -177,17 +184,28 @@ def _generation_running() -> bool:
     return task is not None and not task.done()
 
 
+def _busy_reason() -> Optional[str]:
+    if _generation_running():
+        return "A chapter is already being generated. Wait for it to finish or cancel it."
+    return _JOB_BUSY.get(_job["kind"])
+
+
 @app.post("/api/generate-chapter")
 async def generate_chapter(req: GenerateChapterRequest):
-    if _generation_running():
-        raise HTTPException(409, "A chapter is already being generated. Wait for it to finish or cancel it.")
+    if reason := _busy_reason():
+        raise HTTPException(409, reason)
+    if draft := draft_manager.load():  # one draft at a time: a new one would replace it (plan 019)
+        raise HTTPException(409, f"A draft of chapter {draft.chapter_number} is waiting for review. "
+                                 "Approve or discard it first.")
     meta = novel_meta_manager.load()
     chapter_number = req.chapter_number or chapter_manager.get_next_number()
     queue: asyncio.Queue = asyncio.Queue()
 
     async def produce():
         try:
-            async for sse_event in run_pipeline(req.plot, chapter_number, meta):
+            async for sse_event in run_pipeline(req.plot, chapter_number, meta, review=req.review,
+                                                tagged_characters=req.tagged_characters,
+                                                tagged_scenes=req.tagged_scenes):
                 queue.put_nowait(sse_event)
         except asyncio.CancelledError:
             log.info("Generation of chapter %d cancelled", chapter_number)
@@ -225,6 +243,94 @@ async def cancel_generation():
     task.cancel()
     await asyncio.wait({task}, timeout=5)  # once this returns, a new generation is accepted
     return {"cancelled": True}
+
+
+# ── DRAFT (review before saving, plan 019) ────────────────────
+def _require_draft() -> Draft:
+    draft = draft_manager.load()
+    if not draft:
+        raise HTTPException(404, "No draft is waiting for review")
+    return draft
+
+
+@app.get("/api/draft", response_model=Optional[Draft])
+async def get_draft():
+    return draft_manager.load()  # null when no draft waits: a normal state, so the UI's check at load isn't a 404
+
+
+@app.put("/api/draft", response_model=Draft)
+async def update_draft(req: UpdateDraftRequest):
+    if _job["kind"] == "approve":
+        raise HTTPException(409, _JOB_BUSY["approve"])
+    draft = _require_draft()
+    draft.full_text = req.full_text
+    draft.title = req.title.strip()
+    draft.updated_at = datetime.now().isoformat()
+    draft_manager.save(draft)
+    return draft
+
+
+@app.delete("/api/draft")
+async def delete_draft():
+    if _job["kind"] == "approve":
+        raise HTTPException(409, _JOB_BUSY["approve"])
+    if not draft_manager.delete():
+        raise HTTPException(404, "No draft is waiting for review")
+    return {"success": True}
+
+
+@app.post("/api/draft/rewrite")
+async def rewrite_draft_passage(req: RewriteRequest):
+    """Rewrite the selected passage of the draft with the writer model. Returns the replacement; the editor applies it."""
+    if reason := _busy_reason():
+        raise HTTPException(409, reason)
+    draft = _require_draft()
+    if not req.passage.strip():
+        raise HTTPException(422, "Select the passage to rewrite")
+    if not req.instruction.strip():
+        raise HTTPException(422, "Describe how the passage should change")
+    meta = novel_meta_manager.load()
+    _job["kind"] = "rewrite"
+    try:
+        replacement = await writer.revise_passage(req.before, req.passage, req.after, req.instruction.strip(),
+                                                  draft.plot_input, meta.writer_model)
+    except Exception as e:
+        log.warning("Rewrite with %s failed: %s", meta.writer_model, e)
+        raise HTTPException(500, f"Rewrite failed: {e}")
+    finally:
+        _job["kind"] = None
+    if not replacement:
+        raise HTTPException(500, "Rewrite failed: the writer returned no text")
+    return {"replacement": replacement}
+
+
+@app.post("/api/draft/approve")
+async def approve_draft(req: ApproveDraftRequest):
+    """Save the final text, then run step 7 (summary, profile updates) and save the chapter. The draft is deleted only
+    when that worked; on a failure it stays, and approving again retries."""
+    if reason := _busy_reason():
+        raise HTTPException(409, reason)
+    draft = _require_draft()
+    if req.full_text is not None:
+        draft.full_text = req.full_text
+    if req.title is not None:
+        draft.title = req.title.strip()
+    if not draft.full_text.strip():
+        raise HTTPException(422, "The draft is empty")
+    draft.updated_at = datetime.now().isoformat()
+    draft_manager.save(draft)
+    meta = novel_meta_manager.load()
+    _job["kind"] = "approve"
+    try:
+        chapter, warnings = await finalize_chapter(draft, meta.specialist_model)
+    except Exception as e:
+        log.warning("Approving the draft of chapter %d failed: %s", draft.chapter_number, e)
+        raise HTTPException(500, f"Could not finalize the chapter: {e}. The draft is kept: approve it again to retry.")
+    finally:
+        _job["kind"] = None
+    for message in warnings:
+        log.warning("%s", message)
+    return {"chapter": chapter.model_dump(), "warnings": warnings}
 
 
 # ── NOVEL META ────────────────────────────────────────────────

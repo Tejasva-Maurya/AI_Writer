@@ -1,20 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 018 (release 2.0.0). The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 019. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040).
+**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 1 fixed in Unreleased (KI-041).
 
 ### Open (0)
 
-None. A new defect gets the next ID, KI-041.
+None. A new defect gets the next ID, KI-042.
 
-### Fixed (40)
+### Fixed (41)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -60,6 +60,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in v2.0.0 [plan 007] |
 | KI-039 | Low | Frontend | Multi-chapter notice never hides (CSS `display: flex` overrides `[hidden]`) ✔ | Fixed in v2.0.0 [plan 011] |
 | KI-040 | High | Backend | `main.py` does not parse on Python 3.11 (backslash inside an f-string expression, from plan 015) ✔ | Fixed in v2.0.0 [plan 016] |
+| KI-041 | Medium | Pipeline | A failure in step 7 (summary) loses the chapter that was just written ✔ | Fixed in Unreleased [plan 019] |
 
 ---
 
@@ -364,3 +365,15 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - Found 2026-11-24 [plan 016] by ruff: `invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.11`.
   - Present in commit `fa4332b` on `main` (2026-11-24) until plan 016.
 - **Fix:** move the conditional out of the f-string.
+
+### KI-041 — A failure in step 7 loses the chapter that was just written · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 019)
+- **Status: Fixed in Unreleased [plan 019].** The pipeline saves the written chapter as `data/draft.json` right after step 6, before step 7 runs. `finalize_chapter()` deletes the draft only as its last action.
+  - A failed summary now ends with `error` + `draft_saved: true` ("Summary failed: … The chapter is kept as a draft: approve it to try again."). The UI opens the draft, and **Approve & save** retries step 7.
+  - Tested in `test_pipeline.py::test_failed_summary_keeps_the_written_chapter_as_a_draft` and `test_draft.py::test_failed_approval_keeps_the_draft_with_the_edits`. Checked in the UI with a stub `ollama` whose step-7 call fails.
+  - The evidence below describes the 2.0.0 code.
+- **Evidence:**
+  - In `run_pipeline` (2.0.0), step 7 awaited `specialist.post_write_update(...)` (`chapter_pipeline.py:217`), and the chapter was saved only afterwards (`chapter_manager.save_chapter`, `:233`).
+  - Any exception from that call (Ollama stopped or restarted, the specialist model not pulled, out of memory) reached the generic `except Exception` (`:289-291`), which only emitted `error`.
+  - The ~2,000 words streamed in step 6 existed only in memory and in the browser's display, so they were lost: the chapter wasn't saved, and the UI had no way to keep it.
+  - Found 2026-11-24 [plan 019] by reading the code while porting the `improvement` branch, whose split pipeline would have had the same gap.
+- **Fix:** persist the text before step 7 (the draft) and delete it only after the chapter is saved.

@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017).
+> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -13,7 +13,8 @@ The author types a short plot description for the next chapter; a multi-step LLM
 - discovers characters and locations that are mentioned in the plot and creates structured profiles for new ones,
 - assembles a context window from the world settings, relevant character/location profiles and tiered summaries of earlier chapters,
 - streams the chapter text to the browser token by token,
-- summarises the finished chapter (micro / short / full summaries) and updates character profiles for continuity in later chapters.
+- by default keeps the chapter as an editable **draft** that the author can edit, partly rewrite with AI and then approve (plan 019),
+- summarises the finished chapter (micro / short / full summaries) and updates character profiles for continuity in later chapters (on approval, or right after writing when draft review is off).
 
 Besides chapter generation it offers:
 
@@ -26,7 +27,9 @@ Besides chapter generation it offers:
 | Manual world settings editing | Right sidebar → **World Settings** | `GET/PUT /api/world` |
 | Novel metadata + model selection | Header → **Settings** | `GET/PUT /api/novel-meta`, `GET /api/models` |
 | Pull Ollama models from the UI with progress | Settings → model browser → **Pull** | `POST /api/models/pull` |
-| Chapter history / reader | Bottom history bar, **Full View** modal | `GET /api/chapters`, `GET /api/chapters/{n}` |
+| Draft review: edit, AI rewrite of a selection, approve, discard (plan 019) | Output panel while a draft waits | `/api/draft`, `/api/draft/rewrite`, `/api/draft/approve` |
+| @-mentions of characters and locations in the plot (plan 019) | Plot Writing textarea, type `@` | `tagged_characters` / `tagged_scenes` on generate |
+| Chapter history / reader, with the prompt used and reuse (plan 019) | Bottom history bar, **Full View** modal | `GET /api/chapters`, `GET /api/chapters/{n}` |
 | Export whole novel as `.txt` / `.md` | Header → **Export** | `GET /api/export/{fmt}` |
 
 > ⚠ Some of these flows have verified defects (for example, a Build tab's **Update Existing** can save an invalid AI value that makes the entity unloadable, KI-016). See [09 — Known Issues](09-known-issues-and-tech-debt.md) before relying on a flow.
@@ -79,19 +82,20 @@ flowchart TB
         R1[Static routes<br/>/ · /style.css · /app.js · /static]
         R2[CRUD routes<br/>characters · scenes · world · novel-meta · chapters]
         R3[POST /api/generate-chapter<br/>SSE]
+        R7[Draft routes<br/>/api/draft · rewrite · approve]
         R4[Refine routes<br/>/api/refine/character·scene·world]
         R5[Model mgmt<br/>/api/models · /api/models/pull SSE]
         R6[Export · Health]
     end
 
     subgraph PIPE["Orchestration — app/backend/pipeline/"]
-        P1[chapter_pipeline.run_pipeline<br/>7-step async generator → SSE strings]
+        P1[chapter_pipeline.run_pipeline<br/>7-step async generator → SSE strings<br/>finalize_chapter = step 7]
         P2[context_builder.build_master_prompt]
     end
 
     subgraph AG["LLM agents — app/backend/agents/"]
-        A1["specialist.py<br/>sync ollama.chat · JSON out · temp 0.1 · ctx 8192"]
-        A2["writer.py<br/>async ollama.AsyncClient stream · temp 0.8 · ctx 32768"]
+        A1["specialist.py<br/>async ollama.AsyncClient · JSON out · temp 0.1 · ctx 8192"]
+        A2["writer.py<br/>async ollama.AsyncClient stream · temp 0.8 · ctx 32768<br/>revise_passage (draft rewrite)"]
     end
 
     subgraph MGR["Persistence — app/backend/managers/"]
@@ -100,6 +104,7 @@ flowchart TB
         M3[chapter_manager]
         M4[world_manager]
         M5[novel_meta_manager]
+        M6[draft_manager]
     end
 
     MOD["app/backend/models.py<br/>Pydantic schemas"]
@@ -107,6 +112,9 @@ flowchart TB
 
     R2 --> MGR
     R3 --> P1
+    R7 --> P1
+    R7 --> A2
+    R7 --> MGR
     R4 --> A1
     R4 --> MGR
     R6 --> MGR
@@ -158,6 +166,8 @@ gantt
 
 Step 5 only unloads the specialist, with Ollama's unload request (`generate` with an empty prompt and `keep_alive=0`), so no tokens are generated (plan 008; before, it ran a full prediction prompt whose result was never used, KI-012). Step 4 makes no LLM call. In step 7 the specialist is loaded again while the writer may still be resident (writer `keep_alive=300`), so peak VRAM can briefly include both models.
 
+**Draft review** (plan 019, the default): the pipeline stops after step 6 and keeps the chapter in `data/draft.json`. The specialist is already unloaded (step 5), and the writer stays warm for 5 minutes, which suits AI rewrites of selected passages (`revise_passage`, writer model). Step 7 runs when the author approves, so the specialist loads then, and the writer may still be resident if the last write or rewrite was under 5 minutes ago (the same overlap as above). With the setting off, the timeline is the one shown.
+
 ## 7. Directory structure
 
 The repository has three areas, one purpose each (plan 002, decision D-007):
@@ -177,17 +187,18 @@ AI_Writer/
 │   │   ├── models.py           (97 LOC) Pydantic models: Character, Scene, WorldSettings, Chapter, NovelMeta + request wrappers
 │   │   ├── agents/
 │   │   │   ├── specialist.py  (367 LOC) 9 specialist LLM functions (JSON in/out) + robust JSON extraction
-│   │   │   └── writer.py       (62 LOC) Streaming chapter writer (system prompt + async generator)
+│   │   │   └── writer.py      (~120 LOC) Streaming chapter writer (system prompt + async generator) and the draft passage rewrite
 │   │   ├── managers/                    JSON-file persistence, one module per entity type (paths → <repo>/data/)
-│   │   │   ├── __init__.py              re-exports the five managers
+│   │   │   ├── __init__.py              re-exports the six managers
 │   │   │   ├── storage.py               atomic JSON writes + logged skips, shared by the managers (plan 016)
 │   │   │   ├── character_manager.py     data/characters/{slug}.json
 │   │   │   ├── scene_manager.py         data/scenes/{slug}.json
 │   │   │   ├── chapter_manager.py       data/chapters/{NNN}.json  (zero-padded to 3 digits)
 │   │   │   ├── world_manager.py         data/world_settings.json
-│   │   │   └── novel_meta_manager.py    data/novel_meta.json
+│   │   │   ├── novel_meta_manager.py    data/novel_meta.json
+│   │   │   └── draft_manager.py         data/draft.json  (the chapter waiting for review, plan 019)
 │   │   └── pipeline/
-│   │       ├── chapter_pipeline.py (249 LOC) 7-step orchestration, emits SSE strings
+│   │       ├── chapter_pipeline.py (~370 LOC) 7-step orchestration, emits SSE strings; finalize_chapter (step 7, also for draft approval)
 │   │       └── context_builder.py  (145 LOC) Builds the writer's master prompt (tiered memory)
 │   ├── frontend/
 │   │   ├── index.html         (830 LOC) App shell: header, 3-column layout, 4 mode tabs, pipeline UI, 6 modals
@@ -226,13 +237,14 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 
 - **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:530-532`).
 - **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast. Every save goes through `managers/storage.write_json` (temp file + atomic replace, plan 016, KI-026).
-- **One generation at a time** (plan 010, KI-031). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter` gets **409**.
-  - `POST /api/generate-chapter/cancel` stops it.
-  - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream.
+- **One LLM job at a time** (plan 010, KI-031; plan 019). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter`, a draft approval or a rewrite gets **409**; while an approval or a rewrite runs (`_job`), so does a generation.
+  - `POST /api/generate-chapter/cancel` stops a generation (not an approval or rewrite).
+  - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream. The text written by step 6 is on disk as the draft by then.
+  - **One draft at a time** (plan 019): while `data/draft.json` exists, a new generation gets **409**.
   - There are no other background jobs or locks.
 - **Logging** (plan 016, KI-025). `main.py` configures console logging (`%(asctime)s %(levelname)s %(name)s: %(message)s`) next to uvicorn's own access log.
   - Logged: data files the managers can't read, pipeline `warning`/`error` events, specialist replies without JSON, failed model pulls and cancelled generations.
-- **State.** All durable state is in `data/`. In memory, the server keeps only the module-level constant `RECOMMENDED_MODELS` and the running generation's task (`_generation`, `main.py:171`), which is gone after a restart.
+- **State.** All durable state is in `data/`. In memory, the server keeps only the module-level constant `RECOMMENDED_MODELS`, the running generation's task (`_generation`) and the kind of approval/rewrite job running (`_job`), all gone after a restart. A draft waiting for review is on disk (`data/draft.json`), so it survives a restart.
 
 ## 9. Security posture (summary)
 

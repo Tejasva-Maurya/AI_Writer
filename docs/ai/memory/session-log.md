@@ -187,3 +187,19 @@
   - project-state condensed to 34 lines.
 - **Plan:** 018 (done).
 - **Open threads:** None. Committed and pushed (`03312e5` on GitHub). Tags `v1.0.0`/`v2.0.0` and the Release (https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0) were created via the REST API. CI green on `main` (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373445469) and on the `v2.0.0` tag (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373845132).
+
+### 2026-11-24 — Claude Code (Opus 5.5) — draft review, AI rewrite, @-mentions, prompt reuse (plan 019)
+- **Goal:** Analyse the `improvement` branch and its `New-Feature-Docs/`, then bring its features to 2.0.0 with improvements, ending in a PR to `main`.
+- **Outcome:**
+  - The branch (one commit on 1.0.0) couldn't be merged: old layout, tracked `.pyc` and `data/`, sync-era code (an un-awaited specialist call), no `num_ctx` on rewrites, errors returned as rewrite text, unescaped autocomplete HTML, no CSS, no guard. It was re-implemented on `feature/draft-review` (the branch itself is untouched).
+  - The user chose (D-016): drafts on the server (`data/draft.json`), review as a setting (default on), a plain-text editor, and to leave the branch's chapter 1 on the branch.
+  - Found and fixed KI-041 (step-7 failure lost the written chapter): the draft is saved after step 6 in every mode.
+  - Also: @-tags force the tagged entities into context; one LLM job at a time (generate/approve/rewrite); step 7 extracted to `finalize_chapter()` (no pause points, so a cancel can't stop it halfway); the `real_data_untouched` guard now sees folder mtimes.
+  - Docs: 01–09, the user guide, RULES §1/§3, CHANGELOG, D-016, gotchas.
+  - Verified:
+    - 93 tests pass (71 old plus 22 new), ruff clean, `node --check` passes.
+    - UI in a sandbox with a stub `ollama`: review flow, autosave and reload restore, rewrite and undo, approve, prompt reuse, discard with profile cleanup, generate-with-draft confirm, one-click mode, the KI-041 path and its retry, @-mentions with a Chinese name, the 375 px layout, the `[hidden]` audit.
+    - Real Ollama: not verified.
+  - Incident: the first test run (before `draft_manager` was in the fixture) created and deleted `data/draft.json` in the real `data/`. Every novel file stayed byte-identical (SHA-256); only the folder mtime changed. The guard now catches this.
+- **Plan:** 019 (done).
+- **Open threads:** Commit, push via the github-push skill and open the PR only after the user's go-ahead. Follow-ups are in plan 019 "Not included".

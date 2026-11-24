@@ -1,17 +1,18 @@
-"""The 7-step pipeline through POST /api/generate-chapter, with the fake ollama (KI-015, KI-025, D-011)."""
+"""The 7-step pipeline through POST /api/generate-chapter, with the fake ollama (KI-015, KI-025, KI-041, D-011,
+plan 019)."""
 import json
 import logging
 
 from conftest import sse_events
-from managers import character_manager
-from models import Character, NovelMeta
+from managers import character_manager, draft_manager, scene_manager
+from models import Character, NovelMeta, Scene
 
 SPECIALIST = NovelMeta().specialist_model
 WRITER = NovelMeta().writer_model
 
 
-def _generate(client, plot="zz test: the storm"):
-    r = client.post("/api/generate-chapter", json={"plot": plot})
+def _generate(client, plot="zz test: the storm", **extra):
+    r = client.post("/api/generate-chapter", json={"plot": plot, **extra})
     assert r.status_code == 200
     return sse_events(r.text)
 
@@ -70,3 +71,78 @@ def test_pipeline_warnings_are_logged(client, fake_ollama, caplog):
     assert any("Could not unload the specialist model" in w for w in warnings)
     assert any("Could not unload the specialist model" in r.getMessage() for r in caplog.records)
     assert events[-1]["type"] == "complete"  # a failed unload doesn't stop the chapter
+
+
+# ── Drafts (plan 019) ──────────────────────────────────────────
+def test_review_mode_keeps_a_draft_and_skips_step_7(client, data_dir, fake_ollama):
+    events = _generate(client, review=True)
+    draft_event = events[-1]
+    assert draft_event["type"] == "draft_complete" and draft_event["chapter_number"] == 1
+    assert draft_event["full_text"] == "".join(fake_ollama.chunks)
+    assert 7 not in {e.get("step") for e in events if e["type"] == "status"}
+    assert not any(e["type"] == "complete" for e in events)
+
+    assert not (data_dir / "chapters" / "001.json").exists()  # nothing saved as a chapter yet
+    draft = draft_manager.load()
+    assert draft.chapter_number == 1 and draft.plot_input == "zz test: the storm"
+    assert draft.full_text == draft_event["full_text"]
+    # Step 5 unloads the specialist; nothing loads it again until the draft is approved (D-011)
+    assert fake_ollama.calls[-2:] == [("generate", SPECIALIST, 0), ("chat-stream", WRITER, 300)]
+
+
+def test_one_click_mode_saves_the_chapter_and_removes_the_draft(client, data_dir):
+    assert _generate(client)[-1]["type"] == "complete"
+    assert (data_dir / "chapters" / "001.json").exists()
+    assert draft_manager.load() is None
+
+
+def test_failed_summary_keeps_the_written_chapter_as_a_draft(client, data_dir, fake_ollama):
+    """KI-041: a step-7 failure used to lose the chapter."""
+    fake_ollama.json_replies = [{}, {}, ConnectionError("Ollama went away")]  # analyze, resolve, then step 7 fails
+    events = _generate(client)
+    error = events[-1]
+    assert error["type"] == "error" and error.get("draft_saved") is True
+    assert "kept as a draft" in error["message"]
+    assert not (data_dir / "chapters" / "001.json").exists()
+    assert draft_manager.load().full_text == "".join(fake_ollama.chunks)
+
+
+def test_step_3_profiles_are_recorded_on_the_draft(client, fake_ollama):
+    fake_ollama.json_replies = [
+        {"entity_mentions": {"characters": ["Zz New"], "locations": ["Zz Cave"]}},
+        {"characters": [{"name": "Zz New", "slug": "zz_new", "status": "new", "importance": "primary"}],
+         "scenes": [{"name": "Zz Cave", "slug": "zz_cave", "status": "new", "importance": "main"}]},
+        {"characters": [{"name": "Zz New"}], "scenes": [{"name": "Zz Cave"}]},
+    ]
+    event = _generate(client, review=True)[-1]
+    assert event["new_characters"] == ["zz_new"] and event["new_scenes"] == ["zz_cave"]
+    draft = draft_manager.load()
+    assert draft.new_characters == ["zz_new"] and draft.characters_featured == ["zz_new"]
+
+
+def test_tagged_entities_reach_the_context_even_when_the_specialist_misses_them(client, fake_ollama):
+    character_manager.save(Character(name="Zz Hero", slug="zz_hero", personality="Zz stubborn"))
+    scene_manager.save(Scene(name="Zz Peak", slug="zz_peak", description="Zz windy summit"))
+    fake_ollama.json_replies = [{}, {}]  # the specialist finds no entities at all
+    event = _generate(client, review=True, tagged_characters=["zz_hero", "zz_ghost", "../x"],
+                      tagged_scenes=["zz_peak"])[-1]
+    assert event["characters"] == ["zz_hero"] and event["scenes"] == ["zz_peak"]  # unknown tags are ignored
+    assert draft_manager.load().characters_featured == ["zz_hero"]
+
+
+def test_tagged_character_gets_the_full_profile_in_the_writer_prompt(client, fake_ollama, monkeypatch):
+    from agents import writer
+    seen = {}
+    original = writer.stream_chapter
+
+    async def spy(master_prompt, plot, chapter_number, model):
+        seen["prompt"] = master_prompt
+        async for item in original(master_prompt, plot, chapter_number, model):
+            yield item
+
+    monkeypatch.setattr(writer, "stream_chapter", spy)
+    character_manager.save(Character(name="Zz Hero", slug="zz_hero", personality="Zz stubborn"))
+    fake_ollama.json_replies = [{}, {"characters": [{"name": "Zz Hero", "slug": "zz_hero", "status": "existing",
+                                                      "importance": "secondary"}], "scenes": []}]
+    _generate(client, review=True, tagged_characters=["zz_hero"])
+    assert "=== PRIMARY CHARACTERS ===" in seen["prompt"] and "Zz stubborn" in seen["prompt"]

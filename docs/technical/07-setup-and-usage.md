@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse). **Last verified against code:** 2026-11-24.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -101,7 +101,7 @@ curl http://127.0.0.1:8000/api/models
 │ CHARACTERS   │ [✍ Plot][👤 Character][🏔 Scene][🌐 World] │ LOCATIONS      │
 │  MAIN CAST   │  mode panel (input + action button)        │  scene cards   │
 │  cards…      │  ⚡ GENERATION PIPELINE (7 steps)           │                │
-│  SUPPORTING  │  Chapter output (streaming) ⛶ Full View    │                │
+│  SUPPORTING  │  Chapter output / draft editor ⛶ Full View │                │
 │  cards…      │  📚 HISTORY  [Ch.1][Ch.2]…                  │ + New Location │
 │ + New Char.  │                                            │ 🌐 World Sett. │
 └──────────────┴──────────────────────────────────┴────────────────┘
@@ -118,17 +118,25 @@ Colour code: **purple** = characters, **gold** = locations, **mint** = world.
 1. The label shows **CHAPTER N** (N = highest existing chapter number + 1, the number the backend will use).
 2. Describe *what happens*, not prose. Name characters and places explicitly. That is how the pipeline finds them in the database or creates new profiles. Example:
    > *Xiao Fan discovers a cultivation technique hidden in the Azure Cave. Practising it causes a spiritual explosion that draws Elder Wu and two inner disciples to investigate.*
-3. Press **▶ Generate Chapter**, `Ctrl+Enter` (in the textarea) or `Alt+G` (anywhere).
-4. Watch the 7 steps: Analyze Plot → Extract Entities → Build Profiles → Optimize Context → Prepare Model → Write Chapter (text streams in) → Summarize & Save. Newly discovered characters/locations pop up as tags and toasts, and they appear in the sidebars. A yellow ⚠ toast means a non-fatal problem in a step (e.g. a profile that couldn't be saved); the chapter still completes ([08 A13b](08-faq-and-troubleshooting.md)).
-5. When the run completes, the title and word count are filled in, the chapter is added to **HISTORY**, and the plot box clears.
-6. To stop a run, press **✕ Cancel** next to the Generate button (shown only while generating). The steps reset and a "Generation cancelled" toast appears. Nothing is saved unless the last step had already run. Character/location profiles created in step 3 stay.
+3. **@-mentions** (plan 019): type `@` and a few letters to pick an existing character (👤) or location (📍). **↑/↓** choose, **Enter** or **Tab** insert the exact name, **Esc** closes. A picked entity is sure to reach the writer with its full profile, even if the AI would have missed it.
+4. Press **▶ Generate Chapter**, `Ctrl+Enter` (in the textarea) or `Alt+G` (anywhere).
+5. Watch the steps: Analyze Plot → Extract Entities → Build Profiles → Optimize Context → Prepare Model → Write Chapter (text streams in). Newly discovered characters/locations pop up as tags and toasts, and they appear in the sidebars. A yellow ⚠ toast means a non-fatal problem in a step (e.g. a profile that couldn't be saved); the chapter still completes ([08 A13b](08-faq-and-troubleshooting.md)).
+6. **Review the draft** (the default since plan 019): the chapter opens in an editor, marked **Draft · Chapter N**, and step 7 waits.
+   - **Edit** the text directly. It is saved automatically about a second after you stop typing ("Saved"), and it is still there after a reload or a restart.
+   - **Rewrite with AI:** select a passage, type how it should change (e.g. *make the dialogue angrier*), press **Enter** or **✨ Rewrite selection**. Only the selection is replaced, and the new text stays selected. **↶ Undo rewrite** brings the old text back.
+   - **Title:** optional; leave it empty to let the AI suggest one.
+   - **✓ Approve & save** runs step 7 (summary, profile updates) and saves the chapter to **HISTORY**; the plot box clears. If the summary fails (e.g. Ollama stopped), the draft stays: approve again later.
+   - **🗑 Discard** deletes the draft. If the AI created new characters or locations for it, you are asked whether to delete them too. The plot stays in the box, so you can adjust it and generate again.
+   - Only one draft at a time: **Generate** with a draft waiting first asks to discard it.
+7. **Without review** (⚙ Settings → untick **Review each chapter as a draft before saving**): step 7 runs right after writing and the chapter is saved at once, as before plan 019. If step 7 fails, the chapter is kept as a draft anyway (KI-041).
+8. To stop a run, press **✕ Cancel** next to the Generate button (shown only while generating). The steps reset and a "Generation cancelled" toast appears. Nothing is saved while the text is still being written. A cancel during the summary keeps the written chapter as a draft. Character/location profiles created in step 3 stay.
 
 Tips:
 - First generation is slow while models load into VRAM. Within 5 minutes the writer stays warm.
 - One chapter is generated at a time. If another tab (or a script) is already generating, **Generate** shows "A chapter is already being generated. Wait for it to finish or cancel it." Closing the tab that started a generation also stops it.
 - If the plot clearly spans several chapters, you'll see a notice. Only the current chapter is written. Split the plot yourself.
 - Chapter quality depends heavily on the summaries of earlier chapters. Use a capable specialist model if summaries look poor.
-- There is no "regenerate" or "delete chapter" button. To redo the last chapter, delete `data/chapters/NNN.json` while the server runs, reload the page, and generate again.
+- To redo a chapter before it is saved, discard its draft and generate again (the plot stays in the box). There is no "regenerate" or "delete chapter" button for saved chapters. To redo the last saved chapter, delete `data/chapters/NNN.json` while the server runs, reload the page, and generate again.
 
 ### 5.3 Characters
 
@@ -150,7 +158,8 @@ Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (
 
 ### 5.6 Reading and exporting
 
-- Click a **HISTORY** pill to load a chapter. **⛶ Full View** opens a distraction-free reader with featured characters/locations (shown as slugs).
+- Click a **HISTORY** pill to load a chapter (while a draft waits, the chapter opens in the Full View instead, so the draft stays put). **⛶ Full View** opens a distraction-free reader with featured characters/locations (shown as slugs). In draft mode it shows the draft.
+- **Prompt used** (plan 019): the Full View has a collapsed box with the plot the chapter was written from. **↺ Use this prompt again** copies it into the plot box.
 - **📤 Export → .txt / .md** downloads the whole novel in chapter order. Nothing is written into `data/` (since plan 015), and any title works: characters not allowed in file names become `_` in the download name.
 
 ### 5.7 Keyboard shortcuts
@@ -164,12 +173,14 @@ Same as characters: the **Scene Build** tab, sidebar cards, **+ New Location** (
 | `Alt+W` | World settings modal |
 | `Escape` | Close the open modal |
 | `Enter` / `,` in a tag field | Add tag |
+| `@` in the plot box, then `↑`/`↓`, `Enter`/`Tab`, `Esc` | Pick a character or location to insert (plan 019) |
+| `Enter` in the draft's rewrite instruction box | Rewrite the selected draft text (plan 019) |
 
 The `Alt` shortcuts work with Caps Lock on or Shift held (since plan 013, KI-032).
 
 ## 6. Backup, reset and multiple novels
 
-- **Everything is in `data/`.** Back up by copying the folder while the server is stopped.
+- **Everything is in `data/`.** Back up by copying the folder while the server is stopped. A chapter waiting for review is `data/draft.json` (plan 019); it is part of the backup too.
 - **Git does not back it up.** `data/` is git-ignored since plan 017 (KI-030), so a commit or a fresh clone never includes your novel. Keep your own copies.
 - **Start a new novel:** stop the server, move `data/` somewhere else (e.g. `data_my_first_novel/`), and start again. The managers recreate empty folders and the defaults.
 - **Switch novels:** stop the server, swap folder names, start again.
@@ -202,10 +213,11 @@ py -m pytest app/tests
 py -m ruff check app
 ```
 
-- **What the tests cover:** they need no Ollama (a fake `ollama` module records the calls) and never touch `data/`. Every manager is pointed at a temp folder, and the run fails if the real `data/` changed.
+- **What the tests cover:** they need no Ollama (a fake `ollama` module records the calls) and never touch `data/`. Every manager is pointed at a temp folder, and the run fails if the real `data/` changed (also a file created and deleted again, plan 019).
   - `test_api.py`: CRUD, slugs and host checks, export, model list and pull.
   - `test_storage.py`: atomic writes and logged skips.
-  - `test_pipeline.py`: a full generation with the fake, including the `keep_alive` choreography.
+  - `test_pipeline.py`: a full generation with the fake, including the `keep_alive` choreography, review mode, a failed step 7 keeping the draft (KI-041) and @-tags.
+  - `test_draft.py`: the draft routes (edit, discard, rewrite, approve), the one-job-at-a-time guard and the `review_drafts` setting (plan 019).
   - `test_helpers.py`: Ollama address parsing, export names, model coercion.
 - **Lint:** ruff checks for real bugs (undefined names, unused imports, syntax that the minimum Python 3.11 can't parse); the rules are pinned in `app/pyproject.toml`.
 - **CI** (`.github/workflows/ci.yml`) runs lint, tests and `node --check app/frontend/app.js` on Ubuntu and Windows with Python 3.11 and 3.14.

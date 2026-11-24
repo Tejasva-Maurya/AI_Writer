@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019). **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -38,8 +38,12 @@ Contents
 | `Scene` | `name` (req), `slug` (**req**), `scene_type=""`, `description=""`, `atmosphere=""`, `textures=""`, `known_inhabitants: List[str]=[]`, `significance=""`, `first_appeared_chapter: int=1`, `micro_summary=""` | Same coercion and `validate_assignment` as `Character`. |
 | `WorldSettings` | `world_name=""`, `genre_tags=[]`, `magic_system=""`, `cultivation_system=""`, `professions=[]`, `hierarchy_levels=[]`, `factions=[]`, `rules_of_the_world=""`, `lore_notes=""` | All optional. Text and list fields are coerced like `Character`'s. |
 | `Chapter` | `chapter_number: int` (req), `title=""`, `plot_input=""`, `full_text=""`, `micro_summary=""`, `short_summary=""`, `full_summary=""`, `characters_featured: List[str]=[]` (slugs), `scenes_featured: List[str]=[]` (slugs), `word_count: int=0`, `created_at=""` (ISO string) | |
-| `NovelMeta` | `title="Untitled Novel"`, `genre=""`, `author=""`, `total_chapters: int=0`, `writer_model="gemma3:12b"`, `specialist_model="phi4-mini:3.8b"`, `created_at=""` | `created_at` is never set by any code path. |
-| `GenerateChapterRequest` | `plot: str`, `chapter_number: Optional[int]=None` | |
+| `NovelMeta` | `title="Untitled Novel"`, `genre=""`, `author=""`, `total_chapters: int=0`, `writer_model="gemma3:12b"`, `specialist_model="phi4-mini:3.8b"`, `created_at=""`, `review_drafts: bool=True` | `created_at` is never set by any code path. `review_drafts` (plan 019) is the UI's "Review each chapter as a draft" setting; the UI sends it as `review` with each generation. |
+| `Draft` | `chapter_number: int` (req), `plot_input=""`, `full_text=""`, `title=""`, `characters_featured: List[str]=[]`, `scenes_featured: List[str]=[]`, `new_characters: List[str]=[]`, `new_scenes: List[str]=[]` (slugs step 3 created), `created_at=""`, `updated_at=""` | The chapter waiting for review, `data/draft.json` (plan 019). `title` empty = the specialist suggests one at approval. |
+| `GenerateChapterRequest` | `plot: str`, `chapter_number: Optional[int]=None`, `review: bool=False`, `tagged_characters: List[str]=[]`, `tagged_scenes: List[str]=[]` | `review` stops after step 6 with a draft; the tags are slugs picked with `@` (plan 019). |
+| `UpdateDraftRequest` | `full_text: str`, `title=""` | `PUT /api/draft` (plan 019). |
+| `RewriteRequest` | `before=""`, `passage: str`, `after=""`, `instruction: str` | `POST /api/draft/rewrite`. Text pieces, not offsets: JS selection offsets count UTF-16 units, Python indexes code points (plan 019). |
+| `ApproveDraftRequest` | `full_text: Optional[str]=None`, `title: Optional[str]=None` | `POST /api/draft/approve`; `None` keeps the saved value (plan 019). |
 | `UpdateCharacterRequest` | `character: Character` | Used for both POST and PUT. |
 | `UpdateSceneRequest` | `scene: Scene` | |
 | `UpdateWorldRequest` | `settings: WorldSettings` | |
@@ -61,9 +65,10 @@ Contents
 | Scene routes | 109-139 | Mirror of the character routes. |
 | World routes | 143-151 | `GET` load, `PUT` save (full replace). |
 | Chapter routes | 155-166 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
-| `_generation`, `_CANCELLED_EVENT`, `_generation_running()` | 171-177 | Holder of the one running generation task (`{"task": None}` until the first run), the SSE line sent when it is cancelled, and "is it still running" (plan 010, KI-031). |
-| `generate_chapter` | 180-217 | **409** if a generation is running. Otherwise runs `run_pipeline` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
-| `cancel_generation()` `POST /api/generate-chapter/cancel` | 220-227 | Cancels the running task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. |
+| `_generation`, `_job`, `_CANCELLED_EVENT`, `_JOB_BUSY`, `_generation_running()`, `_busy_reason()` | after the chapter routes | Holder of the one running generation task (`{"task": None}` until the first run), the kind of LLM job running outside it (`"approve"`/`"rewrite"`, plan 019), the SSE line sent when a generation is cancelled, and the 409 message for the current job, or `None` when idle (plan 010, KI-031; one LLM job at a time since plan 019). |
+| `generate_chapter` | | **409** while any LLM job runs, or while a draft waits (plan 019). Otherwise runs `run_pipeline(…, review, tagged_characters, tagged_scenes)` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
+| `cancel_generation()` `POST /api/generate-chapter/cancel` | | Cancels the running generation task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. Approve and rewrite can't be cancelled. |
+| Draft routes (plan 019) | `── DRAFT` section | `_require_draft()` (**404** "No draft is waiting for review"). `get_draft` → the draft or `null`. `update_draft` saves `full_text` and the stripped `title` (**409** during an approval). `delete_draft` (**409** during an approval, **404** if none). `rewrite_draft_passage` (**409** busy, **404**, **422** empty passage or instruction; sets `_job` to `"rewrite"` around `writer.revise_passage`; **500** if the writer fails or returns nothing) → `{"replacement"}`. `approve_draft` (**409** busy, **404**, **422** empty text; saves the sent text and title, sets `_job` to `"approve"` around `finalize_chapter`; **500** keeps the draft) → `{"chapter", "warnings"}`, warnings logged. See 02-W11. |
 | Novel-meta routes | 231-239 | `GET` load, `PUT` save (full replace). |
 | `_export_filename(title, fmt)` | 243-248 | Download name: spaces and Windows-forbidden characters → `_`, trailing dots/spaces dropped, `novel` if no letter or digit is left (plan 015, KI-017). |
 | `export_novel(fmt)` | 251-274 | `txt`/`md` only (400 otherwise). Returns the text from memory (`Response`, `Content-Disposition: attachment` built like `FileResponse`'s); writes nothing to disk (plan 015, KI-017; before, it wrote into `data/`). |
@@ -80,7 +85,7 @@ Contents
 
 ### 2.3 `app/backend/managers/*`
 
-All five managers follow the same pattern. Directories are created lazily by `ensure_dir()` (characters, scenes, chapters) or by `storage.write_json` (for world/meta). Every write and every listing goes through `managers/storage.py` (plan 016, KI-026).
+All six managers follow the same pattern. Directories are created lazily by `ensure_dir()` (characters, scenes, chapters) or by `storage.write_json` (for world/meta/draft). Every write and every listing goes through `managers/storage.py` (plan 016, KI-026).
 
 | Module | Functions | Details |
 |---|---|---|
@@ -89,6 +94,7 @@ All five managers follow the same pattern. Directories are created lazily by `en
 | `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips and logs bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
 | `world_manager` | `load() -> WorldSettings` (defaults if missing), `save(settings)` | `data/world_settings.json` |
 | `novel_meta_manager` | `load() -> NovelMeta`, `save(meta)` | `data/novel_meta.json` |
+| `draft_manager` | `load() -> Optional[Draft]` (`None` if missing; an unreadable or invalid file is logged and treated as no draft, so it can't block every generation), `save(draft)`, `delete() -> bool` | `data/draft.json`: one chapter waiting for review (plan 019). Written after step 6, deleted as the last action of step 7 or on discard. |
 | `storage` | `write_json(path, data, *, exclusive=False)`, `read_all(folder, label, build)` | The managers' shared file helpers (plan 016, KI-026); see below. |
 
 **Writes are atomic** (plan 016, KI-026). `write_json` serialises first (UTF-8, `indent=2`, the same bytes as before), writes a temp file `.<stem>.<random>.tmp` in the same folder, `fsync`s it, then moves it into place.
@@ -123,6 +129,12 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`. All fu
   - `ollama.AsyncClient().chat(..., stream=True, keep_alive=300, options={"num_ctx": 32768, "temperature": 0.8, "top_p": 0.9})`.
   - Yields `("token", chunk.message.content)` for each non-empty chunk. Any exception → yields `("error", str(e))` once.
 - `import ollama` is guarded like the specialist's (`try/except ImportError` → `ollama = None`), so the server starts without the package. `stream_chapter` then yields one `("error", "ollama Python package not installed: …")` and stops. (Unguarded in v1.0.0: KI-003, fixed in plan 005.)
+- `REVISE_SYSTEM`: "master light novel editor" persona (plan 019). Rewrite one marked passage by the author's instruction; keep style, tense, point of view and names; fit between the surrounding text; output only the new passage.
+- `async def revise_passage(before, passage, after, instruction, plot, model) -> str` (plan 019, `POST /api/draft/rewrite`):
+  - User prompt = `CHAPTER PLOT`, `=== TEXT BEFORE THE PASSAGE ===` (the last 12,000 characters of `before`), `=== PASSAGE TO REWRITE ===`, `=== TEXT AFTER THE PASSAGE ===` (the first 6,000 characters of `after`), `=== AUTHOR'S INSTRUCTION ===`.
+  - `ollama.AsyncClient().chat(..., keep_alive=300, options={"num_ctx": 32768, "temperature": 0.7, "top_p": 0.9})`, not streamed. Same context as the writer, so the chapter isn't cut by Ollama's small default context.
+  - The reply is stripped and a surrounding ``` fence (with an optional language tag) is removed (`_clean_passage`).
+  - Raises on failure, including `RuntimeError` when `ollama` is missing. The route turns that into a 500, so an error text never replaces chapter text.
 
 ### 2.6 `app/backend/pipeline/context_builder.py`
 
@@ -164,8 +176,16 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
 
 `_canonical_entities(entries, existing, make_slug)` (plan 007, KI-009) post-processes the step-2 result for characters and scenes: an entry whose slug or name normalises (`make_slug`) to an existing entity's slug or name becomes `existing` with that entity's **real** slug; anything else becomes `new` with `slug = make_slug(name)`. Non-dict entries, entries without a usable name, and repeats are dropped. Step 3 then saves each profile under `make_slug(profile name)`, never the LLM's slug.
 
+`_apply_tags(resolved, tagged, existing, importance)` (plan 019) runs after `_canonical_entities`: each tagged slug that exists becomes `existing` with `importance` (`"primary"` for characters, `"main"` for scenes), added to the list if the specialist missed it; unknown or non-string slugs are logged at INFO and ignored.
+
 - `_sse(event_type, **kwargs) -> str` → `f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"`. `warning` and `error` events are also written to the server log (errors with their traceback detail; plan 016).
-- `async def run_pipeline(plot, chapter_number, novel_meta) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy).
+- `async def run_pipeline(plot, chapter_number, novel_meta, review=False, tagged_characters=None, tagged_scenes=None) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy). After step 6 it saves a `Draft`; with `review` it then emits `draft_complete` and returns, otherwise it calls `finalize_chapter`.
+- `async def finalize_chapter(draft, spec_model) -> Tuple[Chapter, List[str]]` (plan 019) is step 7 for a draft, shared by the one-click pipeline and `POST /api/draft/approve`.
+  1. Reads characters and scenes from disk.
+  2. Awaits `post_write_update` (its only `await`). If that raises, the draft stays (KI-041).
+  3. Saves the chapter (the draft's title wins over the suggested one) and applies the validated character, scene and meta updates. These run without pausing, so a cancel can't stop them halfway.
+  4. Deletes the draft last.
+  5. Returns the chapter and the warning messages; the caller emits or logs them.
 - Local data structures:
   - `resolved_chars` / `resolved_scenes`: lists of `{name, slug, status, importance}` taken from the LLM as-is.
   - `chars_dict` / `scenes_dict`: `{slug: model}` after the step-3 reload.
@@ -189,7 +209,13 @@ All specialist calls use the system message "…Output ONLY valid JSON…" and a
 
 Prompt-engineering notes:
 - Low temperature (0.1) plus explicit templates. The models used are small, so output may be partial or contain invalid enum values. Every consumer uses `.get()` with defaults.
-- No JSON-mode / `format="json"` option is passed to Ollama, although Ollama supports it. This is a candidate improvement.
+- Every specialist call passes `format="json"` (Ollama's JSON mode, since plan 009).
+
+Writer prompts (plain text, not JSON):
+| Call | Output | Notes |
+|---|---|---|
+| `stream_chapter` | ~2000 words of prose, streamed | `WRITER_SYSTEM` + master prompt + writing task (§2.5) |
+| `revise_passage` (plan 019) | only the replacement passage | `REVISE_SYSTEM` + plot + text before / passage / text after + instruction (§2.5). Temperature 0.7 (writer: 0.8) |
 
 ## 4. Frontend
 
@@ -197,8 +223,8 @@ Prompt-engineering notes:
 
 | File | Structure |
 |---|---|
-| `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, pipeline panel with 7 steps, output panel, multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings`, `modal-chapter`, `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
-| `app.js` | One global script, no modules. Sections in order: state → DOM cache → init → API helpers → loaders/renderers (meta, characters, scenes, world, chapters) → chapter view → `generateChapter` → SSE parser → pipeline UI → character modal → scene modal → world modal → settings modal → chapter view modal → export → modal system → tag input → relationship editor → title edit → toasts → `escHtml` → static bindings → keyboard shortcuts → connection check → boot → **mode switcher** → world snapshot → existing-entity dropdowns → refine (char/scene/world) → **model browser** → second `DOMContentLoaded`. The part from "mode switcher" on was evidently appended later; it is a separate binding block. |
+| `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, the plot panel holding the `#mention-list` listbox for @-mentions, pipeline panel with 7 steps, output panel with the reading area `#output-body` and the draft panel `#draft-panel` (editor, rewrite row, selection hint, title, Discard, Approve; plan 019), multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings` (with the **Review each chapter as a draft** checkbox), `modal-chapter` (with the **Prompt used** `<details>`), `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
+| `app.js` | One global script, no modules. Sections in order: state → DOM cache → init → API helpers → loaders/renderers (meta, characters, scenes, world, chapters) → chapter view → `generateChapter` → **draft review** (plan 019) → SSE parser → pipeline UI → character modal → scene modal → world modal → settings modal → chapter view modal → export → modal system → tag input → relationship editor → title edit → toasts → `escHtml` → static bindings → keyboard shortcuts → connection check → boot → **mode switcher** → world snapshot → existing-entity dropdowns → refine (char/scene/world) → **model browser** → second `DOMContentLoaded` → **@-mentions** (plan 019). The part from "mode switcher" on was evidently appended later; it is a separate binding block. |
 | `fonts/` | `fonts.css` (27 `@font-face` rules for Cinzel, Crimson Pro and JetBrains Mono, all subsets, `src` under `/static/fonts/`), the 14 woff2 files they point to, and the three SIL OFL licences. Linked first in `index.html`; served by the `/static` mount. Regeneration steps are in the `fonts.css` header (plan 014, KI-034). |
 | `style.css` | Sections: fonts (a pointer to `fonts/fonts.css`; the Google `@import` was removed in plan 014), `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser, responsive layout. The responsive section (plan 017, KI-035) holds the only `@media` queries, at 1200, 900 and 600 px (§4.7). |
 
@@ -207,9 +233,11 @@ Prompt-engineering notes:
 ```js
 state = {
   characters: [], scenes: [], world: {}, chapters: [], novelMeta: {},
-  currentChapter: null,      // full Chapter from GET /chapters/{n}, or {chapter_number,title,word_count,characters_featured,scenes_featured} after generation
+  currentChapter: null,      // full Chapter from GET /chapters/{n} or approval, or {chapter_number,title,word_count,characters_featured,scenes_featured,plot_input} after a one-click generation
+  draft: null,               // the Draft waiting for review (GET /api/draft), null when none (plan 019)
   isGenerating: false,       // this tab's lock; the server also allows only one generation (409, plan 010)
   activeModal: null,         // id of the open modal overlay
+  _mentions: [],             // entities picked with @ in the plot box: {kind: 'character'|'scene', slug, name} (plan 019)
   _abilities, _habits, _inhabitants, _genreTags, _professions, _hierarchy, _factions: [],  // tag-input stores
   _relationships: {},        // relationship editor store
   _profileContext: null,     // {type, slug} of the profile modal
@@ -226,10 +254,11 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 |---|---|---|
 | `apiGet(path)` | parsed JSON | throws `GET … failed: status` |
 | `apiPost(path, body)` | parsed JSON | throws with response text |
-| `apiPut(path, body)` | parsed JSON | throws with response text |
+| `apiPut(path, body, options={})` | parsed JSON | throws with response text. `options.keepalive` lets the request finish while the page closes (the draft's last autosave, plan 019) |
 | `apiDelete(path)` | parsed JSON | throws |
 
 > All four helpers return parsed JSON and throw on a non-2xx status, so callers don't check `res.ok`. In v1.0.0 `apiPost` returned the raw `Response`, which caused KI-002 (fixed by plan 003). `generateChapter` and `pullModel` call `fetch` directly, because they read an SSE stream.
+> Since plan 019 the thrown `Error` (built by `apiError`) also carries `status` (the HTTP status) and `detail` (the server's `detail` message when it is a string); `errorText(e)` returns `detail`, or the message, for toasts. The messages themselves are unchanged.
 
 ### 4.4 Function catalogue
 
@@ -237,12 +266,14 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 |---|---|
 | Boot | `init`, `checkConnection`, `bindStaticEvents`, `bindModeTabs` |
 | Loaders / renderers | `loadNovelMeta`/`renderNovelMeta`, `loadCharacters`/`renderCharacters`, `loadScenes`/`renderScenes`, `loadWorld`, `loadChapters`/`renderChapterHistory`/`updateChapterHint`/`nextChapterNumber` (highest `chapter_number` + 1, the backend's rule), `renderCardList`, `createEntityCard` |
-| Chapter output | `viewChapter`, `showChapterOutput`, `formatChapterText` (splits on `\n\n+`, one `<p>` per paragraph via `textContent`) |
+| Chapter output | `viewChapter` (opens the Full View instead while a draft waits), `showChapterOutput`, `formatChapterText` (splits on `\n\n+`, one `<p>` per paragraph via `textContent`) |
+| Draft review (plan 019) | `loadDraft` (`GET /api/draft`; opens a draft, toast if it was not shown), `showDraft`, `hideDraft`, `setDraftSaveStatus`, `setDraftBusy` (read-only editor and disabled controls while the AI works), `updateDraftCounts` (word count + selection hint), `draftBody`, `scheduleDraftSave` (1 s debounce), `saveDraftNow` (chained `PUT /api/draft`), `rewriteSelection` (`POST /api/draft/rewrite` with `before/passage/after`, `setRangeText(…, 'select')`), `undoRewrite` (stack of `{before, after}`), `discardDraft(question?)` (`DELETE /api/draft`, then offers to delete the profiles the draft created; returns whether no draft is left), `approveDraft` (`POST /api/draft/approve`), `showAwaitingApproval`, `showApprovalStep`, `draftAsChapter` (the draft for the Full View), `bindDraftEvents`, `countWords` |
+| @-mentions (plan 019) | `initMentions`, `mentionCandidates(query)` (starts-with, then word-starts-with, then contains; max 8), `updateMentions` (`MENTION_RE`, Unicode-aware), `renderMentions` (escaped), `placeMentions` + `caretPosition` (mirror element), `pickMention`, `closeMentions`, `taggedEntities(plot)` (slugs still named in the plot and still existing) |
 | Generation | `generateChapter` (its SSE handler map shows `warning` events as warning toasts, plan 009, KI-018; a cancelled `error` resets the steps and shows an info toast; a non-2xx response shows the server's `detail`, e.g. the 409, plan 010), `cancelGeneration` (posts `/generate-chapter/cancel`; the button is shown only while generating), `parseSSEStream` (buffered line splitting, ignores malformed lines and `[DONE]`), `resetPipeline` (also cancels the pending fade and clears the previous run's opacity and red step styles, plan 011, KI-024), `activatePipelineStep`, `completePipelineStep`, `completePipeline` (fades the panel to 0.4 opacity after 2 s; the timer id is kept in `_pipelineFadeTimer`), `updateProgress`, `setStepError` (inline red border/background on the active step), `addNewEntityTag` |
 | Character | `openCharacterModal(slug?)`, `saveCharacter` (create sends `slug: ''` and the server derives it; edit sends `{...existing, ...form}` so the fields the modal doesn't show are kept), `deleteCharacter`, `viewCharacterProfile` |
 | Scene | `openSceneModal(slug?)`, `saveScene` (same payload rules as `saveCharacter`), `deleteScene`, `viewSceneProfile` |
 | World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal` (fills the model selects from `state.novelMeta`, then `loadModels()` → `populateModelSelects` + `renderModelBrowser`), `saveSettings` (sends `{...state.novelMeta, …form}`; an empty select keeps the stored model), `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
-| Chapter modal | `openChapterViewModal` |
+| Chapter modal | `openChapterViewModal(ch = state.currentChapter)` (a draft or a history chapter can be passed; fills the **Prompt used** box from `plot_input`), `reusePrompt` (plan 019) |
 | Export | `exportNovel(format)` |
 | Modal system | `openModal(id)` (closes any other open modal, locks body scroll, focuses the first input), `closeModal(id)` |
 | Components | `initTagInput(inputId, displayId, initialTags, stateKey)` (Enter or `,` adds a tag, Backspace on empty input removes the last; the input is cloned to drop old listeners), `renderTags`, `renderRelationships` |
@@ -262,6 +293,11 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Click on an overlay background, `.modal-close`, or `.btn-cancel[data-modal]` | delegated on `document` | Close modal |
 | Click anywhere | `document` | Close the export dropdown |
 | `#btn-settings` click | `bindStaticEvents` | `openSettingsModal` (which also loads the models; the old second listener was removed in plan 006) |
+| `@` in `#plot-input`, then `↑`/`↓`, `Enter`/`Tab`, `Esc`, click | `initMentions` | Open, move in, insert from, close the @-mention list (plan 019). Only while the list is open; `Ctrl`/`Alt` combinations pass through, so `Ctrl+Enter` still generates |
+| `Enter` in `#draft-instruction`, `#btn-draft-rewrite` | `bindDraftEvents` | `rewriteSelection()` (plan 019) |
+| Typing in `#draft-editor` / `#draft-title` | `bindDraftEvents` | Autosave after 1 s; `pagehide` sends a pending change with `keepalive` |
+| `#btn-draft-undo`, `#btn-draft-discard`, `#btn-draft-approve` | `bindDraftEvents` | `undoRewrite`, `discardDraft`, `approveDraft` |
+| `#btn-view-full`, `#btn-reuse-prompt` | `bindStaticEvents` | Full View of the chapter or the draft; `reusePrompt` |
 
 ### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:491-527`)
 
@@ -299,15 +335,15 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 | Managers | Reads of single items raise on corrupt JSON. `get_all()` skips a file it can't read and logs a warning naming it. Writes are atomic (plan 016). | A skipped file is visible only in the server console, not in the UI. |
 | Specialist | Never raises on bad JSON (`{}`); raises on transport errors. | Type errors surface later in the pipeline. |
 | Writer | Converts any exception into an `error` tuple. | — |
-| Pipeline | Global try/except → `error` SSE with traceback. | Partial writes (step-3 profiles) are not rolled back. |
-| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
+| Pipeline | Global try/except → `error` SSE with traceback. The written chapter is saved as a draft before step 7, and a step-7 failure keeps it (`error.draft_saved`, plan 019, KI-041). | Partial writes (step-3 profiles) are not rolled back; discarding a draft offers to delete them. |
+| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Since plan 019 also from generate, approve and rewrite while another LLM job runs, from generate while a draft waits, and from draft edit/discard during an approval. Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
 | Frontend | try/catch around each action → toast. Loaders fall back to empty state. A cancelled generation is an info toast, not an error (plan 010). | Errors go only to toasts and `console.error`. (`warning` SSE events are shown since plan 009; the pipeline panel's fade and error styles are reset at each run since plan 011.) |
 
 **Logging** (plan 016, KI-025): `main.py` sets up console logging at INFO.
 - **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
 - **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
 
-**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes. Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 
@@ -315,7 +351,6 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 |---|---|
 | `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
 | `chapter_manager.get_recent_n` | `chapter_manager.py:45` |
-| `featured_scene_slugs` alias | `chapter_pipeline.py:214` |
 | `/static` mount | `main.py:52-53` |
-| `state._profileContext` (written, never read) | `app.js` |
+| `state._profileContext` (written, never read), `state.activeMode` (written, never read) | `app.js` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |

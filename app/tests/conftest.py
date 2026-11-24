@@ -19,13 +19,16 @@ sys.path.insert(0, str(BACKEND))
 # ── Fake ollama ────────────────────────────────────────────────
 class FakeOllama:
     """Records every call as (kind, model, keep_alive). Non-streamed chat replies come from `json_replies`
-    (in order, then `default_json`); a streamed chat yields `chunks`."""
+    (in order, then `default_json`; an exception in the list is raised instead); a streamed chat yields `chunks`.
+    `chat_options` keeps the `options` of every non-streamed chat, `chat_messages` its messages."""
 
     def __init__(self):
         self.reset()
 
     def reset(self):
         self.calls = []
+        self.chat_options = []
+        self.chat_messages = []
         self.json_replies = []
         self.default_json = {}
         self.chunks = ["The storm broke over the lab.", "\n\nXiao Fan looked up."]
@@ -33,6 +36,8 @@ class FakeOllama:
 
     def next_reply(self) -> str:
         reply = self.json_replies.pop(0) if self.json_replies else self.default_json
+        if isinstance(reply, BaseException):
+            raise reply
         return reply if isinstance(reply, str) else json.dumps(reply)
 
 
@@ -60,6 +65,8 @@ class _AsyncClient:
                 for chunk in FAKE.chunks:
                     yield _Response(chunk)
             return tokens()
+        FAKE.chat_options.append(kwargs.get("options"))
+        FAKE.chat_messages.append(messages)
         return _Response(FAKE.next_reply())
 
     async def generate(self, model=None, keep_alive=None, **kwargs):
@@ -75,9 +82,15 @@ sys.modules["ollama"] = _fake_module  # must happen before the agents are import
 
 # ── Fixtures ───────────────────────────────────────────────────
 def _snapshot(folder: Path) -> dict:
+    """Files by size and mtime, folders by mtime: a file created and deleted again during the run changes its folder's
+    mtime, so a manager missing from data_dir is caught even when it cleans up after itself (plan 019)."""
     if not folder.exists():
         return {}
-    return {str(p.relative_to(folder)): (p.stat().st_size, p.stat().st_mtime_ns) for p in folder.rglob("*") if p.is_file()}
+    snap = {".": ("dir", folder.stat().st_mtime_ns)}
+    for p in folder.rglob("*"):
+        stat = p.stat()
+        snap[str(p.relative_to(folder))] = (stat.st_size, stat.st_mtime_ns) if p.is_file() else ("dir", stat.st_mtime_ns)
+    return snap
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -91,7 +104,8 @@ def real_data_untouched():
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
     """Point every manager at an empty temp data folder (add new managers here)."""
-    from managers import chapter_manager, character_manager, novel_meta_manager, scene_manager, world_manager
+    from managers import (chapter_manager, character_manager, draft_manager, novel_meta_manager, scene_manager,
+                          world_manager)
 
     root = tmp_path / "data"
     monkeypatch.setattr(character_manager, "_data_dir", lambda: root / "characters")
@@ -99,6 +113,7 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(chapter_manager, "_data_dir", lambda: root / "chapters")
     monkeypatch.setattr(world_manager, "_path", lambda: root / "world_settings.json")
     monkeypatch.setattr(novel_meta_manager, "_path", lambda: root / "novel_meta.json")
+    monkeypatch.setattr(draft_manager, "_path", lambda: root / "draft.json")
     FAKE.reset()
     return root
 
@@ -116,9 +131,11 @@ def client():
     import main
 
     main._generation["task"] = None
+    main._job["kind"] = None
     with TestClient(main.app, base_url="http://127.0.0.1") as test_client:
         yield test_client
     main._generation["task"] = None
+    main._job["kind"] = None
 
 
 def sse_events(body: str) -> list:

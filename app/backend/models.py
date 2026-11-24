@@ -147,11 +147,47 @@ class NovelMeta(BaseModel):
     writer_model: str = "gemma3:12b"
     specialist_model: str = "phi4-mini:3.8b"
     created_at: str = ""
+    review_drafts: bool = True  # the UI generates drafts to review before saving (plan 019)
+
+
+class Draft(BaseModel):
+    """A written chapter waiting for review: data/draft.json, one at a time (plan 019). Approving it runs step 7."""
+    chapter_number: int
+    plot_input: str = ""
+    full_text: str = ""
+    title: str = ""  # optional title from the author; empty = the specialist suggests one
+    characters_featured: List[str] = Field(default_factory=list)
+    scenes_featured: List[str] = Field(default_factory=list)
+    new_characters: List[str] = Field(default_factory=list)  # slugs step 3 created for this draft
+    new_scenes: List[str] = Field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
 
 
 class GenerateChapterRequest(BaseModel):
     plot: str
     chapter_number: Optional[int] = None
+    review: bool = False  # True: stop after writing and keep the chapter as a draft (plan 019)
+    tagged_characters: List[str] = Field(default_factory=list)  # slugs picked with @ in the plot box
+    tagged_scenes: List[str] = Field(default_factory=list)
+
+
+class UpdateDraftRequest(BaseModel):
+    full_text: str
+    title: str = ""
+
+
+class RewriteRequest(BaseModel):
+    # The editor's text split around the selection. Sent as text, not offsets: JS counts UTF-16 units, Python code points
+    before: str = ""
+    passage: str
+    after: str = ""
+    instruction: str
+
+
+class ApproveDraftRequest(BaseModel):
+    full_text: Optional[str] = None  # the final text; None keeps the saved draft text
+    title: Optional[str] = None
 
 
 class UpdateCharacterRequest(BaseModel):

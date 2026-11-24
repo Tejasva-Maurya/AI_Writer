@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields). **Last verified against code:** 2026-11-24.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -26,8 +26,13 @@
 | PUT | `/api/world` | Replace world settings | `saveWorld` |
 | GET | `/api/chapters` | List chapters (no text) | `loadChapters` |
 | GET | `/api/chapters/{number}` | Get one chapter (with text) | `viewChapter`, `openChapterViewModal` |
-| POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline (one at a time) | `generateChapter` |
+| POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline (one at a time), or steps 1–6 into a draft | `generateChapter` |
 | POST | `/api/generate-chapter/cancel` | Stop the running generation | `cancelGeneration` |
+| GET | `/api/draft` | The chapter draft waiting for review, or `null` | `loadDraft` |
+| PUT | `/api/draft` | Save the draft's text and title | `saveDraftNow` (autosave) |
+| DELETE | `/api/draft` | Discard the draft | `discardDraft` |
+| POST | `/api/draft/rewrite` | LLM: rewrite a selected passage of the draft | `rewriteSelection` |
+| POST | `/api/draft/approve` | Run step 7 on the draft and save it as a chapter | `approveDraft` |
 | POST | `/api/refine/character` | LLM: description → character (create or merge) | `refineCharacter` |
 | POST | `/api/refine/scene` | LLM: description → scene (create or merge) | `refineScene` |
 | POST | `/api/refine/world` | LLM: description → merged world settings | `refineWorld` |
@@ -52,9 +57,9 @@ Character, scene and world bodies are **coerced** before validation (plan 009): 
 **200** `NovelMeta`:
 ```json
 {"title":"Untitled Novel","genre":"","author":"","total_chapters":1,
- "writer_model":"gemma3:12b","specialist_model":"phi4-mini:3.8b","created_at":""}
+ "writer_model":"gemma3:12b","specialist_model":"phi4-mini:3.8b","created_at":"","review_drafts":true}
 ```
-Returns model defaults if `data/novel_meta.json` is missing.
+Returns model defaults if `data/novel_meta.json` is missing. `review_drafts` (plan 019, default `true`) is the UI's "Review each chapter as a draft" setting; the server only stores it (the UI sends it as `review` when generating).
 
 ### `PUT /api/novel-meta`
 Body: `{"meta": NovelMeta}`. Omitted fields take **model defaults**: a body without `total_chapters` resets it to 0.
@@ -63,7 +68,7 @@ Body: `{"meta": NovelMeta}`. Omitted fields take **model defaults**: a body with
 ## Characters
 
 ### `GET /api/characters`
-**200** `Character[]` sorted by `name`. Files that fail to parse are skipped silently.
+**200** `Character[]` sorted by `name`. Files that fail to parse are skipped, and each skip is logged on the server console (plan 016).
 
 ### `POST /api/characters`
 Body: `{"character": Character}`. **`character.slug` is required by the schema** (send `""`). The server always stores `make_slug(slug or name)`: lowercase, punctuation removed, spaces/`-`/`_` → `_` (`"Elder Wu"` → `elder_wu`, `"Zz-Test-Two!"` → `zz_test_two`; letters of any script are kept, e.g. `林凡`). **422** `Character name must contain at least one letter or digit` if that is empty (KI-009/KI-038, plan 007).
@@ -107,11 +112,17 @@ Body: `{"settings": WorldSettings}` → **200** echoes settings. Full replace.
 ### `POST /api/generate-chapter` — **SSE**
 Body:
 ```json
-{"plot": "Xiao Fan discovers a hidden technique in the cave…", "chapter_number": 3}
+{"plot": "Xiao Fan discovers a hidden technique in the cave…", "chapter_number": 3,
+ "review": true, "tagged_characters": ["xiao_fan"], "tagged_scenes": ["azure_cave"]}
 ```
-`chapter_number` is optional (default: highest existing + 1). Passing an existing number **overwrites** that chapter.
+Only `plot` is required. Optional fields:
+- `chapter_number` (default: highest existing + 1). Passing an existing number **overwrites** that chapter.
+- `review` (default `false`, plan 019): stop after step 6, keep the chapter as the draft `data/draft.json`, and end with `draft_complete` instead of running step 7. Approve it with `POST /api/draft/approve`. Without `review` the pipeline runs to `complete` as before, but it also saves the draft after step 6 and deletes it in step 7. So if step 7 fails, the chapter is kept as a draft and the stream ends with `error` + `draft_saved: true` (KI-041).
+- `tagged_characters` / `tagged_scenes` (default `[]`, plan 019): slugs the author picked with `@`. Each one that exists is treated as an existing primary character / main location in step 2, so the writer gets its full profile. Unknown slugs are ignored.
 
-**One generation at a time** (plan 010, KI-031): while a generation runs, another request gets **409** `A chapter is already being generated. Wait for it to finish or cancel it.` The guard is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 7 already ran.
+**One LLM job at a time** (plan 010, KI-031; plan 019): while a generation, a draft approval or a rewrite runs, a request gets **409** (`A chapter is already being generated. Wait for it to finish or cancel it.`, or the approval/rewrite message). The guard for generations is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 6 finished (draft) or step 7 ran (chapter).
+
+**One draft at a time** (plan 019): while `data/draft.json` exists, a request gets **409** `A draft of chapter N is waiting for review. Approve or discard it first.`
 
 Response: `200`, `Content-Type: text/event-stream`, headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`.
 The body is a sequence of `data: {json}\n\n` lines. The full event contract is in [02 §W3.4](02-workflows.md#w34-sse-event-contract-backend--frontend). Example stream:
@@ -130,7 +141,12 @@ data: {"type": "token", "content": "Thunder rolled across"}
 data: {"type": "complete", "chapter_number": 3, "title": "The Hidden Scroll", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "micro_summary": "…"}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Only uncaught pipeline exceptions add `"detail": "traceback…"` (`chapter_pipeline.py:291`). Writer errors carry `message` only (`chapter_pipeline.py:205`). A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}` (`main.py:172`).
+With `"review": true` the stream ends after step 6 with:
+```text
+data: {"type": "draft_complete", "chapter_number": 3, "full_text": "Thunder rolled across…", "word_count": 2011,
+       "characters": ["xiao_fan"], "scenes": ["azure_cave"], "new_characters": ["elder_wu"], "new_scenes": []}
+```
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Uncaught pipeline exceptions and a failed step 7 add `"detail": "traceback…"`; a failed step 7 also adds `"draft_saved": true` (plan 019). Writer errors carry `message` only. A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}`.
 
 Consuming it from a shell:
 ```bash
@@ -139,7 +155,42 @@ curl -N -X POST http://127.0.0.1:8000/api/generate-chapter -H "Content-Type: app
 
 ### `POST /api/generate-chapter/cancel`
 No body. Cancels the running generation and waits up to 5 s for it to stop, so a new generation is accepted as soon as this returns (plan 010).
-**200** `{"cancelled": true}` if a generation was running, `{"cancelled": false}` if none was. The generation's own stream then ends with the cancelled `error` event above. Profiles already created in step 3 stay. The chapter is saved only in step 7, so a generation cancelled before that saves no chapter.
+**200** `{"cancelled": true}` if a generation was running, `{"cancelled": false}` if none was. The generation's own stream then ends with the cancelled `error` event above. Profiles already created in step 3 stay. A generation cancelled during steps 1–6 saves nothing; one cancelled during step 7 leaves the draft. Draft approvals and rewrites can't be cancelled.
+
+## Draft review (plan 019)
+
+A draft is a written chapter waiting for review, stored in `data/draft.json` (one at a time). `Draft`:
+```json
+{"chapter_number": 3, "plot_input": "…", "full_text": "…", "title": "",
+ "characters_featured": ["xiao_fan"], "scenes_featured": ["azure_cave"],
+ "new_characters": ["elder_wu"], "new_scenes": [], "created_at": "ISO", "updated_at": "ISO"}
+```
+`new_characters` / `new_scenes` are the profiles step 3 created for this draft (the UI offers to delete them on discard).
+
+### `GET /api/draft`
+**200** `Draft`, or **200** `null` when no draft waits (a normal state, not an error). An unreadable file is logged and treated as no draft.
+
+### `PUT /api/draft`
+Body: `{"full_text": "…", "title": "…"}` (`title` optional, stripped; empty = the specialist suggests one at approval). Saves both and `updated_at`.
+**200** `Draft` · **404** `No draft is waiting for review` · **409** while the draft is being approved.
+
+### `DELETE /api/draft`
+**200** `{"success": true}` · **404** if none · **409** while the draft is being approved. Profiles created in step 3 are not deleted.
+
+### `POST /api/draft/rewrite`
+Body: `{"before": "text before the selection", "passage": "the selection", "after": "text after it", "instruction": "make it angrier"}`. The editor sends the text pieces, not offsets (JavaScript and Python count string positions differently).
+Calls the **writer** model (`writer.revise_passage`, `num_ctx` 32768, `temperature` 0.7, `keep_alive` 300) with the draft's plot, the surrounding text and the instruction. Nothing is saved: the client applies the replacement and autosaves.
+**200** `{"replacement": "new passage"}` · **404** no draft · **409** while another LLM job runs · **422** `Select the passage to rewrite` / `Describe how the passage should change` · **500** `Rewrite failed: …` (Ollama error, or an empty reply).
+
+### `POST /api/draft/approve`
+Body: `{"full_text": "final text", "title": "optional"}`, both optional (`null` keeps the saved value).
+Saves them into the draft, then runs step 7 (`finalize_chapter`):
+1. Summarises the chapter with the specialist.
+2. Saves `data/chapters/NNN.json`.
+3. Updates the featured characters and locations and `total_chapters`.
+4. Deletes the draft.
+
+**200** `{"chapter": Chapter, "warnings": ["Could not update character 'x': …"]}` · **404** no draft · **409** while another LLM job runs · **422** `The draft is empty` · **500** `Could not finalize the chapter: … The draft is kept: approve it again to retry.` (the sent edits are kept).
 
 ## Refinement (LLM builders)
 

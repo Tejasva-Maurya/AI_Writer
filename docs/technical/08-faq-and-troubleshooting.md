@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts). **Last verified against code:** 2026-11-24.
 
 ## Part A — Troubleshooting
 
@@ -82,6 +82,19 @@ Only one chapter is generated at a time (since plan 010, KI-031). Another tab or
 - A script can call `POST /api/generate-chapter/cancel`.
 - Closing the tab that started it also stops it.
 - If no generation should be running, restart the server: the guard lives in memory.
+- The same applies while a draft is being approved or a passage rewritten ("The draft is being approved…" / "A passage is being rewritten…"): wait a moment (plan 019).
+
+### A16. My new chapter isn't in HISTORY / "A draft of chapter N is waiting for review"
+Since plan 019 a new chapter first opens as a **draft** (**Draft · Chapter N** in the output panel). It is saved to HISTORY only when you press **✓ Approve & save**.
+- **Approve** it, or **🗑 Discard** it, before generating the next chapter (one draft at a time). **Generate** offers to discard it for you.
+- The draft is on disk (`data/draft.json`): it is still there after a reload, a closed tab or a server restart.
+- To save chapters right away as before, untick **Review each chapter as a draft before saving** in ⚙ Settings.
+
+### A17. "Summary failed: … The chapter is kept as a draft" / "Could not approve the draft"
+The specialist couldn't summarise the chapter (usually Ollama stopped, or the specialist model isn't pulled; see A2). The written text is **not lost**: it stays as the draft (plan 019; before, it was lost, KI-041). Fix the cause, then press **✓ Approve & save** again.
+
+### A18. "Rewrite failed: …"
+The writer model couldn't rewrite the selection (Ollama not running, model not pulled, or out of memory: see A2/A4). The draft text is unchanged. "Select the passage to rewrite" or "Describe how the passage should change" means the selection or the instruction box was empty.
 
 ## Part B — FAQ
 
@@ -104,7 +117,7 @@ JSON extraction and summarisation don't need a big model. Prose quality does. Th
 Through tiered summaries: the last 400 words of the previous chapter, full summaries of the 3 before that, short summaries of the 4 before those, and one-line summaries of everything older. Plus profiles of the characters/locations involved. See [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy).
 
 **Can I regenerate or edit a chapter?**
-Not from the UI. You can edit `data/chapters/NNN.json` by hand (`full_text` and the summaries). To regenerate, call the API with an explicit `chapter_number` (it overwrites), or delete the file and generate again.
+Before it is saved, yes (plan 019): edit the draft directly, rewrite selected passages with AI, or discard it and generate again (the plot stays in the box, and **↺ Use this prompt again** in the Full View brings back an older one). After approval, not from the UI: you can edit `data/chapters/NNN.json` by hand (`full_text` and the summaries). To regenerate a saved chapter, call the API with an explicit `chapter_number` (it overwrites), or delete the file and generate again.
 
 **Can I write in another language?**
 Nothing prevents it. Write plots and profiles in that language and choose a model that handles it. The prompts themselves are English.
@@ -119,7 +132,7 @@ It is designed for one user on one machine. It binds to `127.0.0.1` and has no a
 Yes, since plan 017 (KI-035). Below 900 px the page becomes one scrolling column, with the writer first and the sidebars below. A phone or tablet can't reach the app, though: it only accepts connections from the same machine.
 
 **Is there an undo?**
-No. Back up `data/` regularly (copy the folder; see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). The app's own git repository ignores `data/` since plan 017 (KI-030), so it never saves your novel. For version history, make `data/` a separate private repository (`git init` inside it).
+Only for AI rewrites in a draft (**↶ Undo rewrite**, plan 019). Otherwise no. Back up `data/` regularly (copy the folder; see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). The app's own git repository ignores `data/` since plan 017 (KI-030), so it never saves your novel. For version history, make `data/` a separate private repository (`git init` inside it).
 
 **Where are logs?**
 Only the backend console window (uvicorn access log and Python tracebacks) and the browser DevTools console. There is no log file (KI-025).
