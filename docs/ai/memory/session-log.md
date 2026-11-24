@@ -202,4 +202,9 @@
     - Real Ollama: not verified.
   - Incident: the first test run (before `draft_manager` was in the fixture) created and deleted `data/draft.json` in the real `data/`. Every novel file stayed byte-identical (SHA-256); only the folder mtime changed. The guard now catches this.
 - **Plan:** 019 (done).
-- **Open threads:** Commit, push via the github-push skill and open the PR only after the user's go-ahead. Follow-ups are in plan 019 "Not included".
+- **Open threads:**
+  - Done on the user's go-ahead: pushed `feature/draft-review` through the github-push skill (`c40d494` on GitHub; tree identical to local).
+  - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/1 with the personal token; CI green on all 4 jobs.
+  - Rebase-merged it into `main` as `88c05c6` (author kept: Tejasva_Maurya).
+  - The `improvement` and `feature/draft-review` branches remain on GitHub.
+  - Follow-ups are in plan 019 "Not included".
