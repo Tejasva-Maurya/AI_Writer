@@ -16,7 +16,7 @@
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 001–019 are done; no active plan. Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both `improvement` and `feature/draft-review` still exist on GitHub (deleting them is the user's call).
+- Plans 001–019 are done; no active plan. Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
 - PRs: push the branch with the github-push skill, then open and merge the PR with `GH_TOKEN="$GH_PUSH_TOKEN" gh pr …`, so the personal account (not `gh`'s work login) is the PR author. Auto-fix can't be enabled for such PRs, because `gh` is signed in as the work account.
 - New since plan 019: `data/draft.json` (one draft at a time, `draft_manager`), `/api/draft*` routes, SSE `draft_complete`, `novel_meta.review_drafts` (default on).
 - CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.

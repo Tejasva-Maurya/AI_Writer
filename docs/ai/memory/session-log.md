@@ -206,5 +206,5 @@
   - Done on the user's go-ahead: pushed `feature/draft-review` through the github-push skill (`c40d494` on GitHub; tree identical to local).
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/1 with the personal token; CI green on all 4 jobs.
   - Rebase-merged it into `main` as `88c05c6` (author kept: Tejasva_Maurya).
-  - The `improvement` and `feature/draft-review` branches remain on GitHub.
+  - Both branches were then deleted at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token; the local `feature/draft-review` too). It was checked first that `feature/draft-review` was fully merged. `improvement` held the only copy of a generated chapter 1; the user declined a backup.
   - Follow-ups are in plan 019 "Not included".
