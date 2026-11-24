@@ -165,4 +165,14 @@
   - ruff found KI-040 (a 3.11 syntax error from plan 015) and five unused imports; all fixed.
   - Verified: 71 passed and ruff clean (pytest 9.2.0, ruff 0.17.6 in a temp folder). A naive-writer mutation fails 3 storage tests. Old vs new crash demo: old left a half-written character file that `get_all()` dropped silently; new kept it intact. The corrupt-file warning shows in the server console.
 - **Plan:** 016 (done).
-- **Open threads:** Not committed yet. CI is not run until pushed; the push needs the token's Workflows permission.
+- **Open threads:** Committed and pushed in the same session (the token had the Workflows permission). First CI run green on all 4 jobs: https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45352941763
+
+### 2026-11-24 — Claude Code (Opus 5.5) — fix KI-030, KI-035 (plan 017)
+- **Goal:** Keep the user's novel out of git, and make the layout usable in narrow windows.
+- **Outcome:**
+  - KI-030: `.gitignore` ignores `/data/`; `git rm -r --cached data/` staged the removal of the 5 tracked files (user-approved; no history rewrite; D-014). The files on disk are byte-identical (SHA-256, size, mtime).
+  - KI-035: a CSS-only responsive section at the end of `style.css`, with breakpoints at 1200, 900 and 600 px.
+  - Docs: 09 (0 open KIs), 05 §5, 07, 08, 03 §4, 01 (§7, and the stale §9 security rows), user guide, README, RULES §1/§9/§11.
+  - Verified: a copy of `app/` with no `data/` works and creates the folders on the first save. In the browser pane, old vs new at 375, 768, 1100 and 1400 px: no sideways overflow on new; 1400 px identical. 71 tests pass, ruff is clean, and `node --check` passes.
+- **Plan:** 017 (done).
+- **Open threads:** Not committed yet. Other clones lose the 5 `data/` files when they pull this change. Every catalogued KI is now fixed; next up is a release.

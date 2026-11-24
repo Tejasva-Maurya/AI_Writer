@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 017  
-**Total plans:** 16
+**Next number:** 018  
+**Total plans:** 17
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -26,3 +26,4 @@
 | 014 | [Self-hosted fonts so the app is truly offline, accurate model-browser copy and model recommendations (KI-034, KI-023)](014-self-hosted-fonts-so-the-app-is-truly-offline-accurate.md) | `done` | 2026-11-24 | — |
 | 015 | [Export from memory with a safe filename, OLLAMA_HOST for model list and pull (KI-017, KI-033)](015-export-from-memory-with-a-safe-filename-ollama-host-for.md) | `done` | 2026-11-24 | — |
 | 016 | [Test suite, lint, CI and logging; atomic data writes with logged skips (KI-025, KI-026)](016-test-suite-lint-ci-and-logging-atomic-data-writes-with.md) | `done` | 2026-11-24 | — |
+| 017 | [Keep the novel out of git, responsive layout for narrow windows (KI-030, KI-035)](017-keep-the-novel-out-of-git-responsive-layout-for-narrow.md) | `done` | 2026-11-24 | — |

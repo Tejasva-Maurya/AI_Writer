@@ -20,7 +20,7 @@
 | Folder | Holds | Open it when you… |
 |---|---|---|
 | `app/` | The application: `backend/`, `frontend/`, `start.bat`, `requirements.txt` | change, fix, run or install the tool |
-| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json` | inspect or back up novel content (**never modify without approval**, §5) |
+| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`. Local only: git-ignored since plan 017 (D-014), so `git status` never shows it | inspect or back up novel content (**never modify without approval**, §5) |
 | `docs/` | Everything written *about* the tool: `user-guide.md`, `technical/01…09`, `CHANGELOG.md`, `ai/` (these rules, `plans/`, `memory/`, `templates/`) | read or update documentation, plans, the changelog or project memory |
 
 Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `.github/` (CI workflow, a location GitHub requires; D-013), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).
@@ -160,6 +160,7 @@ Run what applies and report the results honestly. The first two always apply (CI
 | API smoke | start uvicorn (in the background), then `curl http://127.0.0.1:8000/api/health` and the endpoints you touched; stop the server afterwards |
 | Pipeline / LLM | needs Ollama and pulled models. If unavailable, say "pipeline not exercised" |
 | UI | load `http://127.0.0.1:8000` and exercise the changed flow; check the browser console |
+| User data untouched | `data/` is git-ignored, so git can't show a change. Compare a listing of `data/` (paths, sizes, mtimes or SHA-256) taken before and after your work. A test run checks this itself (`real_data_untouched` in `app/tests/conftest.py`) |
 
 Clean up anything you created: test entities, `__pycache__` for new interpreter versions, temp files, background servers.
 
@@ -185,7 +186,7 @@ Rules: one fact per bullet · absolute dates (YYYY-MM-DD) · cite evidence (`pat
 - [ ] `docs/technical/09` updated (fixed → `Fixed in …`, new defects → new KI).
 - [ ] Plan front-matter `status` + *Execution log* + *Outcome* updated, and `reindex` run.
 - [ ] `docs/ai/memory/project-state.md` (and `session-log.md`) updated.
-- [ ] No user data touched. No commit/push unless asked.
+- [ ] No user data touched (checked with a before/after listing of `data/`, which git can't see). No commit/push unless asked.
 
 ## 12. Auto-loaded context
 

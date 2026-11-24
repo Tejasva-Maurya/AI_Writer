@@ -51,7 +51,7 @@ AI_Writer/
 │   ├── frontend/        (index.html, style.css, app.js)
 │   ├── requirements.txt
 │   └── start.bat        ← double-click to launch
-├── data/                ← your novel (created/updated by the app)
+├── data/                ← your novel (created by the app; never committed to git)
 ├── docs/                ← this guide, technical docs, changelog
 └── README.md
 ```
@@ -100,6 +100,8 @@ The launcher will:
 ---
 
 ## Usage Guide
+
+The app is laid out for a desktop browser window. In a narrow window (below about 900 px) it becomes one scrolling column: the writing area first, then the character and location lists.
 
 ### Starting a New Novel
 
@@ -170,6 +172,8 @@ Click **📤 Export** in the top-right header:
 ## Data Structure
 
 The backend stores all data as plain JSON files under `data/` (no database). See [technical/05-data-model-and-storage.md](technical/05-data-model-and-storage.md) for the full schema. Here's what's tracked:
+
+> **Back up `data/` yourself.** Your novel stays on your machine: git ignores `data/`, so a commit, a push or a fresh clone never includes it. To keep a backup, copy the folder while the server is stopped.
 
 ### Character Fields
 | Field | Description |
@@ -266,7 +270,7 @@ AI_Writer/
 │   │   └── fonts/                  Bundled web fonts (no internet needed)
 │   ├── requirements.txt            Python dependencies
 │   └── start.bat                   Windows launcher
-├── data/                           YOUR NOVEL (JSON files, created on demand)
+├── data/                           YOUR NOVEL (JSON files, created on demand; git-ignored)
 │   ├── characters/{slug}.json
 │   ├── scenes/{slug}.json
 │   ├── chapters/{NNN}.json

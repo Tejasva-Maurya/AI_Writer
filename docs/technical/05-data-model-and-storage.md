@@ -1,11 +1,11 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016).
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
 
-All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these five lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database.
+All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these five lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database. `data/` is not in git since plan 017 (KI-030, §5).
 
 ```
 data/
@@ -162,14 +162,16 @@ References are **not enforced**. Deleting a character leaves its slug inside cha
 
 Because **every** chapter contributes at least its micro summary, the prompt grows linearly with novel length. The writer's `num_ctx` is 32,768 tokens.
 
-## 5. Sample data shipped in the repository
+## 5. `data/` and version control
 
-| File | State |
-|---|---|
-| `data/novel_meta.json` | Title "Untitled Novel", `total_chapters: 1` (but no `data/chapters/` exists, so the value is inconsistent) |
-| `data/world_settings.json` | All empty |
-| `data/characters/xiao-fan-scientist-inventor.json` | One main character (60-year-old scientist) |
-| `data/scenes/neuroscience-lab-night-stormy-weather.json` | One scene (it names "Dr. Hiroshi Nakamura" as inhabitant, a different character) |
-| `data/Untitled_Novel.txt` | Export of an empty novel (title + underline only), left by the old export route; safe to delete |
+Since plan 017 (KI-030, decision D-014), **`data/` is not in git**. `.gitignore` ignores `/data/`, so the novel stays on the user's machine and nothing in it reaches a commit.
 
-This is test/user content committed to version control. Consider whether `data/` should be ignored, with a seed/sample folder instead (tracked as tech debt KI-030).
+- **Fresh clone:** there is no `data/` folder. The app starts with an empty novel: default novel meta and world settings, empty lists. The folders appear when first used.
+- **Backups:** git no longer backs up the novel. Copy `data/` yourself (see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)).
+- **Old history:** commits before plan 017 still contain the five files tracked then (history was not rewritten):
+  - `novel_meta.json`, with `total_chapters: 1` but no chapters
+  - an empty `world_settings.json`
+  - one character and one location
+  - `Untitled_Novel.txt`, an old export
+- **Other clones:** pulling the plan 017 commit deletes those five files from that clone's working copy, as for any file removed from git. Back them up first if they matter there.
+- **Tests** never touch `data/`. An autouse fixture points every manager at a temp folder, and a session guard compares a snapshot of the real `data/` before and after the run (`app/tests/conftest.py:84-88`).

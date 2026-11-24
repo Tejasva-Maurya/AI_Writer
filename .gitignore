@@ -1,3 +1,7 @@
+# The user's novel stays on this machine and is never committed (KI-030, decision D-014).
+# Back up data/ yourself: git no longer does it.
+/data/
+
 # Ignore Python bytecode and cache directories
 __pycache__/
 *.py[cod]

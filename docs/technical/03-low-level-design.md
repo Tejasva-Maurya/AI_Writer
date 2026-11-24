@@ -200,7 +200,7 @@ Prompt-engineering notes:
 | `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, pipeline panel with 7 steps, output panel, multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings`, `modal-chapter`, `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
 | `app.js` | One global script, no modules. Sections in order: state → DOM cache → init → API helpers → loaders/renderers (meta, characters, scenes, world, chapters) → chapter view → `generateChapter` → SSE parser → pipeline UI → character modal → scene modal → world modal → settings modal → chapter view modal → export → modal system → tag input → relationship editor → title edit → toasts → `escHtml` → static bindings → keyboard shortcuts → connection check → boot → **mode switcher** → world snapshot → existing-entity dropdowns → refine (char/scene/world) → **model browser** → second `DOMContentLoaded`. The part from "mode switcher" on was evidently appended later; it is a separate binding block. |
 | `fonts/` | `fonts.css` (27 `@font-face` rules for Cinzel, Crimson Pro and JetBrains Mono, all subsets, `src` under `/static/fonts/`), the 14 woff2 files they point to, and the three SIL OFL licences. Linked first in `index.html`; served by the `/static` mount. Regeneration steps are in the `fonts.css` header (plan 014, KI-034). |
-| `style.css` | Sections: fonts (a pointer to `fonts/fonts.css`; the Google `@import` was removed in plan 014), `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser. **No `@media` queries**, so the layout is desktop-only. |
+| `style.css` | Sections: fonts (a pointer to `fonts/fonts.css`; the Google `@import` was removed in plan 014), `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser, responsive layout. The responsive section (plan 017, KI-035) holds the only `@media` queries, at 1200, 900 and 600 px (§4.7). |
 
 ### 4.2 Global state (`app.js:11-34`)
 
@@ -282,7 +282,15 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Layout | `--sidebar-w 280px`, `--header-h 64px`, radii `6/12/18/24px` |
 | Effects | `--glow-purple/gold/mint/text`, `--transition all .3s cubic-bezier(.4,0,.2,1)` |
 
-Layout: fixed header (64 px), then `.app-layout` as a fixed flex row filling the rest of the viewport: left sidebar (280 px), flexible center, right sidebar (280 px). Colour semantics: **purple = characters, gold = locations, mint = world**.
+Layout: fixed header (64 px), then `.app-layout` as a fixed flex row filling the rest of the viewport: left sidebar (280 px), flexible center, right sidebar (280 px).
+
+**Responsive breakpoints** (the last section of `style.css`, plan 017, KI-035; CSS only):
+- **≤ 1200 px:** `--sidebar-w` becomes 230 px.
+- **≤ 900 px:** `.app-layout` becomes a scrolling column. `.center-panel` gets `order: -1`, so the writer comes first, then the two sidebars at full width; `.sidebar-scroll` is capped at `40vh`. The pipeline uses 4 columns, `.form-grid-2` one, and modals are capped at `92vh`.
+- **≤ 600 px:** the header text labels are hidden (icon-only buttons), the pipeline uses 2 columns, and the mode tabs and Generate row wrap.
+- These rules set no `display` on elements the JS toggles with `hidden` (the KI-037 trap).
+
+Colour semantics: **purple = characters, gold = locations, mint = world**.
 
 ## 5. Error-handling strategy by layer
 

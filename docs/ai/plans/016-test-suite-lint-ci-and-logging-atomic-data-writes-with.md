@@ -174,7 +174,7 @@ The user asked to fix KI-025 (Medium) and KI-026 (Low). Read this session:
   - The fake `ollama` can make the step-5 unload fail, to test that pipeline warnings are logged.
   - Doc 03 §2.4 still said `keep_alive=-1` for `_call` (stale since plan 013); corrected.
   - `AGENTS.md` got the verify commands.
-- **Not verified:** CI itself. It runs only on GitHub, on the first push.
+- **CI verified after the push** (2026-11-24): run #1 for `83bc256` was green on all four jobs (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45352941763).
 
 ## Outcome
 - **Shipped:**
@@ -224,8 +224,6 @@ The user asked to fix KI-025 (Medium) and KI-026 (Low). Read this session:
     - New: the file was valid and unchanged, still listed, and no temp file was left.
     - Corrupt `zz_test_broken.json`: old logged nothing; new logged `WARNING managers.storage: Skipped unreadable characters/zz_test_broken.json: JSONDecodeError: …`.
   - **Server smoke** (sandbox uvicorn): the warning appears in the console in the new format next to uvicorn's access log, with no duplicate lines. `/api/health` returns 200.
-  - **CI:** `yaml.safe_load` OK (triggers push and pull_request, 2×2 matrix, 6 steps). It runs only on GitHub.
+  - **CI:** `yaml.safe_load` OK (triggers push and pull_request, 2×2 matrix, 6 steps). After the push, run #1 passed on Ubuntu and Windows × Python 3.11 and 3.14 (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45352941763); this also confirms the KI-040 fix on a real Python 3.11.
   - **Cleanup:** sandboxes and the temp tools removed; `__pycache__`, `.pytest_cache` and `.ruff_cache` removed from the working tree.
-- **Follow-ups:**
-  - The push adds `.github/workflows/ci.yml`; GitHub refuses it unless the push token has the **Workflows** permission.
-  - After the first push, check that the CI run is green.
+- **Follow-ups:** none. The push with the workflow went through (the token already had the Workflows permission), and CI is green.

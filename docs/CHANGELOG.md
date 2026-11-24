@@ -35,6 +35,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   - Dev-only tools are in `app/requirements-dev.txt`; run `py -m pytest app/tests` and `py -m ruff check app`. [plan 016] [KI-025]
 
 ### Changed
+- **Your novel is no longer stored in git.** `data/` is git-ignored, and the five files tracked until now (novel settings, world settings, one character, one location, an old export) were removed from the repository, **not from disk**. Back up `data/` yourself. A fresh clone starts with an empty novel. Older commits still contain those five files. Pulling this change into another clone deletes them from that clone's folder, so copy them first if you need them there. [plan 017] [KI-030]
+- `docs/technical/01` §9: the security table now matches the code (slug validation and HTML escaping exist since plan 007). [plan 017]
 - The app is now truly offline: its three fonts (Cinzel, Crimson Pro, JetBrains Mono) are bundled in `app/frontend/fonts/` with their SIL OFL licences, instead of being loaded from Google Fonts (twice) on every page load. The look is unchanged. [plan 014] [KI-034]
 - The specialist model no longer stays in VRAM indefinitely after a Character/Scene/World Build or an interrupted generation: Ollama unloads it after 5 idle minutes (`keep_alive=300`, like the writer; it was `-1`). Normal generations are unchanged: it is still unloaded before writing and after the summary. [plan 013] [KI-029]
 - Specialist calls use Ollama's JSON mode (`format="json"`), and auto-created characters default to supporting (`temporary`) unless the model marks them as central. Character, location and world fields accept near-miss types (e.g. `"age": 17`, `"type": "supporting"`, a single string for a list) and store them coerced, instead of rejecting them. [plan 009] [KI-016]
@@ -93,6 +95,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Setting `OLLAMA_HOST` now applies to Settings' model list and **⬇ Pull** as well as generation, so all of them use the same Ollama; when it can't be reached, Settings names the address it tried. Without `OLLAMA_HOST` the address is `127.0.0.1:11434`, as generation already used. [plan 015] [KI-033]
 - Saving a character, location, chapter, the world or the novel settings is now all-or-nothing. A crash or full disk mid-save can no longer leave a half-written file that then silently vanished from the app; a data file that can't be read is now reported in the server console. [plan 016] [KI-026]
 - The server starts again on Python 3.11 (the stated minimum): plan 015's export code used syntax that only Python 3.12+ accepts. [plan 016] [KI-040]
+- The app is usable in narrow windows. Below 1200 px the sidebars get narrower. Below 900 px the page becomes one scrolling column: the writer first, then characters and locations. Below 600 px the header buttons show only their icons. Wider windows look exactly as before. [plan 017] [KI-035]
 
 
 ### Security

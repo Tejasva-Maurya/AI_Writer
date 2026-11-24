@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016).
+> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -165,7 +165,7 @@ The repository has three areas, one purpose each (plan 002, decision D-007):
 | Area | Holds | Open it when you… |
 |---|---|---|
 | `app/` | The application (code, launcher, dependencies) | change, fix, run or install the tool |
-| `data/` | The novel (JSON files written by the app) | inspect or back up novel content |
+| `data/` | The novel (JSON files written by the app; local only, git-ignored since plan 017) | inspect or back up novel content |
 | `docs/` | Everything written *about* the tool | read or update docs, plans, changelog, AI memory |
 
 ```
@@ -192,17 +192,17 @@ AI_Writer/
 │   ├── frontend/
 │   │   ├── index.html         (830 LOC) App shell: header, 3-column layout, 4 mode tabs, pipeline UI, 6 modals
 │   │   ├── app.js            (1890 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
-│   │   ├── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
+│   │   ├── style.css         (2439 LOC) Dark "glass" design system (CSS custom properties, animations; responsive breakpoints, plan 017)
 │   │   └── fonts/                       Self-hosted woff2 fonts + fonts.css (@font-face) + OFL licences (plan 014)
 │   ├── tests/                           pytest suite: API, storage, pipeline, helpers; fake ollama, temp data (plan 016)
 │   ├── start.bat                        Windows launcher (double-click)
 │   ├── requirements.txt                 Python dependencies (lower bounds; verified versions in a comment)
 │   ├── requirements-dev.txt             dev-only tools: pytest, ruff (not needed to run the app)
 │   └── pyproject.toml                   pytest + ruff settings only (the app is not a package)
-├── data/                                NOVEL DATA (created/updated by the app; sample content is committed)
+├── data/                                NOVEL DATA (created/updated by the app; git-ignored since plan 017, not in the repository)
 │   ├── characters/*.json
 │   ├── scenes/*.json
-│   ├── chapters/NNN.json                created on first generated chapter (absent in repo)
+│   ├── chapters/NNN.json                created on first generated chapter
 │   ├── novel_meta.json
 │   ├── world_settings.json
 │   └── Untitled_Novel.txt               left by an older export; exports no longer write here (plan 015)
@@ -241,8 +241,8 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 | Network exposure | Bound to loopback (`127.0.0.1`) only. |
 | Authentication | None. |
 | Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:43`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
-| Input → filesystem | `slug` values (from the URL path, request bodies or LLM output) become filenames without sanitisation (KI-010). |
-| HTML injection | Most rendering goes through `escHtml()`. The world snapshot and the model browser do not (KI-011). |
+| Input → filesystem | Every file access goes through the managers' `_path(slug)`, which accepts only `[\w-]+` (`character_manager.py:9`, `:27`); new slugs are derived by the server. In v1.0.0 slugs became filenames unchecked (KI-010, fixed in plan 007). |
+| HTML injection | Dynamic HTML goes through `escHtml()`, including the world snapshot and the model browser (`app.js:1519`, `:1740`). In v1.0.0 those two did not (KI-011, fixed in plan 007). |
 | Secrets | None used or stored. |
 
 ## 10. Related documents

@@ -25,15 +25,17 @@
 - `[Unreleased]`: plan 013 (committed 2026-11-23, pushed 2026-11-24, see `git log origin/main`) fixes KI-032 (Full View tags after generation, first-chunk paragraph, Caps-Lock-proof Alt shortcuts) and KI-029 (specialist `keep_alive` 300 by default, D-011).
 - `[Unreleased]`: plan 014 (committed and pushed 2026-11-24, see `git log origin/main`) fixes KI-034 (fonts self-hosted in `app/frontend/fonts/`, D-012) and the rest of KI-023 (model-browser subtitle, user-guide model recommendation).
 - `[Unreleased]`: plan 015 (committed and pushed 2026-11-24, see `git log origin/main`) fixes KI-017 (export served from memory, safe filename, nothing written to `data/`) and KI-033 (`OLLAMA_HOST` for model list/pull via `_ollama_base_url`, a port of ollama-python's `_parse_host`).
-- `[Unreleased]`: plan 016 (done 2026-11-24, **not committed yet**) fixes KI-025 (pytest suite, ruff, CI, logging; D-013), KI-026 (atomic writes + logged skips via `managers/storage.py`) and the newly found KI-040 (`main.py` didn't parse on Python 3.11 since plan 015).
+- `[Unreleased]`: plan 016 (committed and pushed 2026-11-24, see `git log origin/main`; first CI run green on all 4 jobs) fixes KI-025 (pytest suite, ruff, CI, logging; D-013), KI-026 (atomic writes + logged skips via `managers/storage.py`) and the newly found KI-040 (`main.py` didn't parse on Python 3.11 since plan 015).
+- `[Unreleased]`: plan 017 (done 2026-11-24, **not committed yet**) fixes KI-030 (`data/` untracked and git-ignored, no history rewrite; D-014) and KI-035 (CSS-only responsive layout at 1200/900/600 px). The commit removes the 5 `data/` files from the repository, not from disk.
 - POST no longer upserts (409) and now normalises slugs; the API is same-origin only. Generate can now return 409 too (plan 010). When releasing, decide whether that counts as an API break for SemVer.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 003–016 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plans 003–015 are committed and pushed; plan 016 is in the working tree, waiting for the user to ask for a commit. Its push adds `.github/workflows/`, which needs the token's Workflows permission.
+- Plans 003–017 are done (see `docs/ai/plans/INDEX.md`). No active plan. Plan 017 is uncommitted; everything before it is committed and pushed. CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
+- `data/` is git-ignored since plan 017, so `git status` no longer shows novel changes (gotchas).
 
 ## Suggested next up (from `docs/technical/09`, by impact)
-1. Only two KIs are open: KI-030 (user data in VCS; needs a decision on ignoring `data/`) and KI-035 (desktop-only layout, a design limitation).
+1. No KI is open (40 fixed). New defects get KI-041 onwards.
 2. Consider a release (`[Unreleased]` → 1.1.0 or 2.0.0; decide whether the 409s count as an API break).
 
 ## Environment facts (dev machine, verified 2026-11-22)

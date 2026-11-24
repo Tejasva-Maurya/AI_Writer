@@ -40,7 +40,7 @@ The full traceback is in the SSE `error.detail` field. Watch it with the `curl -
 A v1.0.0 defect (KI-001), **fixed in [Unreleased] (plan 003)**: the form now sends a `slug`, and edits keep the chapter-tracking fields (KI-027). If you still see a 422, your browser is running an old cached `app.js`. Hard-reload the page (`Ctrl+F5`).
 
 ### A6. After World Build, the World Settings modal is empty / my world got wiped
-A v1.0.0 defect (KI-002), **fixed in [Unreleased] (plan 003)**: the World Settings modal now opens with the merged world. If you saved the empty modal while still on 1.0.0, the world file was overwritten. Restore `data/world_settings.json` from a backup or from git (`git checkout -- data/world_settings.json` if it was committed).
+A v1.0.0 defect (KI-002), **fixed in [Unreleased] (plan 003)**: the World Settings modal now opens with the merged world. If you saved the empty modal while still on 1.0.0, the world file was overwritten. Restore `data/world_settings.json` from a backup. Git can't help here: `data/` is not in git since plan 017 (KI-030).
 
 ### A7. The Build tab says "✓ Created: undefined"
 A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. The tab now shows the created name.
@@ -115,8 +115,11 @@ The writer targets ~2,000 words. Actual length depends on the model.
 **Can several people use it at once / over the network?**
 It is designed for one user on one machine. It binds to `127.0.0.1` and has no authentication. Don't expose it on a network as-is.
 
+**Does it work in a narrow window?**
+Yes, since plan 017 (KI-035). Below 900 px the page becomes one scrolling column, with the writer first and the sidebars below. A phone or tablet can't reach the app, though: it only accepts connections from the same machine.
+
 **Is there an undo?**
-No. Back up `data/` regularly, or commit it to a private git repo.
+No. Back up `data/` regularly (copy the folder; see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). The app's own git repository ignores `data/` since plan 017 (KI-030), so it never saves your novel. For version history, make `data/` a separate private repository (`git init` inside it).
 
 **Where are logs?**
 Only the backend console window (uvicorn access log and Python tracebacks) and the browser DevTools console. There is no log file (KI-025).

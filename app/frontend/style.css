@@ -2382,3 +2382,58 @@ body {
   margin-top: 3px;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE LAYOUT (KI-035): narrower sidebars below 1200px; below
+   900px one scrolling column (writer first, then the two sidebars)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1200px) {
+  :root { --sidebar-w: 230px; }
+  .header-brand,
+  .header-actions { min-width: 0; }
+  .center-panel { padding: 14px; }
+}
+
+@media (max-width: 900px) {
+  .app-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .center-panel {
+    order: -1;
+    flex: none;
+    overflow: visible;
+  }
+  .sidebar {
+    width: 100%;
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-right { border-left: none; }
+  .sidebar-scroll { max-height: 40vh; }
+  .pipeline-steps { grid-template-columns: repeat(4, 1fr); }
+  .form-grid-2 { grid-template-columns: 1fr; }
+  .modal-overlay { padding: 10px; }
+  .modal { max-height: 92vh; }
+  .header-center,
+  .novel-title-wrapper { min-width: 0; }
+  .novel-title-display {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-header { padding: 0 10px; gap: 8px; }
+  .brand-name { display: none; }
+  .header-actions { gap: 6px; }
+  .btn-header { padding: 6px 9px; }
+  .btn-header > span:not(.btn-icon):not(.dropdown-arrow),
+  .badge-label { display: none; }  /* icon-only buttons; they keep their aria-label and title */
+  .pipeline-steps { grid-template-columns: repeat(2, 1fr); }
+  .mode-tabs { flex-wrap: wrap; }
+  .generate-row { flex-wrap: wrap; }
+  .mode-tab { flex: 1 1 40%; }
+  .toast-container { left: 12px; right: 12px; bottom: 12px; }
+}

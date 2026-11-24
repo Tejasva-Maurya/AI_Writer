@@ -108,6 +108,11 @@ curl http://127.0.0.1:8000/api/models
 ```
 Colour code: **purple** = characters, **gold** = locations, **mint** = world.
 
+**Narrow windows** (since plan 017, KI-035):
+- **Below 1200 px** the sidebars get narrower.
+- **Below 900 px** the page becomes one scrolling column: the writer first, then Characters, then Locations. Each list scrolls inside its own card.
+- **Below 600 px** the header buttons show only their icons (hover for the name).
+
 ### 5.2 Writing chapters (Plot Writing tab)
 
 1. The label shows **CHAPTER N** (N = highest existing chapter number + 1, the number the backend will use).
@@ -165,6 +170,7 @@ The `Alt` shortcuts work with Caps Lock on or Shift held (since plan 013, KI-032
 ## 6. Backup, reset and multiple novels
 
 - **Everything is in `data/`.** Back up by copying the folder while the server is stopped.
+- **Git does not back it up.** `data/` is git-ignored since plan 017 (KI-030), so a commit or a fresh clone never includes your novel. Keep your own copies.
 - **Start a new novel:** stop the server, move `data/` somewhere else (e.g. `data_my_first_novel/`), and start again. The managers recreate empty folders and the defaults.
 - **Switch novels:** stop the server, swap folder names, start again.
 - **Edit by hand:** the JSON files can be edited with any editor (keep them valid JSON and keep the required fields `name`/`slug`/`chapter_number`). A file that can't be read is left out of the UI, and the server console logs a warning naming it (since plan 016).

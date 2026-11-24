@@ -97,3 +97,20 @@
   - pytest only (no linter)
   - skipping CI (avoids the root folder and the token permission, but nothing checks Python 3.11)
 - **Consequences:** every change can be verified with two commands. Pushing a commit that touches `.github/workflows/` needs a token with the Workflows permission. A new manager must be added to the `data_dir` test fixture.
+
+## D-014 — The novel (`data/`) is not tracked in git
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 017 (user choice, asked during planning)
+- **Context:** KI-030: `data/` (the user's novel) had been tracked since the first commit, so every story change would land in the public history of the GitHub repository.
+- **Decision:**
+  - `.gitignore` ignores `/data/`, and `git rm -r --cached data/` removed the 5 tracked files from the index only. The files stay on disk.
+  - **No history rewrite:** commits before plan 017 still contain those 5 files.
+  - **No seed or sample folder:** the app already starts from nothing (managers create their folders lazily; meta and world loaders return defaults).
+- **Alternatives considered:**
+  - keep tracking `data/` (the status quo, a git backup, but public)
+  - a `data.sample/` seed folder (more to maintain, and the app doesn't need it)
+  - also purging the files from history (rewrites every commit and needs a force push)
+- **Consequences:**
+  - Git no longer backs up the novel; the docs tell the user to copy `data/` (07 §6).
+  - Other clones lose the 5 files from their working copy when they pull the plan 017 commit.
+  - "User data untouched" checks need a before/after listing of `data/`, because `git status` can't see it (RULES §9).
+  - Rollback: `git add -f data/`.

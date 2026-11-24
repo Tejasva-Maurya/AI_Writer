@@ -1,23 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 016. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 017. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 2 open · 38 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-017, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-025, KI-026, KI-027, KI-028, KI-029, KI-031, KI-032, KI-033, KI-034, KI-036, KI-037, KI-038, KI-039, KI-040).
+**At a glance:** 0 open · 40 fixed in [Unreleased] (KI-001 to KI-040).
 
-### Open (2)
+### Open (0)
 
-| ID | Sev | Area | Title | Status |
-|---|---|---|---|---|
-| KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
-| KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
+None. A new defect gets the next ID, KI-041.
 
-### Fixed (38)
+### Fixed (40)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -52,10 +49,12 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) ✔ | Fixed in Unreleased [plan 012] |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) ✔ | Fixed in Unreleased [plan 013] |
+| KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Fixed in Unreleased [plan 017] (`data/` untracked and git-ignored; older commits still contain it) |
 | KI-031 | Medium | Backend | No concurrency guard or cancel for generations ✔ | Fixed in Unreleased [plan 010] |
 | KI-032 | Low | Frontend | Minor UI glitches (Full View tags empty after generation; first chunk containing `\n\n` delayed; Alt shortcuts fail with Caps Lock) ✔ | Fixed in Unreleased [plan 013] |
 | KI-033 | Low | Config | `OLLAMA_HOST` affects generation but not model list/pull (hard-coded URLs) ✔ | Fixed in Unreleased [plan 015] |
 | KI-034 | Low | Docs | "Fully offline" claim, but fonts load from Google Fonts ✔ | Fixed in Unreleased [plan 014] (fonts self-hosted) |
+| KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Fixed in Unreleased [plan 017] (CSS media queries) |
 | KI-036 | Medium | Backend | Create silently overwrites an existing character/location with the same derived slug (no 409) ✔ | Fixed in Unreleased [plan 004] |
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
@@ -220,7 +219,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - **Verified:**
     - 71 passed locally (pytest 9.2.0, ruff 0.17.6, Python 3.14.5).
     - With the storage helper swapped for the old in-place writer, 3 storage tests fail as intended.
-    - CI itself runs only on GitHub (not verifiable locally).
+    - First CI run (2026-11-24) green on all four jobs: Ubuntu and Windows × Python 3.11 and 3.14 (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45352941763).
   - The evidence below describes the pre-fix state.
 - No test files, no linters, no CI workflows. No `logging` usage (`except: pass` in managers hides errors). **Suggested start:** pytest + FastAPI `TestClient` with a stubbed `ollama` module; `ruff`; a `logging` config writing to the console.
 
@@ -252,7 +251,18 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The evidence below describes the pre-fix code.
 - Refine endpoints call `_call` with the default `keep_alive=-1`. **Fix:** use `0` or a finite value (e.g. `120`) for refine calls.
 
-### KI-030 — User/sample data in VCS · Low
+### KI-030 — User/sample data in VCS · Low · ✅ Fixed in Unreleased (plan 017)
+- **Status: Fixed in Unreleased [plan 017].** `data/` is no longer tracked (user decision; D-014).
+  - `.gitignore:3` ignores `/data/`. `git rm -r --cached data/` removed the 5 tracked files from the index only; they stay on disk. The files: `novel_meta.json`, `world_settings.json`, one character, one location and the old export `Untitled_Novel.txt`.
+  - **No history rewrite:** commits up to plan 016 still contain those 5 files.
+  - **No seed folder is needed.** The managers create their folders when first used (`ensure_dir`), and the meta and world loaders return defaults when the file is missing (`novel_meta_manager.py:13-16`).
+  - **`total_chapters: 1` with no chapters** is the user's own data and was left alone. It is harmless: the header badge counts chapter files (`app.js:327`), and so does the next chapter number (`chapter_manager.py:42`).
+  - **Verified:**
+    - SHA-256, size and mtime of every file in `data/` were identical before and after.
+    - `git check-ignore -v data/novel_meta.json` names `.gitignore:3:/data/`, and a probe file created in `data/` never appeared in `git status`.
+    - A copy of `app/` with no `data/` answered novel-meta, characters, scenes, chapters, world and the txt export with 200 and defaults. Its first `POST /api/characters` created `data/characters/`.
+  - Git no longer backs up the novel: copy `data/` yourself (07 §6).
+  - The evidence below describes the pre-fix state.
 - `data/` holds personal novel content plus an export file, and `novel_meta.total_chapters` is 1 with no chapters. **Fix:** ignore `data/` (keep a `data.sample/` or seed on first run).
 
 ### KI-031 — No concurrency guard / cancellation · Medium · ✅ Fixed in Unreleased (plan 010)
@@ -292,7 +302,21 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The evidence below describes the pre-fix code.
 - Google Fonts are loaded **twice**: `<link>` tags in `index.html:9-11` and an `@import` in `style.css:6`. The app works offline with fallback fonts. Either self-host the fonts (change both files) or soften the README claim.
 
-### KI-035 — Desktop-only layout · Low (design limitation)
+### KI-035 — Desktop-only layout · Low (design limitation) · ✅ Fixed in Unreleased (plan 017)
+- **Status: Fixed in Unreleased [plan 017].** A CSS-only *Responsive layout* section ends `style.css` (`style.css:2385-2439`), as the user chose. No HTML or JS changed.
+  - **≤ 1200 px:** 230 px sidebars; the header's brand and actions may shrink.
+  - **≤ 900 px:** one scrolling column, with the writer first, then Characters, then Locations (each list scrolls inside a card at most 40% of the window high).
+    - The pipeline uses 4 columns and forms use one.
+    - Modals fit the window, and a long title ends with "…".
+  - **≤ 600 px:** icon-only header buttons (they keep their `title` and `aria-label`), 2 pipeline columns, wrapping mode tabs and Generate row, full-width toasts.
+  - Above 1200 px nothing changes.
+  - **Verified in the browser pane, old vs new:**
+    - **375×812:** old squeezed the writer to 40 px, and the page and the header overflowed sideways. New: the writer is 370 px wide with the sidebars below it, nothing overflows, and Settings fits.
+    - **768×1024:** writer 208 → 762 px; sidebars below; 4 pipeline columns.
+    - **1100×800:** writer 540 → 640 px and sidebars 280 → 230 px, still side by side.
+    - **1400×900:** every element has the same position and size (only the animated background orbs and the button shimmer differ).
+    - The console stayed clean. A real phone or touch device was not tested.
+  - The evidence below describes the pre-fix code.
 - `style.css` has no `@media` rules. Fixed 280 px sidebars make narrow windows unusable.
 
 ### KI-036 — Create silently overwrites an existing entity with the same slug · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 004)
