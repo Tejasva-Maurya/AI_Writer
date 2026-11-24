@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 019  
-**Total plans:** 18
+**Next number:** 020  
+**Total plans:** 19
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -28,3 +28,4 @@
 | 016 | [Test suite, lint, CI and logging; atomic data writes with logged skips (KI-025, KI-026)](016-test-suite-lint-ci-and-logging-atomic-data-writes-with.md) | `done` | 2026-11-24 | — |
 | 017 | [Keep the novel out of git, responsive layout for narrow windows (KI-030, KI-035)](017-keep-the-novel-out-of-git-responsive-layout-for-narrow.md) | `done` | 2026-11-24 | — |
 | 018 | [Release 2.0.0](018-release-2-0-0.md) | `done` | 2026-11-24 | — |
+| 019 | [Review chapter drafts, AI rewrites, prompt reuse and @-mentions (port of the improvement branch)](019-review-chapter-drafts-ai-rewrites-prompt-reuse-and-mentions.md) | `done` | 2026-11-24 | — |

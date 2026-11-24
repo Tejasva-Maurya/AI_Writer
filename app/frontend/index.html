@@ -152,11 +152,15 @@
             <textarea
               id="plot-input"
               class="plot-textarea"
-              placeholder="Describe what happens in this chapter... The AI will handle scene setting, dialogue, emotions, and hooks."
+              placeholder="Describe what happens in this chapter... Type @ to insert a character or location. The AI will handle scene setting, dialogue, emotions, and hooks."
               aria-label="Chapter plot description"
+              aria-autocomplete="list"
+              aria-controls="mention-list"
               rows="6"
             ></textarea>
             <div class="textarea-glow"></div>
+            <!-- @-mentions (plan 019): characters and locations to insert into the plot -->
+            <div class="mention-list" id="mention-list" role="listbox" aria-label="Characters and locations" hidden></div>
           </div>
 
           <div class="generate-row">
@@ -445,9 +449,26 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
           </div>
         </div>
 
-        <div class="output-body">
+        <div class="output-body" id="output-body">
           <div class="chapter-text-area" id="chapter-text-area" aria-label="Chapter text output" aria-live="polite"></div>
           <div class="text-cursor" id="text-cursor" hidden aria-hidden="true">▍</div>
+        </div>
+
+        <!-- Draft review (plan 019): a written chapter waits here, editable, until it is approved or discarded -->
+        <div class="draft-panel" id="draft-panel" hidden>
+          <textarea class="draft-editor" id="draft-editor" aria-label="Chapter draft (editable)" spellcheck="true"></textarea>
+          <div class="draft-rewrite-row">
+            <input type="text" class="form-input" id="draft-instruction" placeholder="Select text above, then say how to change it, e.g. make the dialogue angrier" aria-label="How to rewrite the selected text">
+            <button class="btn-small" id="btn-draft-rewrite" title="Rewrite the selected text with the writer model (Enter in the instruction box)">✨ Rewrite selection</button>
+            <button class="btn-small" id="btn-draft-undo" title="Go back to the text before the last rewrite" disabled>↶ Undo rewrite</button>
+          </div>
+          <div class="draft-selection" id="draft-selection" aria-live="polite"></div>
+          <div class="draft-footer">
+            <input type="text" class="form-input draft-title-input" id="draft-title" placeholder="Chapter title (optional: empty lets the AI suggest one)" aria-label="Chapter title">
+            <span class="draft-save-status" id="draft-save-status" aria-live="polite"></span>
+            <button class="btn-cancel" id="btn-draft-discard" title="Delete this draft">🗑 Discard</button>
+            <button class="btn-save" id="btn-draft-approve" title="Summarize the chapter, update the profiles and save it">✓ Approve &amp; save</button>
+          </div>
         </div>
       </div>
 
@@ -735,6 +756,13 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
             <label class="form-label" for="meta-author">Author</label>
             <input type="text" class="form-input" id="meta-author" placeholder="Author name">
           </div>
+          <div class="form-group">
+            <label class="form-check" for="meta-review-drafts">
+              <input type="checkbox" id="meta-review-drafts">
+              <span>Review each chapter as a draft before saving</span>
+            </label>
+            <p class="form-hint">On: a new chapter opens as an editable draft, and Approve summarizes and saves it. Off: chapters are summarized and saved right after writing.</p>
+          </div>
           <div class="settings-divider">
             <span>AI Model Configuration</span>
           </div>
@@ -801,6 +829,11 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
             <div class="featured-tags" id="view-scene-tags"></div>
           </div>
         </div>
+        <details class="chapter-prompt" id="view-prompt-box" hidden>
+          <summary>Prompt used</summary>
+          <p class="chapter-prompt-text" id="view-prompt-text"></p>
+          <button class="btn-small" id="btn-reuse-prompt" title="Copy this prompt into the plot box">↺ Use this prompt again</button>
+        </details>
         <div class="chapter-view-text" id="chapter-view-text"></div>
       </div>
     </div>

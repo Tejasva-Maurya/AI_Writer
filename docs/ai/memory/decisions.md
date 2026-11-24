@@ -128,3 +128,24 @@
   - tags without a Release page
   - no tags (SHA-based links; the release commit's SHA isn't known until after the API push)
 - **Consequences:** future releases follow the same steps (RULES §7). The `[Unreleased]` section restarts empty, and doc 09 statuses read `Fixed in v2.0.0`.
+
+## D-016 — Draft review: one server-side draft, an opt-out setting, @-tags that force context
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 019 (user choices, asked during planning)
+- **Context:** The `improvement` branch (one commit on top of 1.0.0) split the pipeline into draft → approve, and added AI rewrites, "prompt used" and @-autocomplete. It kept the draft only in the browser tab. It couldn't be merged: 1.0.0 layout, tracked `.pyc` and `data/`, sync specialist, no validation or guard. Separately, step 7 failing lost the written chapter (KI-041).
+- **Decision:**
+  - **Re-implement on 2.0.0** on a new branch; `improvement` stays as reference. Its top-level `New-Feature-Docs/` is not carried over (RULES §1).
+  - **The draft lives on the server**, `data/draft.json`, **one at a time**. It is written after step 6 in *every* mode (this also fixes KI-041) and deleted last by `finalize_chapter()`. A waiting draft blocks new generations (409).
+  - **Review is a setting** (`novel_meta.review_drafts`, default on), sent as `review` per request. The API default is `false`, so old clients keep the one-click behaviour: the change is additive, a minor version.
+  - **Plain-text editor** (`<textarea>`) for the draft. Rewrites send the text around the selection (`before`/`passage`/`after`), not offsets, because JS and Python count string positions differently.
+  - **One LLM job at a time:** generation, approval and rewrite share the busy guard.
+  - **@-tags are sent with the generation** and make the tagged entities existing primary/main entries after step 2.
+- **Alternatives considered:**
+  - browser-only drafts (the branch's way: lost on a closed tab)
+  - always-review (simpler UI, but a breaking API change)
+  - in-place `contenteditable` editing (prettier, but pasting brings in formatting and selection mapping is fragile)
+  - @ inserting names only (the AI could still miss the entity)
+- **Consequences:**
+  - One extra click per chapter in review mode, and the summary wait moves to the Approve button.
+  - Step-3 profiles are created at draft time; discard offers to delete them.
+  - A draft file can exist in `data/` between sessions.
+  - Rollback: turn the setting off (behaviour as before), or revert plan 019.

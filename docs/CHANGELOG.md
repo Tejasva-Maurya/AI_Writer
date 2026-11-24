@@ -17,6 +17,22 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+- **Draft review before saving:** a new chapter opens as an editable draft (**Draft · Chapter N**) instead of being saved at once. **✓ Approve & save** summarizes it, updates the profiles and adds it to the history; **🗑 Discard** deletes it and offers to remove the characters/locations created for it. The draft is autosaved to `data/draft.json`, so it survives a reload, a closed tab or a restart. One draft at a time: Generate asks to discard a waiting one. New routes `GET/PUT/DELETE /api/draft` and `POST /api/draft/approve`, new SSE event `draft_complete`, new optional `review` field on `POST /api/generate-chapter` (default off, so API clients keep the old behaviour). Ported from the `improvement` branch and rebuilt on 2.0.0 [plan 019]
+- **AI rewrite of a selected passage** in the draft: select text, say how it should change, press Enter or **✨ Rewrite selection**; only the selection is replaced, with **↶ Undo rewrite**. Uses the writer model with its full 32k context (`POST /api/draft/rewrite`) [plan 019]
+- **@-mentions in the plot box:** type `@` to insert an existing character or location by its exact name (any script, keyboard and mouse). Mentioned entities are sent as `tagged_characters` / `tagged_scenes` and always reach the writer with their full profile, even when the AI misses them [plan 019]
+- **Prompt used** in the Full View: the plot a chapter was written from, with **↺ Use this prompt again** [plan 019]
+- Setting **Review each chapter as a draft before saving** in ⚙ Settings (`novel_meta.review_drafts`, default on); off = the previous one-click flow [plan 019]
+
+### Changed
+- Generation, draft approval and passage rewrites run one at a time (409 while another runs), and step 7 now applies all updates without pausing, so a cancel can no longer leave them half done [plan 019]
+- API errors in the UI show the server's own message (`detail`) for the new draft actions [plan 019]
+- The test guard `real_data_untouched` also compares folder mtimes, so it catches a file created and deleted in the real `data/` during a test run; `draft_manager` is redirected like the other managers [plan 019]
+- Docs: technical/02 (W3, new W11 draft review and W12 @-mentions), 03, 04, 05, 06, 07, 08 (A16–A18), 09 and the user guide describe the draft flow; stale `keep_alive -1` and "no JSON mode" notes corrected [plan 019]
+
+### Fixed
+- A failure while summarizing (step 7), e.g. Ollama stopping, no longer loses the chapter that was just written: it is kept as a draft, and Approve retries [plan 019] [KI-041]
+
 ## [2.0.0] - 2026-11-24
 
 **Upgrading from 1.0.0.** This is a major release because the HTTP API changed (details under *Changed*, *Fixed* and *Security*):

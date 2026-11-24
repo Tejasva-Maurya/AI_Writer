@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions). **Last verified against code:** 2026-11-24.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -17,6 +17,8 @@ This document describes every end-to-end flow in the application: what triggers 
 | W8 | [Model management (list / select / pull)](#w8--model-management) | Opening Settings, **Refresh**, **Pull** |
 | W9 | [Chapter history & reader](#w9--chapter-history--full-view-reader) | History pill, **⛶ Full View** |
 | W10 | [Export](#w10--export) | **📤 Export → .txt / .md** |
+| W11 | [Draft review (edit, AI rewrite, approve, discard)](#w11--draft-review-edit-ai-rewrite-approve-discard) | A generation in review mode, a draft left from a previous visit |
+| W12 | [@-mentions in the plot box](#w12--mentions-in-the-plot-box) | Typing `@` in the plot textarea |
 
 ---
 
@@ -55,7 +57,7 @@ Notes:
 1. `GET /` → `serve_index()` reads `app/frontend/index.html` and returns it (`main.py:56-61`). The page then loads `/style.css` and `/app.js` through dedicated routes (`main.py:64-71`).
 2. `DOMContentLoaded` listener #1 (`app.js:1481`):
    1. `checkConnection()` → `fetch /api/novel-meta` with a 3 s timeout. On a network failure it shows the toast *"⚠ Cannot connect to backend…"* for 8 s.
-   2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `updateChapterHint()`.
+   2. `init()` → `bindStaticEvents()`, then runs these in parallel with `Promise.allSettled`: `loadNovelMeta`, `loadCharacters`, `loadScenes`, `loadWorld`, `loadChapters`. Then `loadDraft()` (`GET /api/draft`): a draft that waits for review opens again in the output section with an info toast (W11, plan 019). Then `updateChapterHint()`.
 3. `DOMContentLoaded` listener #2 (`app.js:1920`) binds the mode tabs, the three refine buttons and **Refresh models**. (Until plan 006 it also added a second **⚙ Settings** click listener that loaded the models; `openSettingsModal` now does that itself.)
 4. Each loader stores its result in `state.*` and renders: sidebars (character/scene cards), header title, chapter count badge, history pills, "CHAPTER N" label.
 5. If a loader fails it logs `console.warn` and falls back to empty data. The UI stays usable.
@@ -65,18 +67,23 @@ Notes:
 ### W3.1 Trigger (frontend: `generateChapter()`, `app.js:421-584`)
 
 1. Validates that the plot textarea is not empty and that no generation is running in this tab (`state.isGenerating`).
-2. Disables the button, shows **✕ Cancel** next to it, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
-3. `POST`s `/api/generate-chapter` with `{plot}` only. The backend numbers the chapter itself (`get_next_number()`: highest existing number + 1, read from disk), so a gap or a stale page can't overwrite a chapter. The UI shows `nextChapterNumber()` (the same rule over `state.chapters`) while streaming and takes the real number from the `complete` event. (Before plan 006 it sent `count + 1`, which overwrote chapters after a gap: KI-008.)
-4. A non-2xx response throws with the server's `detail` (e.g. the **409** "A chapter is already being generated…" when another tab or client is generating), shown as an error toast.
-5. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`, `app.js:601-640`). Each JSON event is dispatched by its `type` (see W3.4).
-6. **✕ Cancel** → `cancelGeneration()` (`app.js:587-596`) disables the button and `POST`s `/api/generate-chapter/cancel`. The stream then ends with the cancelled `error` event (W3.4). The `finally` block hides **Cancel** and re-enables **Generate** whichever way the run ends.
+2. If a draft waits for review (`state.draft`), asks to discard it first (`discardDraft()`, W11); declining stops here (plan 019: one draft at a time).
+3. Disables the button, shows **✕ Cancel** next to it, resets and shows the pipeline panel, hides the old output and the multi-chapter notice.
+4. `POST`s `/api/generate-chapter` with `{plot, review, tagged_characters, tagged_scenes}`:
+   - `review` is the **Review each chapter as a draft** setting (`novel_meta.review_drafts`, default on).
+   - The tags are the entities picked with `@` (W12) whose names are still in the plot.
+   - No chapter number is sent. The backend numbers the chapter itself (`get_next_number()`: highest existing number + 1, read from disk), so a gap or a stale page can't overwrite a chapter. The UI shows `nextChapterNumber()` (the same rule over `state.chapters`) while streaming and takes the real number from the `complete` or `draft_complete` event. (Before plan 006 it sent `count + 1`, which overwrote chapters after a gap: KI-008.)
+5. A non-2xx response throws with the server's `detail`, shown as an error toast, for example the **409** "A chapter is already being generated…" (another tab or client is generating) or "A draft of chapter N is waiting for review…". After any error or cancel the UI calls `loadDraft()`, so a chapter kept as a draft appears (KI-041).
+6. Reads the response body as a stream and parses SSE `data:` lines (`parseSSEStream`). Each JSON event is dispatched by its `type` (see W3.4).
+7. **✕ Cancel** → `cancelGeneration()` (`app.js:587-596`) disables the button and `POST`s `/api/generate-chapter/cancel`. The stream then ends with the cancelled `error` event (W3.4). The `finally` block hides **Cancel** and re-enables **Generate** whichever way the run ends.
 
 ### W3.2 Backend entry (`main.py:180-217`)
 
-- **One generation at a time** (plan 010, KI-031): if the task in `_generation["task"]` is still running, → **409** `A chapter is already being generated. Wait for it to finish or cancel it.`
+- **One LLM job at a time** (plan 010, KI-031; widened in plan 019): `_busy_reason()` returns **409** while a generation task runs (`A chapter is already being generated. Wait for it to finish or cancel it.`), or while a draft approval or a passage rewrite runs (`_job["kind"]`).
+- **One draft at a time** (plan 019): if `data/draft.json` exists → **409** `A draft of chapter N is waiting for review. Approve or discard it first.`
 - Loads `NovelMeta` from `data/novel_meta.json` to get the model names.
 - `chapter_number = req.chapter_number or chapter_manager.get_next_number()`. The frontend sends no number (plan 006), so the backend picks highest + 1.
-- Starts `produce()` as an `asyncio.Task` (stored in `_generation`): it iterates `run_pipeline(...)` and puts each SSE string on an `asyncio.Queue`, then `None` when it ends. If the task is cancelled, it first queues `error {"message": "Generation cancelled", "cancelled": true}`.
+- Starts `produce()` as an `asyncio.Task` (stored in `_generation`): it iterates `run_pipeline(plot, n, meta, review, tagged_characters, tagged_scenes)` and puts each SSE string on an `asyncio.Queue`, then `None` when it ends. If the task is cancelled, it first queues `error {"message": "Generation cancelled", "cancelled": true}`.
 - Returns `StreamingResponse(event_stream(), media_type="text/event-stream")` with headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Connection: keep-alive`. `event_stream()` yields the queued events until `None`.
 - **Stopping:**
   - `POST /api/generate-chapter/cancel` (`main.py:220-227`) cancels the task and waits up to 5 s for it to finish, so the guard is free when it returns.
@@ -87,16 +94,17 @@ Notes:
 
 | Step | UI label | Code | LLM call (model, keep_alive) | Input | Output / side effects | SSE emitted |
 |---|---|---|---|---|---|---|
-| 1 | Analyze Plot | `:67-82` | `specialist.analyze_plot` (spec, -1) | plot | `tone`, `estimated_chapters`, `entity_mentions{characters[],locations[]}`, `key_events`, `chapter_focus` (only tone, estimated_chapters, entity_mentions are used; each is coerced: `estimated_chapters` numeric text → int, else 1; `tone` → text, else "action"; `entity_mentions` lists of strings only, plan 009, KI-015) | `status{step:1}` ×2. `multi_chapter` if `estimated_chapters > 1` |
-| 2 | Extract Entities | `:84-97` | `specialist.resolve_entities` (spec, -1) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` The result is then canonicalised server-side (`_canonical_entities`, plan 007): matches by slug or name (ignoring case and `-`/`_`) become `existing` with the real slug, everything else `new` with `slug = make_slug(name)`; nameless entries and repeats are dropped. | `status{step:2}` ×2 |
-| 3 | Build Profiles | `:99-127` | `specialist.profile_new_entities` (spec, -1). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects with `slug = make_slug(profile name)` (never the LLM's slug) and **creates their files** in `data/` with `create()`, which never overwrites (also not an equivalent slug). A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
+| 1 | Analyze Plot | `:67-82` | `specialist.analyze_plot` (spec, 300) | plot | `tone`, `estimated_chapters`, `entity_mentions{characters[],locations[]}`, `key_events`, `chapter_focus` (only tone, estimated_chapters, entity_mentions are used; each is coerced: `estimated_chapters` numeric text → int, else 1; `tone` → text, else "action"; `entity_mentions` lists of strings only, plan 009, KI-015) | `status{step:1}` ×2. `multi_chapter` if `estimated_chapters > 1` |
+| 2 | Extract Entities | `:84-97` | `specialist.resolve_entities` (spec, 300) | mentions + all existing `{name, slug}` pairs | `characters[]`/`scenes[]` with `{name, slug, status: existing\|new, importance}` The result is then canonicalised server-side (`_canonical_entities`, plan 007): matches by slug or name (ignoring case and `-`/`_`) become `existing` with the real slug, everything else `new` with `slug = make_slug(name)`; nameless entries and repeats are dropped. Then `_apply_tags` (plan 019): every `tagged_characters`/`tagged_scenes` slug that exists becomes `existing` with importance `primary`/`main` (added if the specialist missed it); unknown slugs are ignored and logged. | `status{step:2}` ×2 |
+| 3 | Build Profiles | `:99-127` | `specialist.profile_new_entities` (spec, 300). **Skipped when nothing is new** | new names, plot, world brief, tone, chapter number | Creates `Character`/`Scene` objects with `slug = make_slug(profile name)` (never the LLM's slug) and **creates their files** in `data/` with `create()`, which never overwrites (also not an equivalent slug). A slug that already exists keeps the existing profile. | `status{step:3}`, `new_character{name,slug}`, `new_scene{name,slug}`, `warning{message}` on validation failure or an existing slug |
 | — | (reload) | `:129-133` | — | — | Re-reads all characters and scenes into `chars_dict` / `scenes_dict` keyed by slug | — |
 | 4 | Optimize Context | `:135-167` | **none** (deterministic since plan 008; the old `select_context` prompt only restated these rules, KI-013) | resolved entities with importance, all chapters | `character_detail{slug: full\|compressed}`, `scene_detail{slug: full\|skip}`, `chapter_tiers{"n": tier}`, built by the rules below | `status{step:4}` ×2 |
 | 5 | Prepare Model | `:169-177` | `specialist.unload` → `AsyncClient.generate(model, keep_alive=0)`: Ollama's unload request, **no generation** (plan 008, KI-012) | specialist model name | Specialist leaves VRAM before the writer loads. Best-effort: a failure becomes a `warning` and the run continues | `status{step:5}` ×2, `warning{message}` if the unload fails |
 | — | (prompt) | `:179-189` | — | world + dicts + chapters + detail maps | `master_prompt` string (see [03 §2.6](03-low-level-design.md#26-appbackendpipelinecontext_builderpy)) | — |
-| 6 | Write Chapter | `:191-202` | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())` | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
-| 7 | Summarize & Save | `:204-280` | `specialist.post_write_update` (spec, **0**) | the **whole chapter**, or its opening + ending when it exceeds ~5000 tokens (`_chapter_excerpt`, plan 008, KI-014), primary character briefs, featured (main) scene briefs | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates a featured scene's `significance` from `scene_updates` (non-empty text only, KI-013). Updates `novel_meta.total_chapters = max(old, n)` | `status{step:7}`, `complete{…}` |
-| ✖ | — | `:282-284` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk.** | `error{message, detail: traceback}` |
+| 6 | Write Chapter | `writer.stream_chapter` loop | `writer.stream_chapter` (writer, 300 s, streaming) | master prompt, plot, chapter number | Tokens are appended to `full_text`. `word_count = len(full_text.split())`. Then the chapter is **saved as the draft** `data/draft.json` (plot, text, featured slugs, the slugs step 3 created) before anything else, in both modes (plan 019, KI-041) | `status{step:6}`, many `token{content}`, then `status{step:6}` "Chapter written: N words". `error` → **pipeline returns early, nothing saved** |
+| ⏸ | (review mode) | `if review:` | — | `review: true` in the request | The pipeline **stops** here; step 7 runs when the author approves the draft (W11) | `draft_complete{…}` |
+| 7 | Summarize & Save | `finalize_chapter()` | `specialist.post_write_update` (spec, **0**) | the **whole chapter**, or its opening + ending when it exceeds ~5000 tokens (`_chapter_excerpt`, plan 008, KI-014), primary character briefs, featured (main) scene briefs, all read from disk now | Saves `data/chapters/NNN.json`. Updates character `last_seen_chapter`, `arc_notes`, `cultivation_level`, `abilities` (set-union), `relationships` (dict update). Updates a featured scene's `significance` from `scene_updates` (non-empty text only, KI-013). Updates `novel_meta.total_chapters = max(old, n)`. **Deletes the draft last.** The same function runs for `POST /api/draft/approve` (plan 019) | `status{step:7}`, `warning` per failed character update, `complete{…}`. If the summary call fails: `error{…, draft_saved: true}` and the draft stays (KI-041) |
+| ✖ | — | `except Exception` | — | any uncaught exception | Nothing further is saved. **Profiles already created in step 3 stay on disk**, and so does a draft saved after step 6. | `error{message, detail: traceback}` |
 
 #### Step 4 rules (deterministic)
 
@@ -130,8 +138,9 @@ Primary characters with no (successful) update still get `last_seen_chapter = N`
 | `new_scene` | `name`, `slug` | Step 3 per saved scene | Same, for scenes |
 | `warning` | `message` | Step 3 profile that can't be saved, step 5 unload failure, step 7 character update that fails validation | Warning toast (6 s) and `console.warn` (since plan 009; before, ignored: KI-018) |
 | `token` | `content` | Step 6, per chunk | Appends to the current `<p>`. Splits paragraphs on `\n\n`. Moves the blinking cursor |
-| `error` | `message`, `detail?`, `cancelled?` | Writer error or uncaught exception; `cancelled: true` (message "Generation cancelled") when the generation was cancelled (`main.py:172`, plan 010) | Hides the cursor. Normal errors: error toast and paints the active step red. Cancelled: resets the pipeline steps, sets the output title to "Cancelled (not saved)", info toast "Generation cancelled" |
-| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 | Marks all steps done, hides the streaming cursor (it really hides since plan 011, KI-037), sets title and word count, `state.currentChapter = {chapter_number, title, word_count, characters_featured, scenes_featured}` (the last two from `characters`/`scenes`, so Full View shows the tags, plan 013, KI-032), sets the badge from `chapter_number`, reloads chapters, characters **and novel meta** (step 7 updated profiles and `total_chapters` on disk; the Edit and Settings modals read that state), clears the plot textarea, success toast |
+| `error` | `message`, `detail?`, `cancelled?`, `draft_saved?` | Writer error or uncaught exception; `cancelled: true` (message "Generation cancelled") when the generation was cancelled (`main.py`, plan 010); `draft_saved: true` when step 7 failed and the written chapter was kept as a draft (plan 019, KI-041) | Hides the cursor. Normal errors: error toast (10 s with `draft_saved`) and paints the active step red. Cancelled: resets the pipeline steps, sets the output title to "Cancelled (not saved)", info toast "Generation cancelled". Both then call `loadDraft()`, which opens a kept draft |
+| `draft_complete` | `chapter_number`, `full_text`, `word_count`, `characters[]`, `scenes[]`, `new_characters[]`, `new_scenes[]` | End of step 6 in review mode (plan 019) | Hides the cursor, marks steps 1–6 done and step 7 "Waiting for your approval", opens the draft editor with `full_text` (W11), info toast. Nothing is reloaded: no chapter was saved |
+| `complete` | `chapter_number`, `title`, `word_count`, `characters[]`, `scenes[]`, `micro_summary` | End of step 7 (one-click mode) | Marks all steps done, hides the streaming cursor (it really hides since plan 011, KI-037), sets title and word count, `state.currentChapter = {chapter_number, title, word_count, characters_featured, scenes_featured, plot_input}` (the featured lists from `characters`/`scenes`, so Full View shows the tags, plan 013, KI-032; `plot_input` is the plot the UI sent, for "Prompt used", plan 019), sets the badge from `chapter_number`, reloads chapters, characters **and novel meta** (step 7 updated profiles and `total_chapters` on disk; the Edit and Settings modals read that state), clears the plot textarea and the @-tags, success toast |
 
 Wire format: each event is one line `data: {json}\n\n` (`chapter_pipeline.py:23-30`). No `event:` or `id:` fields are used.
 
@@ -183,27 +192,34 @@ sequenceDiagram
         PL-->>UI: token
     end
     PL-->>UI: status step 6 (word count)
-    PL-->>UI: status step 7
-    PL->>SP: post_write_update(whole chapter or opening+ending, scene briefs, keep_alive=0)
-    SP->>OL: chat
-    PL->>FS: save chapters/NNN.json, update characters and featured scenes, update novel_meta
-    PL-->>UI: complete
-    UI->>API: GET /api/chapters (refresh history)
+    PL->>FS: save draft.json (text, plot, featured slugs)
+    alt review mode
+        PL-->>UI: draft_complete (the author edits, then approves: W11)
+    else one-click mode
+        PL-->>UI: status step 7
+        PL->>SP: post_write_update(whole chapter or opening+ending, scene briefs, keep_alive=0)
+        SP->>OL: chat
+        PL->>FS: save chapters/NNN.json, update characters and featured scenes, update novel_meta, delete draft.json
+        PL-->>UI: complete
+        UI->>API: GET /api/chapters (refresh history)
+    end
 ```
 
 ### W3.6 Failure behaviour summary
 
 | Failure | Result |
 |---|---|
-| Ollama not running / model missing during steps 1–5 or 7 | Exception → `error` event "Pipeline error: …" with traceback. Nothing saved, except profiles already written in step 3. |
+| Ollama not running / model missing during steps 1–5 | Exception → `error` event "Pipeline error: …" with traceback. Nothing saved, except profiles already written in step 3. |
+| Ollama not running / model missing during step 7 (one-click mode) | `error` event "Summary failed: … The chapter is kept as a draft: approve it to try again." with `draft_saved: true`. The written chapter stays in `data/draft.json`, and the UI opens it for review (plan 019; before, the chapter was lost, KI-041). |
 | Specialist returns non-JSON | `_extract_json` returns `{}`. Downstream `.get()` defaults apply: tone "action", no entities, empty summaries. Generation continues with less context. |
 | Specialist returns a wrong type (e.g. `"estimated_chapters": "2"`) | Coerced (`as_int`, `as_text`, `as_str_list`), so the pipeline continues (plan 009; before, a `TypeError` aborted it, KI-015). |
 | New entity JSON fails Pydantic validation | Most bad values are coerced by the models (e.g. `type: "supporting"` → `temporary`, plan 009). If it still fails (e.g. no name), a `warning` event (a warning toast since plan 009). Entity not saved. Pipeline continues. |
 | A "new" entity's profile reuses an existing slug (the specialist missed the match in step 2) | `warning` event "Could not save character profile: Character 'x' already exists". The existing profile is kept unchanged and still used for context. Pipeline continues. (Before plan 004 it was overwritten, KI-036.) |
 | Writer error | `error` event "Writer error: …". Pipeline returns **before saving**. Streamed text is lost on the server; the browser still shows it. |
 | Browser tab closed mid-stream | Starlette cancels the stream, which cancels the generation task (plan 010). Whatever was not yet saved is lost, and the next generation is accepted at once. |
-| **✕ Cancel** pressed | The task is cancelled at its current `await`. The stream ends with `error {cancelled: true}`. Profiles already written in step 3 stay; the chapter is saved only in step 7. A cancel during step 7 can leave the chapter saved with only some character updates applied. |
-| A second generation while one runs (another tab or client) | **409** before anything starts (plan 010; before, both ran and wrote the same chapter number, KI-031). |
+| **✕ Cancel** pressed | The task is cancelled at its current `await`. The stream ends with `error {cancelled: true}`. Profiles already written in step 3 stay. A cancel during steps 1–6 saves nothing. A cancel during step 7 interrupts the summary call: nothing is saved and the draft stays (the UI opens it). Once the summary is back, `finalize_chapter` saves the chapter and applies every update without pausing, so a cancel can no longer leave them half done (before plan 019 the updates were interleaved with SSE `yield`s, where a cancel could stop them). |
+| A second generation while one runs (another tab or client), or while a draft is approved or rewritten | **409** before anything starts (plan 010; before, both ran and wrote the same chapter number, KI-031; approve/rewrite since plan 019). |
+| A generation while a draft waits for review | **409** "A draft of chapter N is waiting for review…". The UI asks to discard the draft first (plan 019). |
 
 ## W4 — Character / Scene build (refine)
 
@@ -286,8 +302,9 @@ Frontend `refineWorld()` (`app.js:1664-1696`) → `POST /api/refine/world` (`mai
 
 - The history bar shows one pill per chapter from `GET /api/chapters` (summaries only; `full_text` is blanked by the server).
 - Clicking a pill → `GET /api/chapters/{n}` → `showChapterOutput()` renders the paragraphs and highlights the pill.
-- **⛶ Full View** → `openChapterViewModal()`. It copies the output area's HTML (or formats `full_text`, or fetches the chapter) and shows the featured character/scene **slugs** as tags.
-  Right after a generation, `state.currentChapter` only holds `{chapter_number, title, word_count}`, so the featured tags are empty until the chapter is reopened from history.
+- While a draft waits for review, a pill opens the chapter in the Full View modal instead, so the draft stays in the output section (plan 019).
+- **⛶ Full View** → `openChapterViewModal(ch)` (default: `state.currentChapter`; in draft mode the draft as it is in the editor). It formats `full_text` (or copies the output area's HTML right after a one-click generation, or fetches the chapter) and shows the featured character/scene **slugs** as tags.
+- **Prompt used** (plan 019): a collapsed box above the text shows the chapter's `plot_input` (hidden when empty). **↺ Use this prompt again** copies it into the plot box (asking first if the box holds other text), switches to Plot Writing and clears the @-tags.
 
 ## W10 — Export
 
@@ -297,3 +314,37 @@ Frontend `refineWorld()` (`app.js:1664-1696`) → `POST /api/refine/world` (`mai
    - **txt:** `{title}` + `====` underline, then `Chapter {n}: {title}` + 40 dashes + text.
 3. Returns the text from memory as an attachment named by `_export_filename` (`main.py:243-248`): spaces and characters Windows forbids become `_`, trailing dots and spaces are dropped, and `novel` is used if nothing is left. Nothing is written to disk.
    Since plan 015 (KI-017): before, the file was also written to `data/` and left there, and a title with `: ? * " < > |` made the export fail. Line endings are now LF on every OS (the old text-mode write gave CRLF on Windows).
+4. A draft waiting for review is not exported: only saved chapters are.
+
+## W11 — Draft review (edit, AI rewrite, approve, discard)
+
+Plan 019. A draft exists after a review-mode generation (`draft_complete`), or after a one-click generation whose step 7 failed (KI-041). It lives in `data/draft.json` (one at a time) and survives a reload, a closed tab or a server restart.
+
+- **Show:** `showDraft()` hides the reading area and shows the draft panel: an editable `<textarea>` in the reading font, a rewrite row, a selection hint, an optional title and **🗑 Discard** / **✓ Approve & save**. The badge says "Draft · Chapter N", and the plot hint says the draft is waiting.
+- **Edit and autosave:** each change (text or title) is saved 1 s after typing stops with `PUT /api/draft {full_text, title}`. Saves run one after another, and each reads the editor when it runs, so the newest text wins. The status line says "Unsaved changes… / Saving… / Saved / Not saved: …". On `pagehide` a pending change is sent with `keepalive`.
+- **AI rewrite of a selection:**
+  1. Select text in the editor, type an instruction, press Enter (or **✨ Rewrite selection**).
+  2. `POST /api/draft/rewrite {before, passage, after, instruction}`. The pieces are sent as text, not offsets, because JavaScript counts UTF-16 units and Python code points.
+  3. The server calls `writer.revise_passage` with the writer model (`num_ctx` 32768, so the chapter isn't cut; `keep_alive` 300) and returns `{replacement}`. A writer failure or an empty reply is a **500**; the text is never replaced by an error message.
+  4. The editor is read-only meanwhile. The replacement goes in with `setRangeText` and stays selected. **↶ Undo rewrite** restores the text from before it (it asks first if you edited afterwards).
+- **Approve:**
+  1. Waits for a pending autosave, then `POST /api/draft/approve {full_text, title}`.
+  2. The pipeline panel shows step 7 active.
+  3. The server saves the text and title into the draft, then runs `finalize_chapter()`, which is step 7 of W3.3. An empty title lets the specialist suggest one.
+  4. On success it returns `{chapter, warnings}`: the UI shows the chapter in the reading view, shows each warning as a toast, reloads chapters, characters, scenes and meta, and clears the plot and @-tags.
+  5. On failure (**500**, e.g. Ollama down) the draft, with the sent edits, stays, and approving again retries.
+- **Discard:**
+  1. `confirm()`, then `DELETE /api/draft`.
+  2. Then, if step 3 created profiles for this draft (`new_characters`, `new_scenes`) that still exist, a second `confirm()` offers to delete them.
+  3. The plot box keeps its text, so you can change it and generate again.
+- **Guards:** approve and rewrite get **409** while a generation, approval or rewrite runs; edit and discard get **409** while an approval runs; all of them return **404** when no draft exists.
+
+## W12 — @-mentions in the plot box
+
+Plan 019 (`initMentions()` and helpers at the end of `app.js`).
+
+1. Typing `@` at the start of a word (start of text, after a space or opening punctuation) opens a list of matching characters (👤, purple) and locations (📍, gold). The query may hold letters of any script, digits, spaces, `_`, `'` and `-`, up to 40 characters.
+2. Matches: names that start with the query first, then names with a word that starts with it, then names that contain it; up to 8. No match closes the list.
+3. Keys: **↑/↓** move, **Enter** or **Tab** insert, **Esc** closes. A mouse click inserts too (on `mousedown`, so the caret stays). The list sits under the caret (measured with a hidden mirror element) and stays inside the plot box's width.
+4. Inserting replaces `@query` with the exact name plus a space, and remembers `{kind, slug, name}` in `state._mentions`.
+5. On **Generate**, `taggedEntities(plot)` sends the remembered slugs whose names are still in the plot, and that still exist, as `tagged_characters` / `tagged_scenes`. Step 2 then makes them existing primary characters / main locations, so the writer gets their full profiles even when the specialist misses them (W3.3).

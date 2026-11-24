@@ -848,6 +848,53 @@ body {
 
 .plot-textarea:focus + .textarea-glow { opacity: 0.15; }
 
+/* ── @-mentions in the plot box (plan 019); JS places the list at the caret ── */
+.mention-list {
+  position: absolute;
+  z-index: 50;
+  width: 280px;
+  max-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel-bg-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.mention-list[hidden] { display: none; }
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+.mention-item[aria-selected="true"] { background: var(--purple-dim); }
+.mention-item.mention-scene[aria-selected="true"] { background: var(--gold-dim); }
+
+.mention-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-kind {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--purple);
+}
+.mention-scene .mention-kind { color: var(--gold); }
+
 /* Generate button */
 .generate-row {
   display: flex;
@@ -1195,6 +1242,67 @@ body {
 }
 .text-cursor[hidden] { display: none; }  /* display: inline above would override [hidden] (KI-037) */
 
+/* ── Draft review (plan 019): the editable draft and its actions ── */
+.draft-editor {
+  display: block;
+  width: 100%;
+  max-width: 75ch;
+  min-height: 55vh;
+  margin: 0 auto 12px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+  resize: vertical;
+  outline: none;
+  transition: var(--transition);
+}
+.draft-editor:focus { border-color: var(--purple); }
+.draft-editor[readonly] { opacity: 0.6; cursor: progress; }
+
+.draft-rewrite-row,
+.draft-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 75ch;
+  margin: 0 auto;
+}
+.draft-rewrite-row .form-input,
+.draft-title-input { flex: 1; min-width: 0; }
+.draft-rewrite-row .btn-small { white-space: nowrap; }
+.btn-small:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.draft-selection {
+  max-width: 75ch;
+  min-height: 1.2em;
+  margin: 4px auto 12px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-save-status {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.draft-save-status.is-error { color: var(--error); }
+.draft-footer .btn-save:disabled,
+.draft-footer .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.draft-panel[hidden],
+.output-body[hidden] { display: none; }
+
 /* Multi-chapter notice */
 .multi-chapter-notice {
   display: flex;
@@ -1436,6 +1544,17 @@ body {
   font-style: italic;
   margin-top: 3px;
 }
+
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.form-check input { accent-color: var(--purple); width: 16px; height: 16px; }
 
 .settings-divider {
   display: flex;
@@ -1698,6 +1817,33 @@ body {
   background: var(--purple-dim);
   border: 1px solid var(--border);
   color: var(--purple);
+}
+
+/* "Prompt used" in the Full View (plan 019) */
+.chapter-prompt {
+  margin-bottom: 20px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.chapter-prompt[hidden] { display: none; }
+.chapter-prompt summary {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.chapter-prompt-text {
+  margin: 10px 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
 }
 
 .chapter-view-text {
@@ -2436,4 +2582,9 @@ body {
   .generate-row { flex-wrap: wrap; }
   .mode-tab { flex: 1 1 40%; }
   .toast-container { left: 12px; right: 12px; bottom: 12px; }
+  .draft-rewrite-row,
+  .draft-footer { flex-wrap: wrap; }
+  .draft-rewrite-row .form-input,
+  .draft-title-input { flex: 1 1 100%; }
+  .draft-editor { min-height: 45vh; }
 }

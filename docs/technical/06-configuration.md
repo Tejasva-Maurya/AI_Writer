@@ -1,14 +1,15 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016; `review_drafts` row, draft rewrite parameters, draft/mention constants: 2026-11-24, plan 019).
 > There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
 
 | Setting | UI location | Default | Effect |
 |---|---|---|---|
-| Writer model | ⚙ Settings → Writer Model | `gemma3:12b` | Ollama tag used for step 6 (chapter prose) |
-| Specialist model | ⚙ Settings → Specialist Model | `phi4-mini:3.8b` | Ollama tag used for steps 1–5, 7 and all refine endpoints |
+| Writer model | ⚙ Settings → Writer Model | `gemma3:12b` | Ollama tag used for step 6 (chapter prose) and draft rewrites (plan 019) |
+| Specialist model | ⚙ Settings → Specialist Model | `phi4-mini:3.8b` | Ollama tag used for steps 1–5, 7 (also when a draft is approved) and all refine endpoints |
+| Review each chapter as a draft before saving (`review_drafts`) | ⚙ Settings, checkbox | on | On: a generation stops after writing and opens an editable draft; **Approve & save** runs step 7. Off: step 7 runs right after writing, as before plan 019. Sent as `review` with each generation |
 | Novel title | Header (click) or Settings | `Untitled Novel` | Header, page title, export title and filename |
 | Genre / Author | Settings | "" | Stored only |
 
@@ -42,6 +43,8 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | `keep_alive` | `300` s by default: refine and steps 1–3, unloaded after 5 idle minutes (plan 013, KI-029, D-011; was `-1`). `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:44,205,245`, `writer.py:62` |
 | Streaming | no | yes | — |
 | JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:57` |
+
+**Draft rewrite** (`writer.revise_passage`, `POST /api/draft/rewrite`, plan 019) uses the **writer** model, not streamed: `num_ctx` 32768 (like the writer, so the chapter around the selection isn't cut by Ollama's small default context), `temperature` **0.7** (a little lower than the writer's 0.8, to stay close to the original), `top_p` 0.9, `keep_alive` 300 s. The prompt holds at most the last 12,000 characters before the selection and the first 6,000 after it (`_REVISE_BEFORE_CHARS`, `_REVISE_AFTER_CHARS` in `writer.py`). Draft approval runs step 7 unchanged (`post_write_update`, `keep_alive` 0).
 
 > `num_ctx 32768` on a 12B model can need much more VRAM than the model weights alone. If you hit out-of-memory errors, lowering this is the first knob to try, together with picking a smaller model.
 
@@ -86,6 +89,8 @@ Low-VRAM suggestion from the README: writer `llama3.1:8b` + specialist `phi4-min
 | Sidebar reload delay after a new entity | 300 ms | `app.js:481,482` |
 | Pipeline fade after completion | 2000 ms → opacity 0.4 | `app.js:704-706` |
 | Refine status auto-clear | 5000 ms | `app.js:1612` etc. |
+| Draft autosave delay (plan 019) | 1000 ms after the last keystroke | `scheduleDraftSave` |
+| @-mention list (plan 019) | up to 8 matches; query up to 40 characters | `MENTION_LIMIT`, `MENTION_RE` |
 | Frontend fallback meta (when the backend is unreachable) | writer `gemma3:12b`, specialist `phi4-mini:3.8b`, the same as the backend defaults (plan 012; before, the specialist was `gemma3:12b`, KI-028) | `app.js:167-174` (`loadNovelMeta`; the second fallback, in `openSettingsModal`, was removed in plan 006) |
 
 ### 2.6 Launcher (`app/start.bat`)

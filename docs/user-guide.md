@@ -16,7 +16,9 @@ NovelForge AI is a complete creative writing pipeline for light novels. You desc
 - 🗺️ **Location Management** — Tracks all scenes, atmospheres, and inhabitants
 - 🌐 **World Settings** — Magic systems, cultivation levels, factions, lore
 - 📡 **Real-time Streaming** — Watch the chapter write itself word by word
-- 📚 **Chapter History** — Navigate and review any previously written chapter
+- ✏️ **Draft Review** — Edit the new chapter, let the AI rewrite any passage you select, then approve it (or discard it)
+- @ **Mentions** — Type `@` in the plot to insert a character or location by its exact name and make sure the AI uses its profile
+- 📚 **Chapter History** — Navigate and review any previously written chapter, with the prompt it was written from
 - 📤 **Export** — Download your entire novel as `.txt` or `.md`
 
 ---
@@ -115,18 +117,24 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
 1. In the center **Plot Input** area, describe what happens in the next chapter
    - Be descriptive but don't worry about prose — the AI handles that
    - Example: *"Xiao Fan discovers a mysterious cultivation technique hidden in the cave. He attempts to practice it, causing a spiritual energy explosion that attracts the attention of the sect elders."*
+   - **Type `@`** to mention an existing character or location: a list appears as you type (any language). Use **↑/↓** and **Enter** (or click) to insert the exact name. Mentioned characters and locations always reach the AI with their full profile.
 2. Click **▶ Generate Chapter** (or press **Ctrl+Enter**)
-3. Watch the 7-step pipeline animate as the AI:
+3. Watch the pipeline animate as the AI:
    - Analyzes your plot
    - Extracts character and location references
    - Creates/updates character profiles
    - Optimizes the context window
    - Loads the specialist model
    - Writes the chapter (you'll see text appear in real time)
-   - Summarizes for future continuity
-4. When complete, the chapter appears below with word count
-5. Use **⛶ Full View** to open the chapter in a distraction-free reading modal
+4. **Review the draft.** The chapter opens as an editable **Draft**; nothing is final yet.
+   - Fix anything by typing in the text. Your edits are saved automatically, so the draft is still there if you close the tab or restart.
+   - To have the AI redo a part: **select** it, type what should change (e.g. *"make the dialogue angrier"*), and press **Enter** or **✨ Rewrite selection**. Not happy? **↶ Undo rewrite**.
+   - Optionally type a title (or leave it empty and the AI suggests one).
+   - Click **✓ Approve & save**. The AI now summarizes the chapter for future continuity, updates the character profiles, and adds it to the history.
+   - Or click **🗑 Discard** to throw the draft away and try again with the same plot. You can also delete any characters or locations the AI created for it.
+5. Use **⛶ Full View** to open the chapter (or the draft) in a distraction-free reading modal
 6. Changed your mind mid-run? Click **✕ Cancel** next to the Generate button. The run stops and nothing is saved (new character/location profiles already created stay). One chapter is generated at a time, so a second tab gets "A chapter is already being generated" until the first finishes or is cancelled.
+7. Prefer the old one-click flow? In **⚙ Settings**, untick **Review each chapter as a draft before saving**: chapters are then summarized and saved right after writing.
 
 ### Managing Characters
 
@@ -147,6 +155,7 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
 - The bottom bar shows all generated chapters as clickable pills
 - Click any chapter pill to load and display it
 - The currently active chapter is highlighted in purple
+- In **⛶ Full View**, open **Prompt used** to see the plot you wrote for that chapter, and click **↺ Use this prompt again** to copy it back into the plot box
 
 ### Keyboard Shortcuts
 
@@ -158,6 +167,8 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
 | `Alt+S` | Open settings |
 | `Alt+W` | Open world settings |
 | `Escape` | Close open modal |
+| `@` (in the plot box) | Mention a character or location: `↑`/`↓` to choose, `Enter`/`Tab` to insert, `Escape` to close |
+| `Enter` (in the draft's rewrite box) | Rewrite the selected draft text with AI |
 
 The `Alt` shortcuts also work with Caps Lock on.
 
@@ -234,6 +245,8 @@ The backend stores all data as plain JSON files under `data/` (no database). See
 - Check the backend terminal window for error messages
 - The Ollama service must be running: look for it in the system tray or run `ollama serve`
 - "A chapter is already being generated": another tab is still generating. Wait, or click **✕ Cancel** there
+- "A draft of chapter N is waiting for review": approve or discard the draft first (Generate offers to discard it)
+- "Summary failed … kept as a draft" or "Could not approve the draft": your chapter text is safe in the draft. Start Ollama (or pull the specialist model), then click **✓ Approve & save** again
 - A model pull in **⚙ Settings** says "Pull failed: …": the message is Ollama's reason (e.g. a misspelt model name, or a network problem). Check the name and try again
 
 ### Out of memory / VRAM errors

@@ -20,7 +20,7 @@
 | Folder | Holds | Open it when you… |
 |---|---|---|
 | `app/` | The application: `backend/`, `frontend/`, `start.bat`, `requirements.txt` | change, fix, run or install the tool |
-| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`. Local only: git-ignored since plan 017 (D-014), so `git status` never shows it | inspect or back up novel content (**never modify without approval**, §5) |
+| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`, and `draft.json` while a chapter waits for review (plan 019). Local only: git-ignored since plan 017 (D-014), so `git status` never shows it | inspect or back up novel content (**never modify without approval**, §5) |
 | `docs/` | Everything written *about* the tool: `user-guide.md`, `technical/01…09`, `CHANGELOG.md`, `ai/` (these rules, `plans/`, `memory/`, `templates/`) | read or update documentation, plans, the changelog or project memory |
 
 Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `.github/` (CI workflow, a location GitHub requires; D-013), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).
@@ -60,7 +60,8 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 | `data/` | **User content** (the novel) | Do not modify or delete (§5) |
 
 **Invariants. Break one only together with all its counterparts:**
-- **SSE event contract.** Event types are `status`, `multi_chapter`, `new_character`, `new_scene`, `warning`, `token`, `error`, `complete`, emitted by `chapter_pipeline.py` and handled in the `generateChapter()` handler map in `app.js` (documented in docs/technical/02 §W3.4). Change both sides and the doc together.
+- **SSE event contract.** Event types are `status`, `multi_chapter`, `new_character`, `new_scene`, `warning`, `token`, `error`, `draft_complete`, `complete`, emitted by `chapter_pipeline.py` and handled in the `generateChapter()` handler map in `app.js` (documented in docs/technical/02 §W3.4). Change both sides and the doc together.
+- **One LLM job, one draft** (plan 019). Generation, draft approval and passage rewrite share the busy guard in `main.py` (`_busy_reason()`, 409). A pending `data/draft.json` blocks new generations (409). Step 7 lives only in `finalize_chapter()`; the pipeline saves the draft before calling it, and it deletes the draft last (KI-041).
 - **Request wrappers.** Bodies are `{"character": …}`, `{"scene": …}`, `{"settings": …}`, `{"meta": …}`.
 - **Identity.** `slug` = filename stem (`data/characters/{slug}.json`, `data/scenes/{slug}.json`). Chapters are `data/chapters/{n:03d}.json`.
 - **Port/URL.** `8000` and `127.0.0.1` appear in **two** places: `app/start.bat` (`PORT`) and `main.py` (`__main__`). Change both or neither. `app.js` uses the relative `API = '/api'`; keep it relative (no CORS, plan 007).

@@ -15,8 +15,10 @@ const state = {
   chapters: [],
   novelMeta: {},
   currentChapter: null,
+  draft: null,         // the chapter draft waiting for review (GET /api/draft), plan 019
   isGenerating: false,
   activeModal: null,
+  _mentions: [],       // entities picked with @ in the plot box: { kind, slug, name }
   // Tag input data stores
   _abilities: [],
   _habits: [],
@@ -83,11 +85,25 @@ const DOM = {
   outputChapterBadge:$('output-chapter-badge'),
   outputChapterTitle:$('output-chapter-title'),
   wordCountNum:      $('word-count-num'),
+  outputBody:        $('output-body'),
   chapterTextArea:   $('chapter-text-area'),
   textCursor:        $('text-cursor'),
   btnViewFull:       $('btn-view-full'),
   multiChapterNotice:$('multi-chapter-notice'),
   multiChapterMessage:$('multi-chapter-message'),
+
+  // Center - Draft review (plan 019)
+  draftPanel:        $('draft-panel'),
+  draftEditor:       $('draft-editor'),
+  draftInstruction:  $('draft-instruction'),
+  btnDraftRewrite:   $('btn-draft-rewrite'),
+  btnDraftUndo:      $('btn-draft-undo'),
+  draftSelection:    $('draft-selection'),
+  draftTitle:        $('draft-title'),
+  draftSaveStatus:   $('draft-save-status'),
+  btnDraftDiscard:   $('btn-draft-discard'),
+  btnDraftApprove:   $('btn-draft-approve'),
+  mentionList:       $('mention-list'),
 
   // History
   historyPills:      $('history-pills'),
@@ -110,6 +126,7 @@ async function init() {
     loadWorld(),
     loadChapters(),
   ]);
+  await loadDraft();  // a draft left from the last visit opens again (plan 019)
   updateChapterHint();
   console.log('[NovelForge] Ready.');
 }
@@ -117,9 +134,25 @@ async function init() {
 // ─────────────────────────────────────────────
 // API HELPERS
 // ─────────────────────────────────────────────
+// A failed call throws an Error that also carries the HTTP `status` and the server's `detail` message (plan 019)
+function apiError(message, status, text = '') {
+  const err = new Error(message);
+  err.status = status;
+  try {
+    const detail = JSON.parse(text).detail;
+    if (typeof detail === 'string') err.detail = detail;
+  } catch (_) { /* not JSON */ }
+  return err;
+}
+
+// The server's own words for a failed call, for toasts
+function errorText(e) {
+  return e.detail || e.message;
+}
+
 async function apiGet(path) {
   const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) throw apiError(`GET ${path} failed: ${res.status} ${res.statusText}`, res.status, await res.text());
   return res.json();
 }
 
@@ -131,27 +164,29 @@ async function apiPost(path, body) {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`POST ${path} failed: ${res.status} — ${text}`);
+    throw apiError(`POST ${path} failed: ${res.status} — ${text}`, res.status, text);
   }
   return res.json();
 }
 
-async function apiPut(path, body) {
+// options.keepalive lets the request finish while the page closes (the draft's last autosave)
+async function apiPut(path, body, options = {}) {
   const res = await fetch(`${API}${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    keepalive: Boolean(options.keepalive),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`PUT ${path} failed: ${res.status} — ${text}`);
+    throw apiError(`PUT ${path} failed: ${res.status} — ${text}`, res.status, text);
   }
   return res.json();
 }
 
 async function apiDelete(path) {
   const res = await fetch(`${API}${path}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
+  if (!res.ok) throw apiError(`DELETE ${path} failed: ${res.status}`, res.status, await res.text());
   return res.json();
 }
 
@@ -171,6 +206,7 @@ async function loadNovelMeta() {
       total_chapters: 0,
       writer_model: 'gemma3:12b',
       specialist_model: 'phi4-mini:3.8b',  // the backend default (models.py NovelMeta), KI-028
+      review_drafts: true,                 // the backend default too (plan 019)
     };
   }
 }
@@ -363,7 +399,9 @@ function nextChapterNumber() {
 function updateChapterHint() {
   const nextNum = nextChapterNumber();
   DOM.chapterNumLabel.textContent = `CHAPTER ${nextNum}`;
-  DOM.nextChapterHint.textContent = `Will generate Chapter ${nextNum}`;
+  DOM.nextChapterHint.textContent = state.draft
+    ? `Draft of Chapter ${state.draft.chapter_number} is waiting for review`
+    : `Will generate Chapter ${nextNum}`;
 }
 
 // ─────────────────────────────────────────────
@@ -373,14 +411,20 @@ async function viewChapter(number) {
   try {
     showToast(`Loading Chapter ${number}…`, 'info');
     const chapter = await apiGet(`/chapters/${number}`);
-    state.currentChapter = chapter;
 
     // Update pill highlighting
     $$('.chapter-pill').forEach(p => {
       p.classList.toggle('active', parseInt(p.dataset.chapterNum) === number);
     });
 
+    // While a draft is open it keeps the output section: show the chapter in the Full View instead (plan 019)
+    if (state.draft) {
+      openChapterViewModal(chapter);
+      return;
+    }
+
     // Show chapter in output section
+    state.currentChapter = chapter;
     showChapterOutput(chapter);
     showToast(`Chapter ${number}: ${chapter.title}`, 'success');
   } catch (e) {
@@ -426,6 +470,11 @@ async function generateChapter() {
     return;
   }
   if (state.isGenerating) return;
+  // One draft at a time: a new chapter needs the waiting draft approved or discarded first (plan 019)
+  if (state.draft && !(await discardDraft(
+    `A draft of Chapter ${state.draft.chapter_number} is waiting for review.\n\nDiscard it and generate a new chapter?`))) {
+    return;
+  }
 
   state.isGenerating = true;
   DOM.btnGenerate.disabled = true;
@@ -436,12 +485,14 @@ async function generateChapter() {
   resetPipeline();
   DOM.pipelineSection.hidden = false;
   DOM.outputSection.hidden = true;
+  DOM.outputBody.hidden = false;
   DOM.multiChapterNotice.hidden = true;
   DOM.newEntities.innerHTML = '';
 
   // The backend numbers the chapter (highest on disk + 1), so nothing is overwritten. This number is for display only.
   const chapterNumber = nextChapterNumber();
-  const body = { plot };
+  // review: stop after writing and open the chapter as a draft. Tags: the @-picked entities still named in the plot
+  const body = { plot, review: state.novelMeta.review_drafts !== false, ...taggedEntities(plot) };
 
   let streamedText = '';
   let currentParagraph = null;
@@ -526,6 +577,23 @@ async function generateChapter() {
         DOM.textCursor.scrollIntoView({ block: 'nearest' });
       },
 
+      // Review mode: the chapter is written and saved as a draft; step 7 waits for Approve (plan 019)
+      draft_complete: (data) => {
+        DOM.textCursor.hidden = true;
+        showAwaitingApproval();
+        showDraft({
+          chapter_number: data.chapter_number,
+          plot_input: plot,
+          full_text: data.full_text || '',
+          title: '',
+          characters_featured: data.characters || [],
+          scenes_featured: data.scenes || [],
+          new_characters: data.new_characters || [],
+          new_scenes: data.new_scenes || [],
+        });
+        showToast(`Draft of Chapter ${data.chapter_number} is ready: edit it, then Approve to save it.`, 'info', 6000);
+      },
+
       complete: async (data) => {
         completePipeline();
         DOM.textCursor.hidden = true;
@@ -538,10 +606,12 @@ async function generateChapter() {
           word_count: data.word_count,
           characters_featured: data.characters || [],  // Full View tags (KI-032)
           scenes_featured: data.scenes || [],
+          plot_input: plot,                            // Full View "Prompt used" (plan 019)
         };
         await Promise.all([loadChapters(), loadCharacters(), loadNovelMeta()]); // step 7 updated profiles and total_chapters
         showToast(`✓ Chapter ${data.chapter_number} complete — ${data.word_count?.toLocaleString()} words`, 'success');
         DOM.plotInput.value = '';
+        state._mentions = [];
       },
 
       multi_chapter: (data) => {
@@ -562,18 +632,21 @@ async function generateChapter() {
           resetPipeline();
           DOM.outputChapterTitle.textContent = 'Cancelled (not saved)';
           showToast('Generation cancelled', 'info');
+          loadDraft();  // cancelled during step 7: the written chapter is kept as a draft (KI-041)
           return;
         }
-        showToast(`Generation error: ${data.message}`, 'error');
+        showToast(`Generation error: ${data.message}`, 'error', data.draft_saved ? 10000 : 4000);
         setStepError();
+        loadDraft();  // a failed summary keeps the written chapter as a draft (KI-041)
       },
     });
 
   } catch (e) {
-    showToast(`Failed to generate chapter: ${e.message}`, 'error');
+    showToast(`Failed to generate chapter: ${errorText(e)}`, 'error');
     console.error('[NovelForge] Generation error:', e);
     DOM.textCursor.hidden = true;
     setStepError();
+    loadDraft();  // e.g. 409 because a draft was made in another tab: show it
   } finally {
     state.isGenerating = false;
     DOM.btnGenerate.disabled = false;
@@ -593,6 +666,286 @@ async function cancelGeneration() {
     showToast(`Could not cancel: ${e.message}`, 'error');
     DOM.btnCancelGenerate.disabled = false;
   }
+}
+
+// ─────────────────────────────────────────────
+// DRAFT REVIEW (plan 019): edit, rewrite, approve or discard
+// ─────────────────────────────────────────────
+let _draftSaveTimer = null;            // pending autosave
+let _draftSaveChain = Promise.resolve(); // autosaves run one after another, so an older one can't win
+let _draftUndo = [];                   // { before, after } text around each AI rewrite, newest last
+
+const countWords = (text) => text.split(/\s+/).filter(Boolean).length;  // like Python's len(text.split())
+
+async function loadDraft() {
+  try {
+    const draft = await apiGet('/draft');  // null when no draft waits
+    if (draft) {
+      if (!state.draft) showToast(`Draft of Chapter ${draft.chapter_number} is waiting for review.`, 'info', 6000);
+      showDraft(draft);
+    }
+  } catch (e) {
+    console.warn('[NovelForge] Could not load the draft:', e.message);
+  }
+  updateChapterHint();
+}
+
+function showDraft(draft) {
+  state.draft = draft;
+  _draftUndo = [];
+  DOM.outputSection.hidden = false;
+  DOM.outputBody.hidden = true;
+  DOM.draftPanel.hidden = false;
+  DOM.textCursor.hidden = true;
+  DOM.outputChapterBadge.textContent = `Draft · Chapter ${draft.chapter_number}`;
+  DOM.outputChapterTitle.textContent = draft.title || 'Review, edit, then approve';
+  DOM.draftEditor.value = draft.full_text || '';
+  DOM.draftTitle.value = draft.title || '';
+  DOM.draftInstruction.value = '';
+  setDraftBusy(false);
+  setDraftSaveStatus('Saved');
+  updateDraftCounts();
+  updateChapterHint();
+}
+
+function hideDraft() {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = null;
+  state.draft = null;
+  _draftUndo = [];
+  DOM.draftPanel.hidden = true;
+  DOM.outputBody.hidden = false;
+  updateChapterHint();
+}
+
+function setDraftSaveStatus(text, isError = false) {
+  DOM.draftSaveStatus.textContent = text;
+  DOM.draftSaveStatus.classList.toggle('is-error', isError);
+}
+
+function setDraftBusy(busy, message = '') {
+  DOM.draftEditor.readOnly = busy;  // the selection's offsets must not move while the AI works
+  [DOM.btnDraftRewrite, DOM.btnDraftApprove, DOM.btnDraftDiscard, DOM.draftInstruction, DOM.draftTitle]
+    .forEach(el => { el.disabled = busy; });
+  DOM.btnDraftUndo.disabled = busy || _draftUndo.length === 0;
+  if (message) setDraftSaveStatus(message);
+}
+
+// Word count in the header, and what the rewrite would replace
+function updateDraftCounts() {
+  const editor = DOM.draftEditor;
+  DOM.wordCountNum.textContent = countWords(editor.value).toLocaleString();
+  const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+  DOM.draftSelection.textContent = selected.trim()
+    ? `Selected ${countWords(selected)} word(s): “${selected.trim().replace(/\s+/g, ' ').slice(0, 80)}${selected.length > 80 ? '…' : ''}”`
+    : 'Select text in the draft to rewrite it with AI, or edit it directly.';
+}
+
+function draftBody() {
+  return { full_text: DOM.draftEditor.value, title: DOM.draftTitle.value.trim() };
+}
+
+function scheduleDraftSave() {
+  if (!state.draft) return;
+  setDraftSaveStatus('Unsaved changes…');
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = setTimeout(saveDraftNow, 1000);
+}
+
+function saveDraftNow() {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = null;
+  _draftSaveChain = _draftSaveChain.then(async () => {
+    if (!state.draft) return;
+    setDraftSaveStatus('Saving…');
+    try {
+      state.draft = await apiPut('/draft', draftBody());  // reads the editor now, so the newest text is saved
+      setDraftSaveStatus('Saved');
+    } catch (e) {
+      setDraftSaveStatus(`Not saved: ${errorText(e)}`, true);
+    }
+  });
+  return _draftSaveChain;
+}
+
+async function rewriteSelection() {
+  if (!state.draft) return;
+  const editor = DOM.draftEditor;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const text = editor.value;
+  const instruction = DOM.draftInstruction.value.trim();
+  if (end <= start || !text.slice(start, end).trim()) {
+    showToast('Select the text you want to rewrite first.', 'warning');
+    editor.focus();
+    return;
+  }
+  if (!instruction) {
+    showToast('Describe how the selected text should change.', 'warning');
+    DOM.draftInstruction.focus();
+    return;
+  }
+
+  setDraftBusy(true, 'Rewriting the selection…');
+  try {
+    const res = await apiPost('/draft/rewrite', {
+      before: text.slice(0, start), passage: text.slice(start, end), after: text.slice(end), instruction,
+    });
+    editor.setRangeText(res.replacement, start, end, 'select');  // the new text stays selected
+    _draftUndo.push({ before: text, after: editor.value });
+    DOM.draftInstruction.value = '';
+    saveDraftNow();
+    showToast('Selection rewritten. "Undo rewrite" brings the old text back.', 'success');
+  } catch (e) {
+    showToast(`Rewrite failed: ${errorText(e)}`, 'error', 6000);
+    setDraftSaveStatus(_draftSaveTimer ? 'Unsaved changes…' : 'Saved');
+  } finally {
+    setDraftBusy(false);
+    editor.focus();
+    updateDraftCounts();
+  }
+}
+
+function undoRewrite() {
+  const last = _draftUndo[_draftUndo.length - 1];
+  if (!last) return;
+  if (DOM.draftEditor.value !== last.after &&
+      !confirm('Undo the last rewrite? Edits you made after it are undone too.')) return;
+  _draftUndo.pop();
+  DOM.draftEditor.value = last.before;
+  DOM.btnDraftUndo.disabled = _draftUndo.length === 0;
+  updateDraftCounts();
+  saveDraftNow();
+}
+
+// Returns true when no draft is left. `question` replaces the default confirmation text.
+async function discardDraft(question = null) {
+  const draft = state.draft;
+  if (!draft) return true;
+  if (!confirm(question || `Discard the draft of Chapter ${draft.chapter_number}? Its text is deleted and can't be recovered.`)) {
+    return false;
+  }
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = null;
+  await _draftSaveChain;
+  try {
+    await apiDelete('/draft');
+  } catch (e) {
+    if (e.status !== 404) {  // 404: already gone
+      showToast(`Could not discard the draft: ${errorText(e)}`, 'error');
+      return false;
+    }
+  }
+  hideDraft();
+  DOM.outputSection.hidden = true;
+  DOM.pipelineSection.hidden = true;
+
+  // Step 3 created profiles for this draft: offer to remove the ones that still exist
+  const created = [
+    ...(draft.new_characters || []).map(slug => ({ kind: 'character', item: state.characters.find(c => c.slug === slug) })),
+    ...(draft.new_scenes || []).map(slug => ({ kind: 'scene', item: state.scenes.find(s => s.slug === slug) })),
+  ].filter(entry => entry.item);
+  if (created.length && confirm(`This draft created ${created.length} new profile(s): ` +
+      `${created.map(entry => entry.item.name).join(', ')}.\n\nDelete them too?`)) {
+    for (const { kind, item } of created) {
+      try {
+        await apiDelete(`/${kind === 'character' ? 'characters' : 'scenes'}/${item.slug}`);
+      } catch (e) {
+        if (e.status !== 404) showToast(`Could not delete "${item.name}": ${errorText(e)}`, 'error');
+      }
+    }
+    await Promise.all([loadCharacters(), loadScenes()]);
+  }
+  showToast('Draft discarded.', 'info');
+  return true;
+}
+
+async function approveDraft() {
+  if (!state.draft) return;
+  const body = draftBody();
+  if (!body.full_text.trim()) {
+    showToast('The draft is empty: write something or discard it.', 'error');
+    return;
+  }
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = null;
+  await _draftSaveChain;
+  setDraftBusy(true, 'Summarizing and updating character records…');
+  DOM.btnDraftApprove.textContent = 'Approving…';
+  showApprovalStep();
+  try {
+    const res = await apiPost('/draft/approve', body);
+    const chapter = res.chapter;
+    hideDraft();
+    completePipeline();
+    state.currentChapter = chapter;
+    showChapterOutput(chapter);
+    (res.warnings || []).forEach(message => showToast(message, 'warning', 6000));
+    await Promise.all([loadChapters(), loadCharacters(), loadScenes(), loadNovelMeta()]);  // step 7 updated them
+    DOM.plotInput.value = '';
+    state._mentions = [];
+    showToast(`Chapter ${chapter.chapter_number} saved — ${(chapter.word_count || 0).toLocaleString()} words`, 'success');
+  } catch (e) {
+    setStepError();
+    setDraftBusy(false);
+    setDraftSaveStatus('Not approved: the draft is kept', true);
+    showToast(`Could not approve the draft: ${errorText(e)}`, 'error', 8000);
+  } finally {
+    DOM.btnDraftApprove.textContent = '✓ Approve & save';
+  }
+}
+
+// Pipeline panel: steps 1-6 done, step 7 waits for Approve
+function showAwaitingApproval() {
+  for (let i = 1; i <= 6; i++) completePipelineStep(i);
+  updateProgress(6);
+  const log = $('step-7-log');
+  if (log) log.textContent = 'Waiting for your approval';
+}
+
+// Pipeline panel while Approve runs step 7
+function showApprovalStep() {
+  resetPipeline();
+  DOM.pipelineSection.hidden = false;
+  for (let i = 1; i <= 6; i++) completePipelineStep(i);
+  activatePipelineStep(7, 'Summarizing and updating character records...');
+  updateProgress(6);
+}
+
+// The draft shown in the Full View
+function draftAsChapter() {
+  const draft = state.draft;
+  return {
+    chapter_number: draft.chapter_number,
+    title: DOM.draftTitle.value.trim() || `Draft of Chapter ${draft.chapter_number}`,
+    full_text: DOM.draftEditor.value,
+    word_count: countWords(DOM.draftEditor.value),
+    plot_input: draft.plot_input,
+    characters_featured: draft.characters_featured || [],
+    scenes_featured: draft.scenes_featured || [],
+  };
+}
+
+function bindDraftEvents() {
+  const editor = DOM.draftEditor;
+  editor.addEventListener('input', () => { updateDraftCounts(); scheduleDraftSave(); });
+  ['select', 'keyup', 'mouseup'].forEach(type => editor.addEventListener(type, updateDraftCounts));
+  DOM.draftTitle.addEventListener('input', scheduleDraftSave);
+  DOM.draftInstruction.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); rewriteSelection(); }
+  });
+  DOM.btnDraftRewrite.addEventListener('click', rewriteSelection);
+  DOM.btnDraftUndo.addEventListener('click', undoRewrite);
+  DOM.btnDraftDiscard.addEventListener('click', () => discardDraft());
+  DOM.btnDraftApprove.addEventListener('click', approveDraft);
+  // Closing the tab within a second of typing: send the last change anyway
+  window.addEventListener('pagehide', () => {
+    if (_draftSaveTimer && state.draft) {
+      clearTimeout(_draftSaveTimer);
+      _draftSaveTimer = null;
+      apiPut('/draft', draftBody(), { keepalive: true }).catch(() => {});
+    }
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -1067,6 +1420,7 @@ function openSettingsModal() {
   $('meta-title').value           = m.title || '';
   $('meta-genre').value           = m.genre || '';
   $('meta-author').value          = m.author || '';
+  $('meta-review-drafts').checked = m.review_drafts !== false;  // plan 019
   // Fill the model lists now, then refresh them from Ollama. The button and Alt+S both come here (KI-006).
   populateModelSelects(_cachedModels?.installed || [], m.writer_model, m.specialist_model);
   loadModels().then(data => {
@@ -1086,6 +1440,7 @@ async function saveSettings() {
     author:           $('meta-author').value.trim(),
     writer_model:     $('meta-writer-model').value || state.novelMeta.writer_model,
     specialist_model: $('meta-specialist-model').value || state.novelMeta.specialist_model,
+    review_drafts:    $('meta-review-drafts').checked,
   };
 
   const btn = $('btn-save-settings');
@@ -1107,9 +1462,9 @@ async function saveSettings() {
 // ─────────────────────────────────────────────
 // CHAPTER FULL VIEW MODAL
 // ─────────────────────────────────────────────
-function openChapterViewModal() {
-  if (!state.currentChapter) return;
-  const ch = state.currentChapter;
+// Shows `ch` (default: the chapter in the output section). A draft or a history chapter can be passed in (plan 019).
+function openChapterViewModal(ch = state.currentChapter) {
+  if (!ch) return;
 
   $('view-chapter-badge').textContent = `Chapter ${ch.chapter_number}`;
   $('chapter-modal-title').textContent = ch.title || `Chapter ${ch.chapter_number}`;
@@ -1138,16 +1493,23 @@ function openChapterViewModal() {
     sceneTags.appendChild(tag);
   });
 
+  // The plot the chapter was written from, ready to reuse (plan 019)
+  const prompt = (ch.plot_input || '').trim();
+  const promptBox = $('view-prompt-box');
+  promptBox.hidden = !prompt;
+  promptBox.open = false;
+  $('view-prompt-text').textContent = prompt;
+
   // Text
   const viewText = $('chapter-view-text');
   viewText.innerHTML = '';
 
-  // Try to use current text from output area, or fetch
-  const currentText = DOM.chapterTextArea.innerHTML;
-  if (currentText) {
-    viewText.innerHTML = currentText;
-  } else if (ch.full_text) {
+  // The chapter's own text, else the output area's (just generated), else fetch it
+  const currentText = ch === state.currentChapter ? DOM.chapterTextArea.innerHTML : '';
+  if (ch.full_text) {
     formatChapterText(viewText, ch.full_text);
+  } else if (currentText) {
+    viewText.innerHTML = currentText;
   } else {
     // Fetch chapter text
     apiGet(`/chapters/${ch.chapter_number}`).then(fullCh => {
@@ -1158,6 +1520,19 @@ function openChapterViewModal() {
   }
 
   openModal('modal-chapter');
+}
+
+// "Use this prompt again": the Full View's prompt goes back into the plot box (plan 019)
+function reusePrompt() {
+  const prompt = $('view-prompt-text').textContent;
+  const current = DOM.plotInput.value.trim();
+  if (current && current !== prompt.trim() && !confirm('Replace the text in the plot box with this prompt?')) return;
+  closeModal('modal-chapter');
+  switchMode('plot');
+  DOM.plotInput.value = prompt;
+  state._mentions = [];
+  DOM.plotInput.focus();
+  showToast('Prompt copied into the plot box.', 'info');
 }
 
 // ─────────────────────────────────────────────
@@ -1391,8 +1766,13 @@ function bindStaticEvents() {
   DOM.exportTxt.addEventListener('click', () => exportNovel('txt'));
   DOM.exportMd.addEventListener('click', () => exportNovel('md'));
 
-  // View full chapter
-  DOM.btnViewFull.addEventListener('click', openChapterViewModal);
+  // View full chapter (or the draft being reviewed)
+  DOM.btnViewFull.addEventListener('click', () => openChapterViewModal(state.draft ? draftAsChapter() : undefined));
+  $('btn-reuse-prompt').addEventListener('click', reusePrompt);
+
+  // Draft review and @-mentions (plan 019)
+  bindDraftEvents();
+  initMentions();
 
   // Save buttons
   $('btn-save-character').addEventListener('click', saveCharacter);
@@ -1935,3 +2315,160 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+// ═══════════════════════════════════════════════════════════
+// @-MENTIONS IN THE PLOT BOX (plan 019)
+// Type @ at the start of a word: pick a character or location to insert its exact name. Picked entities are sent
+// with the generation, so the writer gets their full profiles.
+// ═══════════════════════════════════════════════════════════
+// "@" at the start or after a space or opening punctuation, then up to 40 name characters (any script)
+const MENTION_RE = /(^|[\s([{"“‘«—–])@([\p{L}\p{M}\p{N}_' -]{0,40})$/u;
+const MENTION_LIMIT = 8;
+const mention = { start: -1, items: [], active: 0 };
+
+function initMentions() {
+  const box = DOM.plotInput;
+  box.addEventListener('input', updateMentions);
+  box.addEventListener('click', updateMentions);
+  box.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') updateMentions();
+  });
+  box.addEventListener('blur', closeMentions);
+  box.addEventListener('keydown', (e) => {
+    if (DOM.mentionList.hidden || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = mention.items.length;
+      mention.active = (mention.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      renderMentions();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      pickMention(mention.active);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMentions();
+    }
+  });
+  window.addEventListener('resize', closeMentions);
+}
+
+// Characters and locations whose name matches the typed text: name starts with it, then a word does, then contains it
+function mentionCandidates(query) {
+  const q = query.trim().toLocaleLowerCase();
+  const all = [
+    ...state.characters.map(c => ({ kind: 'character', slug: c.slug, name: c.name })),
+    ...state.scenes.map(s => ({ kind: 'scene', slug: s.slug, name: s.name })),
+  ];
+  const rank = (name) => {
+    const n = name.toLocaleLowerCase();
+    if (!q || n.startsWith(q)) return 0;
+    if (n.split(/\s+/).some(word => word.startsWith(q))) return 1;
+    return n.includes(q) ? 2 : -1;
+  };
+  return all
+    .map(item => ({ ...item, rank: rank(item.name) }))
+    .filter(item => item.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))
+    .slice(0, MENTION_LIMIT);
+}
+
+function updateMentions() {
+  const box = DOM.plotInput;
+  if (box.selectionStart !== box.selectionEnd) return closeMentions();
+  const match = box.value.slice(0, box.selectionStart).match(MENTION_RE);
+  if (!match) return closeMentions();
+  const items = mentionCandidates(match[2]);
+  if (!items.length) return closeMentions();
+  mention.start = match.index + match[1].length;  // where the "@" is
+  mention.items = items;
+  mention.active = 0;  // the best match first; ↑/↓ move from there
+  renderMentions();
+  placeMentions();
+}
+
+function renderMentions() {
+  const list = DOM.mentionList;
+  list.innerHTML = mention.items.map((item, i) => `
+    <div class="mention-item mention-${item.kind}" role="option" id="mention-opt-${i}"
+         aria-selected="${i === mention.active}" data-index="${i}">
+      <span aria-hidden="true">${item.kind === 'character' ? '👤' : '📍'}</span>
+      <span class="mention-name">${escHtml(item.name)}</span>
+      <span class="mention-kind">${item.kind === 'character' ? 'Character' : 'Location'}</span>
+    </div>`).join('');
+  list.querySelectorAll('.mention-item').forEach(el => {
+    // mousedown, not click: the plot box keeps its focus and caret
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); pickMention(Number(el.dataset.index)); });
+  });
+  list.hidden = false;
+  DOM.plotInput.setAttribute('aria-activedescendant', `mention-opt-${mention.active}`);
+  $(`mention-opt-${mention.active}`)?.scrollIntoView({ block: 'nearest' });
+}
+
+// Below the caret, kept inside the plot box's width
+function placeMentions() {
+  const box = DOM.plotInput;
+  const list = DOM.mentionList;
+  const caret = caretPosition(box, mention.start);
+  const top = Math.min(caret.top + caret.lineHeight, box.clientHeight) + box.offsetTop + 4;
+  const maxLeft = Math.max(0, box.offsetWidth - list.offsetWidth);
+  list.style.top = `${top}px`;
+  list.style.left = `${Math.min(Math.max(0, caret.left + box.offsetLeft), maxLeft)}px`;
+}
+
+// Caret coordinates inside a textarea: a hidden copy with the same text metrics, measured at `index`
+function caretPosition(textarea, index) {
+  const style = getComputedStyle(textarea);
+  const mirror = document.createElement('div');
+  ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth',
+   'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
+   'letterSpacing', 'lineHeight', 'textTransform', 'wordSpacing', 'textIndent', 'tabSize']
+    .forEach(prop => { mirror.style[prop] = style[prop]; });
+  Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', top: '0', left: '-9999px',
+    whiteSpace: 'pre-wrap', overflowWrap: 'break-word' });
+  mirror.textContent = textarea.value.slice(0, index);
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';  // zero-width: marks the caret without moving it
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const position = {
+    top: marker.offsetTop - textarea.scrollTop,
+    left: marker.offsetLeft - textarea.scrollLeft,
+    lineHeight: parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5,
+  };
+  mirror.remove();
+  return position;
+}
+
+function pickMention(index) {
+  const item = mention.items[index];
+  if (!item) return;
+  const box = DOM.plotInput;
+  const end = box.selectionStart;
+  const after = box.value.slice(end);
+  const insert = item.name + (/^\s/.test(after) ? '' : ' ');
+  box.setRangeText(insert, mention.start, end, 'end');
+  if (!state._mentions.some(m => m.kind === item.kind && m.slug === item.slug)) {
+    state._mentions.push({ kind: item.kind, slug: item.slug, name: item.name });
+  }
+  closeMentions();
+  box.focus();
+}
+
+function closeMentions() {
+  if (DOM.mentionList.hidden) return;
+  DOM.mentionList.hidden = true;
+  DOM.mentionList.innerHTML = '';
+  DOM.plotInput.removeAttribute('aria-activedescendant');
+  mention.items = [];
+  mention.active = 0;
+}
+
+// The picked entities whose name is still in the plot and that still exist, for POST /api/generate-chapter
+function taggedEntities(plot) {
+  const text = plot.toLocaleLowerCase();
+  const stillThere = (m, list) => text.includes(m.name.toLocaleLowerCase()) && list.some(e => e.slug === m.slug);
+  return {
+    tagged_characters: state._mentions.filter(m => m.kind === 'character' && stillThere(m, state.characters)).map(m => m.slug),
+    tagged_scenes: state._mentions.filter(m => m.kind === 'scene' && stillThere(m, state.scenes)).map(m => m.slug),
+  };
+}

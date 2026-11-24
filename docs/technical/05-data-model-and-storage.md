@@ -1,11 +1,11 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
 
-All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these five lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database. `data/` is not in git since plan 017 (KI-030, §5).
+All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these six lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database. `data/` is not in git since plan 017 (KI-030, §5).
 
 ```
 data/
@@ -14,6 +14,7 @@ data/
 ├── characters/{slug}.json              Character, 1 per file (character_manager)
 ├── scenes/{slug}.json                  Scene, 1 per file     (scene_manager)
 ├── chapters/{NNN}.json                 Chapter, 1 per file   (chapter_manager; NNN = zero-padded to 3 digits)
+├── draft.json                          Draft, only while a chapter waits for review (draft_manager, plan 019)
 └── {Title_With_Underscores}.{txt|md}   left by exports of older versions (since plan 015 export writes nothing here)
 ```
 
@@ -23,7 +24,7 @@ data/
 | Directory creation | Lazy: `characters/`, `scenes/` and `chapters/` are created on first access. The root file's parent is created on save. |
 | Identity | Filename stem = `slug` (or chapter number). Renaming a character does **not** rename its file. Slugs must match `[\w-]+` (letters/digits of any script, `_`, `-`); anything else is refused before touching the disk. New slugs are always derived by the server (`make_slug`: lowercase, `_` separators), so new files are snake_case; older hyphenated files (e.g. `xiao-fan-scientist-inventor`) stay valid and are matched by the equivalence check (plan 007, KI-009/KI-010). |
 | Atomicity | Every write is atomic (plan 016, KI-026): `managers/storage.write_json` writes a temp file in the same folder, `fsync`s it, then `os.replace`s it into place, so a crash leaves the old file intact (before, `save` wrote in place). No locking. Creating a character or scene (`create`) uses an atomic exclusive move (`os.link`; an exclusive `open(…, "x")` where hard links aren't supported), so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
-| Corruption handling | List operations skip unreadable/invalid files and log `WARNING Skipped unreadable <folder>/<file>: <error>` to the server console (plan 016; before, silently). Single-item reads raise (→ 500). |
+| Corruption handling | List operations skip unreadable/invalid files and log `WARNING Skipped unreadable <folder>/<file>: <error>` to the server console (plan 016; before, silently). Single-item reads raise (→ 500), except the draft: an unreadable `draft.json` is logged and treated as no draft, so it can't block every generation (plan 019). |
 | Versioning / migrations | None. Files are validated against the current Pydantic model on read, so **adding a required field or renaming a field breaks every existing file**. Always add new fields with defaults. |
 | Type coercion | Characters, scenes and world settings coerce wrong-typed values on read and write (`models.py`, plan 009): text fields accept numbers/lists/dicts, list fields a single string, chapter numbers numeric text (else 1), `type` anything ("main" → main, else temporary). Files saved with such values by older versions **load again** (they used to be skipped silently) and are written back valid on their next save. Already-valid files load unchanged (verified on the real `data/` files). Only a missing `name`/`slug` or invalid JSON still makes a file unloadable. |
 | One novel per folder | To keep several novels, keep separate copies of `data/` (see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). |
@@ -134,6 +135,23 @@ Chapters cannot be edited or deleted through the API or UI. Re-generating with a
 | `writer_model` | str | `"gemma3:12b"` | Ollama model tag for step 6 |
 | `specialist_model` | str | `"phi4-mini:3.8b"` | Ollama model tag for all specialist calls |
 | `created_at` | str | "" | Never set |
+| `review_drafts` | bool | `true` | Plan 019. The UI's "Review each chapter as a draft before saving" setting, sent as `review` with each generation. Files written before plan 019 load with `true`. |
+
+### 2.6 Draft — `data/draft.json` (plan 019)
+
+A written chapter that waits for review: at most one, written by the pipeline right after step 6 (in every mode), deleted as the last action of step 7 (approval or one-click) or on discard.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `chapter_number` | int | **required** | The number the chapter gets when approved |
+| `plot_input` | str | "" | The plot it was written from; becomes the chapter's `plot_input` |
+| `full_text` | str | "" | The text, edited by the author (autosave) and by AI rewrites |
+| `title` | str | "" | Optional author title; empty = the specialist suggests one at approval |
+| `characters_featured` / `scenes_featured` | str[] | [] | Slugs (primary characters, main locations), as on `Chapter` |
+| `new_characters` / `new_scenes` | str[] | [] | Slugs step 3 created for this draft; discard offers to delete them |
+| `created_at` / `updated_at` | str | "" | ISO timestamps |
+
+A draft is not a chapter: it isn't listed, exported or used as context until it is approved. While it exists, a new generation is refused (409).
 
 ## 3. Relationships between entities
 
@@ -153,8 +171,8 @@ References are **not enforced**. Deleting a character leaves its slug inside cha
 | Data | Included when | Form |
 |---|---|---|
 | World settings | Always (non-empty fields) | Labelled lines |
-| Character | Resolved in step 2 **and** exists on disk | `primary` → full profile. Otherwise compressed one-liner. |
-| Scene | Resolved in step 2 **and** exists on disk **and** `importance == main` | Full profile. Background scenes are skipped. |
+| Character | Resolved in step 2, or tagged with `@` in the plot (plan 019), **and** exists on disk | `primary` (always for a tagged one) → full profile. Otherwise compressed one-liner. |
+| Scene | Resolved in step 2, or tagged with `@`, **and** exists on disk **and** `importance == main` (always for a tagged one) | Full profile. Background scenes are skipped. |
 | Previous chapter (N−1) | Always | Last 400 words of text |
 | Chapters N−4…N−2 | Always | `full_summary` |
 | Chapters N−8…N−5 | Always | `short_summary` |
@@ -174,4 +192,4 @@ Since plan 017 (KI-030, decision D-014), **`data/` is not in git**. `.gitignore`
   - one character and one location
   - `Untitled_Novel.txt`, an old export
 - **Other clones:** pulling the plan 017 commit deletes those five files from that clone's working copy, as for any file removed from git. Back them up first if they matter there.
-- **Tests** never touch `data/`. An autouse fixture points every manager at a temp folder, and a session guard compares a snapshot of the real `data/` before and after the run (`app/tests/conftest.py:84-88`).
+- **Tests** never touch `data/`. An autouse fixture points every manager at a temp folder, and a session guard compares a snapshot of the real `data/` before and after the run (`real_data_untouched` in `app/tests/conftest.py`). Since plan 019 the snapshot also holds folder mtimes, so a file created and deleted again during the run is caught too.
