@@ -12,11 +12,11 @@
 - Released: **2.0.0** (2026-11-24, plan 018, D-015). `app/backend/main.py` says `version="2.0.0"`. Major because the HTTP API changed: create returns 409 instead of overwriting, same-origin only, generate returns 409 while one runs.
 - 2.0.0 contains plans 001–017 and fixes all 40 known issues; per-plan detail lives in `docs/CHANGELOG.md` and `docs/ai/plans/`. 1.0.0 was 2026-07-13 (`dead3e3`).
 - Pushed 2026-11-24 (`03312e5` on GitHub). Annotated tags `v1.0.0` (`dead3e3`) and `v2.0.0` (`03312e5`); GitHub Release https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0 (latest). CI green on `main` and on the tag.
-- `[Unreleased]` holds plan 019 (draft review, AI rewrite, @-mentions, prompt reuse; KI-041 fixed). Additive API change → the next release would be **2.1.0**.
+- `[Unreleased]` holds plan 019 (draft review, AI rewrite, @-mentions, prompt reuse; KI-041 fixed; additive) and plan 020 (refines join the job guard; KI-042 fixed). Plan 020 adds a 409 to the refine routes: read like D-015, the next release would be **3.0.0**, not 2.1.0 (D-017; the user decides at release time).
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 001–019 are done; no active plan. Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
+- Plans 001–020 are done; no active plan. Plan 020 (D-017) is on branch `fix/refine-busy-guard`, to reach `main` through a PR. Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
 - PRs: push the branch with the github-push skill, then open and merge the PR with `GH_TOKEN="$GH_PUSH_TOKEN" gh pr …`, so the personal account (not `gh`'s work login) is the PR author. Auto-fix can't be enabled for such PRs, because `gh` is signed in as the work account.
 - New since plan 019: `data/draft.json` (one draft at a time, `draft_manager`), `/api/draft*` routes, SSE `draft_complete`, `novel_meta.review_drafts` (default on).
 - CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
@@ -24,8 +24,8 @@
 
 ## Suggested next up
 1. Test draft review with a real Ollama (not possible on this machine): rewrite quality, approval timing, VRAM.
-2. Possible follow-ups (plan 019 "Not included"): refine endpoints under the busy guard, unused helpers, keeping partial text as a draft when the writer fails mid-stream.
-3. No KI is open (41 fixed). New defects get KI-042 onwards.
+2. Remaining follow-ups from plan 019 "Not included": unused helpers, context tiers when regenerating an earlier chapter, keeping partial text as a draft when the writer fails mid-stream. (Refine under the busy guard: done in plan 020.)
+3. No KI is open (42 fixed). New defects get KI-043 onwards.
 
 ## Environment facts (dev machine, verified 2026-11-22)
 - Windows 11, Git Bash. `py` → Python 3.14.5 (has fastapi 0.141.1, pydantic 2.13.4, uvicorn 0.52.3, httpx 0.28.1). `python` → Python 3.14.0 (separate install).

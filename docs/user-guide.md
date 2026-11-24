@@ -246,6 +246,7 @@ The backend stores all data as plain JSON files under `data/` (no database). See
 - The Ollama service must be running: look for it in the system tray or run `ollama serve`
 - "A chapter is already being generated": another tab is still generating. Wait, or click **✕ Cancel** there
 - "A draft of chapter N is waiting for review": approve or discard the draft first (Generate offers to discard it)
+- A Build tab says "A chapter is already being generated" (or that a draft is being approved): AI jobs run one at a time, so the refine waits its turn. Try again when the chapter is done; nothing was changed. Likewise, Generate says "A profile is being refined with AI" for the few seconds a Build-tab refine runs
 - "Summary failed … kept as a draft" or "Could not approve the draft": your chapter text is safe in the draft. Start Ollama (or pull the specialist model), then click **✓ Approve & save** again
 - A model pull in **⚙ Settings** says "Pull failed: …": the message is Ollama's reason (e.g. a misspelt model name, or a network problem). Check the name and try again
 

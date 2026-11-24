@@ -29,9 +29,12 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - API errors in the UI show the server's own message (`detail`) for the new draft actions [plan 019]
 - The test guard `real_data_untouched` also compares folder mtimes, so it catches a file created and deleted in the real `data/` during a test run; `draft_manager` is redirected like the other managers [plan 019]
 - Docs: technical/02 (W3, new W11 draft review and W12 @-mentions), 03, 04, 05, 06, 07, 08 (A16–A18), 09 and the user guide describe the draft flow; stale `keep_alive -1` and "no JSON mode" notes corrected [plan 019]
+- The Build-tab refines (`POST /api/refine/character|scene|world`) now wait their turn with the other AI jobs: while a chapter is generated, a draft approved or rewritten, or another refine runs, they return **409** with the reason, shown in the Build tab, instead of loading the second model next to the writer; and generate/approve/rewrite return 409 for the few seconds a refine runs. ⚠ A new 409 on existing routes: under the rule D-015 applied, the next release would be 3.0.0 [plan 020]
+- Build-tab refine errors show the server's message instead of raw JSON [plan 020]
 
 ### Fixed
 - A failure while summarizing (step 7), e.g. Ollama stopping, no longer loses the chapter that was just written: it is kept as a draft, and Approve retries [plan 019] [KI-041]
+- Edits to a character or location saved while a chapter is being summarized, and World Settings saved while a World Build refine runs, are no longer overwritten; a character deleted meanwhile is no longer written back [plan 020] [KI-042]
 
 ## [2.0.0] - 2026-11-24
 

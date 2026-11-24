@@ -1984,8 +1984,8 @@ async function refineCharacter() {
     populateExistingCharDropdown();
   } catch (e) {
     statusEl.className = 'refine-status error';
-    statusEl.textContent = `✗ Error: ${e.message}`;
-    showToast(`Refinement failed: ${e.message}`, 'error');
+    statusEl.textContent = `✗ Error: ${errorText(e)}`;  // the server's words, e.g. the 409 while a chapter is written
+    showToast(`Refinement failed: ${errorText(e)}`, 'error');
   } finally {
     btn.disabled = false;
     btn.querySelector('.refine-text').textContent = 'Refine & Save Character';
@@ -2029,8 +2029,8 @@ async function refineScene() {
     populateExistingSceneDropdown();
   } catch (e) {
     statusEl.className = 'refine-status error';
-    statusEl.textContent = `✗ Error: ${e.message}`;
-    showToast(`Refinement failed: ${e.message}`, 'error');
+    statusEl.textContent = `✗ Error: ${errorText(e)}`;  // the server's words, e.g. the 409 while a chapter is written
+    showToast(`Refinement failed: ${errorText(e)}`, 'error');
   } finally {
     btn.disabled = false;
     btn.querySelector('.refine-text').textContent = 'Refine & Save Location';
@@ -2066,8 +2066,8 @@ async function refineWorld() {
     $('build-world-desc').value = '';
   } catch (e) {
     statusEl.className = 'refine-status error';
-    statusEl.textContent = `✗ Error: ${e.message}`;
-    showToast(`World update failed: ${e.message}`, 'error');
+    statusEl.textContent = `✗ Error: ${errorText(e)}`;
+    showToast(`World update failed: ${errorText(e)}`, 'error');
   } finally {
     btn.disabled = false;
     btn.querySelector('.refine-text').textContent = 'Integrate into World Settings';

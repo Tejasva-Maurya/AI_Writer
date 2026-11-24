@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042). **Last verified against code:** 2026-11-24.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -79,7 +79,7 @@ Notes:
 
 ### W3.2 Backend entry (`main.py:180-217`)
 
-- **One LLM job at a time** (plan 010, KI-031; widened in plan 019): `_busy_reason()` returns **409** while a generation task runs (`A chapter is already being generated. Wait for it to finish or cancel it.`), or while a draft approval or a passage rewrite runs (`_job["kind"]`).
+- **One LLM job at a time** (plan 010, KI-031; widened in plans 019 and 020): `_busy_reason()` returns **409** while a generation task runs (`A chapter is already being generated. Wait for it to finish or cancel it.`), or while a draft approval, a passage rewrite or a Build-tab refine runs (`_job["kind"]`, claimed and released by the `_llm_job(kind)` context manager).
 - **One draft at a time** (plan 019): if `data/draft.json` exists → **409** `A draft of chapter N is waiting for review. Approve or discard it first.`
 - Loads `NovelMeta` from `data/novel_meta.json` to get the model names.
 - `chapter_number = req.chapter_number or chapter_manager.get_next_number()`. The frontend sends no number (plan 006), so the backend picks highest + 1.
@@ -218,7 +218,8 @@ sequenceDiagram
 | Writer error | `error` event "Writer error: …". Pipeline returns **before saving**. Streamed text is lost on the server; the browser still shows it. |
 | Browser tab closed mid-stream | Starlette cancels the stream, which cancels the generation task (plan 010). Whatever was not yet saved is lost, and the next generation is accepted at once. |
 | **✕ Cancel** pressed | The task is cancelled at its current `await`. The stream ends with `error {cancelled: true}`. Profiles already written in step 3 stay. A cancel during steps 1–6 saves nothing. A cancel during step 7 interrupts the summary call: nothing is saved and the draft stays (the UI opens it). Once the summary is back, `finalize_chapter` saves the chapter and applies every update without pausing, so a cancel can no longer leave them half done (before plan 019 the updates were interleaved with SSE `yield`s, where a cancel could stop them). |
-| A second generation while one runs (another tab or client), or while a draft is approved or rewritten | **409** before anything starts (plan 010; before, both ran and wrote the same chapter number, KI-031; approve/rewrite since plan 019). |
+| A second generation while one runs (another tab or client), or while a draft is approved or rewritten, or while a Build-tab refine runs | **409** before anything starts (plan 010; before, both ran and wrote the same chapter number, KI-031; approve/rewrite since plan 019, refine since plan 020). |
+| A profile or location edited (Edit modal, **Update Existing**) while step 7's summary runs | Kept: `finalize_chapter` reads the profiles again after the summary call and applies its updates to them; a profile deleted meanwhile stays deleted (plan 020; before, the edit was reverted and a deleted profile written back, KI-042). |
 | A generation while a draft waits for review | **409** "A draft of chapter N is waiting for review…". The UI asks to discard the draft first (plan 019). |
 
 ## W4 — Character / Scene build (refine)
@@ -234,7 +235,10 @@ sequenceDiagram
     participant FS as managers
     UI->>API: POST {description, name?, existing_slug?}
     API->>FS: load novel_meta (specialist model), world
-    API->>SP: refine_character(description, name, world, model)
+    alt another LLM job runs (generation, approve, rewrite, refine)
+        API-->>UI: 409 its reason, e.g. "A chapter is already being generated…"
+    end
+    API->>SP: refine_character(description, name, world, model)  (holds the "refine" job slot)
     SP-->>API: dict (profile JSON) or {}
     alt result empty
         API-->>UI: 500 "Failed to generate … profile"
@@ -256,13 +260,19 @@ Merge semantics for "Update Existing":
 - The existing `slug`, `name` and `first_appeared_chapter` are always kept.
 - Only known model fields are merged. The merged record is validated (and coerced, e.g. `age: 17` → `"17"`, `type: "supporting"` → `temporary`) **before** saving; if validation still fails, the request returns 500 and nothing is saved, so the file stays loadable. (Before plan 009 values were `setattr` without validation and could make the entity vanish, KI-016.)
 - Refine calls use `keep_alive=300`, so the specialist stays in VRAM for 5 idle minutes (fast follow-up builds) and is then unloaded (plan 013, KI-029; before, `-1` kept it loaded until a generation unloaded it or Ollama restarted).
+- **One LLM job at a time** (plan 020): all three refine routes (W4, W5) hold the `"refine"` job slot during the specialist call.
+  - While a generation, approval, rewrite or another refine runs, they return **409** with its reason and don't call the specialist. Before, a refine during step 6 reloaded the specialist next to the writer, undoing step 5's unload.
+  - While a refine runs, those jobs get **409** "A profile is being refined with AI. Wait for it to finish."
+  - A draft merely waiting for review does not block a refine.
+  - The UI shows the server's message in the status line and the toast.
+- The existing profile is read **after** the specialist call, so an edit saved during it is the one merged into.
 
 ## W5 — World build (refine + merge)
 
 Frontend `refineWorld()` (`app.js:1664-1696`) → `POST /api/refine/world` (`main.py:500-527`).
 
 1. The specialist (`specialist.refine_world`) gets a brief of the current world (name, genres, cultivation, magic, hierarchy) and the author's description. It returns the full `WorldSettings` shape, with only the fields that the description touches filled in.
-2. Merge into the existing world (`main.py:509-525`):
+2. Merge into the world **as it is after the call** (`world_manager.load()` again; the pre-call copy only feeds the prompt), so a World Settings save made while the specialist worked is kept (plan 020; before, the merge of the old copy overwrote it, KI-042). The same job guard as W4 applies (409 while another LLM job runs):
    - **List fields** (`genre_tags`, `professions`, `hierarchy_levels`, `factions`): the LLM value is read as a list (a single string is one item), then each truthy item that is not already present is appended (exact-string dedupe, order kept). Before plan 009 a string replaced the whole list or caused a 500.
    - **String fields:** replaced when the new value is non-empty.
    - Unknown keys are ignored.
@@ -337,7 +347,7 @@ Plan 019. A draft exists after a review-mode generation (`draft_complete`), or a
   1. `confirm()`, then `DELETE /api/draft`.
   2. Then, if step 3 created profiles for this draft (`new_characters`, `new_scenes`) that still exist, a second `confirm()` offers to delete them.
   3. The plot box keeps its text, so you can change it and generate again.
-- **Guards:** approve and rewrite get **409** while a generation, approval or rewrite runs; edit and discard get **409** while an approval runs; all of them return **404** when no draft exists.
+- **Guards:** approve and rewrite get **409** while a generation, approval, rewrite or refine runs; edit and discard get **409** while an approval runs; all of them return **404** when no draft exists.
 
 ## W12 — @-mentions in the plot box
 

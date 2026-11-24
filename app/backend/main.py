@@ -7,6 +7,7 @@ import re
 import sys
 import json
 import asyncio
+import contextlib
 import ipaddress
 import logging
 import urllib.parse
@@ -168,14 +169,15 @@ async def get_chapter(number: int):
 
 
 # ── GENERATE CHAPTER (SSE) ────────────────────────────────────
-# One LLM job at a time (KI-031, plan 019): a generation (a task that feeds the SSE stream), a draft approval or a
-# passage rewrite. Cancel stops only a generation.
+# One LLM job at a time (KI-031, plans 019 and 020): a generation (a task that feeds the SSE stream), a draft
+# approval, a passage rewrite or a Build-tab refine. Cancel stops only a generation.
 _generation: Dict[str, Optional[asyncio.Task]] = {"task": None}
-_job: Dict[str, Optional[str]] = {"kind": None}  # "approve" or "rewrite" while one runs
+_job: Dict[str, Optional[str]] = {"kind": None}  # "approve", "rewrite" or "refine" while one runs
 _CANCELLED_EVENT = f"data: {json.dumps({'type': 'error', 'message': 'Generation cancelled', 'cancelled': True})}\n\n"
 _JOB_BUSY = {
     "approve": "The draft is being approved. Wait for it to finish.",
     "rewrite": "A passage is being rewritten. Wait for it to finish.",
+    "refine": "A profile is being refined with AI. Wait for it to finish.",
 }
 
 
@@ -188,6 +190,19 @@ def _busy_reason() -> Optional[str]:
     if _generation_running():
         return "A chapter is already being generated. Wait for it to finish or cancel it."
     return _JOB_BUSY.get(_job["kind"])
+
+
+@contextlib.contextmanager
+def _llm_job(kind: str):
+    """Hold the one-LLM-job slot while the body runs: 409 if another job runs, always released afterwards (plan 020).
+    The check and the claim happen without an await in between, so two requests can't both get the slot."""
+    if reason := _busy_reason():
+        raise HTTPException(409, reason)
+    _job["kind"] = kind
+    try:
+        yield
+    finally:
+        _job["kind"] = None
 
 
 @app.post("/api/generate-chapter")
@@ -290,15 +305,13 @@ async def rewrite_draft_passage(req: RewriteRequest):
     if not req.instruction.strip():
         raise HTTPException(422, "Describe how the passage should change")
     meta = novel_meta_manager.load()
-    _job["kind"] = "rewrite"
-    try:
-        replacement = await writer.revise_passage(req.before, req.passage, req.after, req.instruction.strip(),
-                                                  draft.plot_input, meta.writer_model)
-    except Exception as e:
-        log.warning("Rewrite with %s failed: %s", meta.writer_model, e)
-        raise HTTPException(500, f"Rewrite failed: {e}")
-    finally:
-        _job["kind"] = None
+    with _llm_job("rewrite"):
+        try:
+            replacement = await writer.revise_passage(req.before, req.passage, req.after, req.instruction.strip(),
+                                                      draft.plot_input, meta.writer_model)
+        except Exception as e:
+            log.warning("Rewrite with %s failed: %s", meta.writer_model, e)
+            raise HTTPException(500, f"Rewrite failed: {e}")
     if not replacement:
         raise HTTPException(500, "Rewrite failed: the writer returned no text")
     return {"replacement": replacement}
@@ -320,14 +333,13 @@ async def approve_draft(req: ApproveDraftRequest):
     draft.updated_at = datetime.now().isoformat()
     draft_manager.save(draft)
     meta = novel_meta_manager.load()
-    _job["kind"] = "approve"
-    try:
-        chapter, warnings = await finalize_chapter(draft, meta.specialist_model)
-    except Exception as e:
-        log.warning("Approving the draft of chapter %d failed: %s", draft.chapter_number, e)
-        raise HTTPException(500, f"Could not finalize the chapter: {e}. The draft is kept: approve it again to retry.")
-    finally:
-        _job["kind"] = None
+    with _llm_job("approve"):
+        try:
+            chapter, warnings = await finalize_chapter(draft, meta.specialist_model)
+        except Exception as e:
+            log.warning("Approving the draft of chapter %d failed: %s", draft.chapter_number, e)
+            raise HTTPException(500, f"Could not finalize the chapter: {e}. "
+                                     "The draft is kept: approve it again to retry.")
     for message in warnings:
         log.warning("%s", message)
     return {"chapter": chapter.model_dump(), "warnings": warnings}
@@ -537,10 +549,12 @@ async def refine_character(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = await specialist.refine_character(req.description, req.name, world, meta.specialist_model)
+    # One LLM job at a time: a refine must not reload the specialist while the writer works (plan 020)
+    with _llm_job("refine"):
+        result = await specialist.refine_character(req.description, req.name, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to generate character profile")
-    # Merge with existing if slug provided
+    # Merge with existing if slug provided (read after the call, so edits made meanwhile are kept)
     existing = None
     if req.existing_slug:
         existing = character_manager.get_by_slug(req.existing_slug)
@@ -574,7 +588,8 @@ async def refine_scene(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = await specialist.refine_scene(req.description, req.name, world, meta.specialist_model)
+    with _llm_job("refine"):  # same guard as refine_character (plan 020)
+        result = await specialist.refine_scene(req.description, req.name, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to generate scene profile")
     existing = None
@@ -609,11 +624,13 @@ async def refine_world(req: RefineRequest):
     from agents import specialist
     meta = novel_meta_manager.load()
     world = world_manager.load()
-    result = await specialist.refine_world(req.description, world, meta.specialist_model)
+    with _llm_job("refine"):  # same guard as refine_character (plan 020)
+        result = await specialist.refine_world(req.description, world, meta.specialist_model)
     if not result:
         raise HTTPException(500, "Failed to refine world description")
-    # Merge result into existing world settings
-    world_dict = world.model_dump()
+    # Merge into the world as it is now, not the copy the prompt used: a World Settings save made while the
+    # specialist worked is kept (KI-042). No await below, so nothing can change it again before the save.
+    world_dict = world_manager.load().model_dump()
     for key, value in result.items():
         if key in world_dict:
             if isinstance(world_dict[key], list):

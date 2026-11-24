@@ -1,20 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 019. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 020. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 1 fixed in Unreleased (KI-041).
+**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 2 fixed in Unreleased (KI-041, KI-042).
 
 ### Open (0)
 
-None. A new defect gets the next ID, KI-042.
+None. A new defect gets the next ID, KI-043.
 
-### Fixed (41)
+### Fixed (42)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -61,6 +61,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-039 | Low | Frontend | Multi-chapter notice never hides (CSS `display: flex` overrides `[hidden]`) ✔ | Fixed in v2.0.0 [plan 011] |
 | KI-040 | High | Backend | `main.py` does not parse on Python 3.11 (backslash inside an f-string expression, from plan 015) ✔ | Fixed in v2.0.0 [plan 016] |
 | KI-041 | Medium | Pipeline | A failure in step 7 (summary) loses the chapter that was just written ✔ | Fixed in Unreleased [plan 019] |
+| KI-042 | Medium | Pipeline/Backend | Profile and world edits saved while step 7 or a world refine runs are overwritten (a deleted profile is written back) ✔ | Fixed in Unreleased [plan 020] |
 
 ---
 
@@ -377,3 +378,20 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The ~2,000 words streamed in step 6 existed only in memory and in the browser's display, so they were lost: the chapter wasn't saved, and the UI had no way to keep it.
   - Found 2026-11-24 [plan 019] by reading the code while porting the `improvement` branch, whose split pipeline would have had the same gap.
 - **Fix:** persist the text before step 7 (the draft) and delete it only after the chapter is saved.
+
+### KI-042 — Edits saved while step 7 or a world refine runs are overwritten · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 020)
+- **Status: Fixed in Unreleased [plan 020].**
+  - `finalize_chapter()` reads characters and scenes again right after the summary call, and applies its updates to those copies.
+  - `refine_world` merges into the world re-read after its specialist call.
+  - Nothing after those awaits yields, so no other request can interleave before the saves.
+  - The Build-tab refines also joined the one-LLM-job guard (409), so a refine can no longer overlap a summary at all.
+  - Tested in `test_refine.py`: `test_edits_made_during_the_summary_are_kept`, `test_a_profile_deleted_during_the_summary_stays_deleted` and `test_world_edit_made_during_a_world_refine_is_kept`. All three failed on the old code with the symptoms below.
+  - The evidence below describes the code before plan 020.
+- **Evidence (read-before-await, write-after):**
+  - `finalize_chapter` loaded every character and scene (`chapter_pipeline.py:85-86`), awaited `post_write_update` (`:90`, seconds; a minute or more on CPU), then saved each featured profile as *the copy read before the call* plus the step-7 changes.
+  - So an **Edit** or an **Update Existing** refine of a featured character/location saved during the summary was reverted.
+  - A profile **deleted** during it was written back: the old copy was saved again under its slug.
+  - `refine_world` loaded the world (`main.py:611`), awaited the specialist (`:612`), and saved its merge of that old copy (`:616-632`). A World Settings save made during the call was lost.
+  - `refine_character`/`refine_scene` were not affected: they read the existing profile after the call.
+  - Found 2026-11-24 [plan 020] while adding the refine routes to the job guard. The guard alone couldn't fix it, because manual saves aren't LLM jobs.
+- **Fix:** re-read after the await; the pre-await copies only feed the prompts.

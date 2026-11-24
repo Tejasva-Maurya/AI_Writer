@@ -208,3 +208,17 @@
   - Rebase-merged it into `main` as `88c05c6` (author kept: Tejasva_Maurya).
   - Both branches were then deleted at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token; the local `feature/draft-review` too). It was checked first that `feature/draft-review` was fully merged. `improvement` held the only copy of a generated chapter 1; the user declined a backup.
   - Follow-ups are in plan 019 "Not included".
+
+### 2026-11-24 — Claude Code (Opus 5.5) — refines join the job guard, KI-042 (plan 020)
+- **Goal:** Plan 019's first follow-up: put the Build-tab refine routes under the one-LLM-job guard.
+- **Outcome:**
+  - All three refine routes claim job kind `"refine"` through the new `_llm_job(kind)` context manager (rewrite and approve use it too). They get 409 while another LLM job runs, and the others get 409 while a refine runs. A waiting draft doesn't block a refine.
+  - Found and fixed **KI-042**: `finalize_chapter` and `refine_world` read data before the LLM await and saved it after. An edit made meanwhile was reverted, and a character deleted meanwhile was written back. Both now re-read after the await.
+  - UI: refine errors show `errorText(e)`.
+  - Docs: 01, 02, 03, 04, 08 (A15, A15b), 09, the user guide, RULES §3, CHANGELOG, D-017.
+  - Verified:
+    - 23 new tests in `test_refine.py`; 19 of them failed on the old code (the 409s and KI-042, for the right reasons), then all 116 passed. Ruff clean, `node --check` OK.
+    - Sandbox UI with a stub `ollama`: a refine during writing shows "A chapter is already being generated…"; a refine while the draft waits works.
+    - Real `data/` unchanged. Real Ollama: not verified.
+- **Plan:** 020 (done).
+- **Open threads:** Branch `fix/refine-busy-guard` → push and PR, merge on the user's go-ahead. The release-type question (3.0.0 vs 2.1.0, D-017) is for release time.

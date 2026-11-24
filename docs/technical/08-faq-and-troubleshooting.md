@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b). **Last verified against code:** 2026-11-24.
 
 ## Part A — Troubleshooting
 
@@ -83,6 +83,10 @@ Only one chapter is generated at a time (since plan 010, KI-031). Another tab or
 - Closing the tab that started it also stops it.
 - If no generation should be running, restart the server: the guard lives in memory.
 - The same applies while a draft is being approved or a passage rewritten ("The draft is being approved…" / "A passage is being rewritten…"): wait a moment (plan 019).
+- And while a Build tab refines a profile ("A profile is being refined with AI…", plan 020): wait a few seconds and generate again.
+
+### A15b. A Build tab says "✗ Error: A chapter is already being generated…"
+Since plan 020 the **Refine & Save** / **Integrate into World Settings** buttons wait their turn like every other AI job. While a chapter is generated, a draft is approved or rewritten, or another refine runs, they answer with that job's reason, and nothing is changed. Try again when it's done. A draft that only waits for review doesn't block them. (Before plan 020 a refine during writing loaded the second model next to the writer, which could slow down or crash generation on smaller GPUs.)
 
 ### A16. My new chapter isn't in HISTORY / "A draft of chapter N is waiting for review"
 Since plan 019 a new chapter first opens as a **draft** (**Draft · Chapter N** in the output panel). It is saved to HISTORY only when you press **✓ Approve & save**.

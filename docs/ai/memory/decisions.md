@@ -149,3 +149,19 @@
   - Step-3 profiles are created at draft time; discard offers to delete them.
   - A draft file can exist in `data/` between sessions.
   - Rollback: turn the setting off (behaviour as before), or revert plan 019.
+
+## D-017 — Build-tab refines join the one-LLM-job guard (rejected, not queued)
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 020 (the user asked for plan 019's first follow-up)
+- **Context:** The three refine routes called the specialist at any time. During step 6 that reloaded the specialist next to the ~7 GB writer, undoing step 5's unload (01 §6), and it let specialist jobs overlap. Looking into it also showed KI-042 (reads before an LLM `await`, writes after).
+- **Decision:**
+  - Refine is job kind `"refine"` in the shared guard. It is **symmetric**: a refine gets 409 while any LLM job runs, and generate/approve/rewrite get 409 while a refine runs.
+  - Not blocked by a draft that merely waits for review.
+  - One helper, the `_llm_job(kind)` context manager, claims and releases the slot for every LLM route.
+  - KI-042 is fixed at the root by re-reading after the await, because manual saves aren't LLM jobs.
+- **Alternatives considered:**
+  - queue the refine until the job ends (an HTTP request could hang for minutes behind a generation)
+  - block refines only during step 6 (more states to reason about, for little gain)
+  - leave refines unguarded (the status quo)
+- **Consequences:**
+  - A refine can't run while a chapter is generated (minutes); the user sees why and retries.
+  - The three refine routes gain a 409. Read like D-015, that is an API-contract change, so the next release would be MAJOR (3.0.0); decide at release time.

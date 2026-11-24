@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plans 019, 020). **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -65,10 +65,10 @@ Contents
 | Scene routes | 109-139 | Mirror of the character routes. |
 | World routes | 143-151 | `GET` load, `PUT` save (full replace). |
 | Chapter routes | 155-166 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
-| `_generation`, `_job`, `_CANCELLED_EVENT`, `_JOB_BUSY`, `_generation_running()`, `_busy_reason()` | after the chapter routes | Holder of the one running generation task (`{"task": None}` until the first run), the kind of LLM job running outside it (`"approve"`/`"rewrite"`, plan 019), the SSE line sent when a generation is cancelled, and the 409 message for the current job, or `None` when idle (plan 010, KI-031; one LLM job at a time since plan 019). |
+| `_generation`, `_job`, `_CANCELLED_EVENT`, `_JOB_BUSY`, `_generation_running()`, `_busy_reason()`, `_llm_job(kind)` | after the chapter routes | Holder of the one running generation task (`{"task": None}` until the first run), the kind of LLM job running outside it (`"approve"`/`"rewrite"`, plan 019; `"refine"`, plan 020), the SSE line sent when a generation is cancelled, and the 409 message for the current job, or `None` when idle (plan 010, KI-031; one LLM job at a time since plan 019). `_llm_job(kind)` is a context manager: **409** if busy, else it claims the slot for its body and always releases it; the check and the claim have no `await` between them (plan 020). |
 | `generate_chapter` | | **409** while any LLM job runs, or while a draft waits (plan 019). Otherwise runs `run_pipeline(…, review, tagged_characters, tagged_scenes)` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
 | `cancel_generation()` `POST /api/generate-chapter/cancel` | | Cancels the running generation task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. Approve and rewrite can't be cancelled. |
-| Draft routes (plan 019) | `── DRAFT` section | `_require_draft()` (**404** "No draft is waiting for review"). `get_draft` → the draft or `null`. `update_draft` saves `full_text` and the stripped `title` (**409** during an approval). `delete_draft` (**409** during an approval, **404** if none). `rewrite_draft_passage` (**409** busy, **404**, **422** empty passage or instruction; sets `_job` to `"rewrite"` around `writer.revise_passage`; **500** if the writer fails or returns nothing) → `{"replacement"}`. `approve_draft` (**409** busy, **404**, **422** empty text; saves the sent text and title, sets `_job` to `"approve"` around `finalize_chapter`; **500** keeps the draft) → `{"chapter", "warnings"}`, warnings logged. See 02-W11. |
+| Draft routes (plan 019) | `── DRAFT` section | `_require_draft()` (**404** "No draft is waiting for review"). `get_draft` → the draft or `null`. `update_draft` saves `full_text` and the stripped `title` (**409** during an approval). `delete_draft` (**409** during an approval, **404** if none). `rewrite_draft_passage` (**409** busy, **404**, **422** empty passage or instruction; `with _llm_job("rewrite")` around `writer.revise_passage`; **500** if the writer fails or returns nothing) → `{"replacement"}`. `approve_draft` (**409** busy, **404**, **422** empty text; saves the sent text and title, `with _llm_job("approve")` around `finalize_chapter`; **500** keeps the draft) → `{"chapter", "warnings"}`, warnings logged. See 02-W11. |
 | Novel-meta routes | 231-239 | `GET` load, `PUT` save (full replace). |
 | `_export_filename(title, fmt)` | 243-248 | Download name: spaces and Windows-forbidden characters → `_`, trailing dots/spaces dropped, `novel` if no letter or digit is left (plan 015, KI-017). |
 | `export_novel(fmt)` | 251-274 | `txt`/`md` only (400 otherwise). Returns the text from memory (`Response`, `Content-Disposition: attachment` built like `FileResponse`'s); writes nothing to disk (plan 015, KI-017; before, it wrote into `data/`). |
@@ -79,8 +79,8 @@ Contents
 | `get_models()` | 326-353 | `httpx` GET `{OLLAMA_BASE_URL}/api/tags` (5 s); `ollama_error` names the address. Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. A recommended model is `installed` only if its `_model_key` equals one of the installed models' keys: an exact match, not the family prefix (plan 012, KI-020). |
 | `pull_model(body: dict)` | 356-418 | Untyped body. `model` is required (400). Streams `{OLLAMA_BASE_URL}/api/pull` progress as SSE. Ends with `success` only after Ollama's own `success` line; a non-200 status, an `{"error": …}` line or a missing confirmation ends with `error` (plan 010, KI-019). |
 | `RefineRequest` | 422-425 | Request body of the three refine routes. |
-| `refine_character` / `refine_scene` | 428-497 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
-| `refine_world` | 500-527 | See 02-W5. |
+| `refine_character` / `refine_scene` | | See 02-W4. Lazy `from agents import specialist`. The specialist call runs `with _llm_job("refine")` (**409** while another LLM job runs, plan 020). The existing profile is read after the call. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
+| `refine_world` | | See 02-W5. Same job guard; merges into the world re-read after the call (KI-042, plan 020). |
 | `__main__` | 530-532 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
 
 ### 2.3 `app/backend/managers/*`
@@ -182,7 +182,7 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
 - `async def run_pipeline(plot, chapter_number, novel_meta, review=False, tagged_characters=None, tagged_scenes=None) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy). After step 6 it saves a `Draft`; with `review` it then emits `draft_complete` and returns, otherwise it calls `finalize_chapter`.
 - `async def finalize_chapter(draft, spec_model) -> Tuple[Chapter, List[str]]` (plan 019) is step 7 for a draft, shared by the one-click pipeline and `POST /api/draft/approve`.
   1. Reads characters and scenes from disk.
-  2. Awaits `post_write_update` (its only `await`). If that raises, the draft stays (KI-041).
+  2. Awaits `post_write_update` (its only `await`). If that raises, the draft stays (KI-041). Then it reads characters and scenes from disk **again**, so an edit or deletion saved during the call is respected (KI-042, plan 020).
   3. Saves the chapter (the draft's title wins over the suggested one) and applies the validated character, scene and meta updates. These run without pausing, so a cancel can't stop them halfway.
   4. Deletes the draft last.
   5. Returns the chapter and the warning messages; the caller emits or logs them.
@@ -336,14 +336,14 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 | Specialist | Never raises on bad JSON (`{}`); raises on transport errors. | Type errors surface later in the pipeline. |
 | Writer | Converts any exception into an `error` tuple. | — |
 | Pipeline | Global try/except → `error` SSE with traceback. The written chapter is saved as a draft before step 7, and a step-7 failure keeps it (`error.draft_saved`, plan 019, KI-041). | Partial writes (step-3 profiles) are not rolled back; discarding a draft offers to delete them. |
-| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Since plan 019 also from generate, approve and rewrite while another LLM job runs, from generate while a draft waits, and from draft edit/discard during an approval. Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
+| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Since plan 019 also from generate, approve and rewrite while another LLM job runs (and the three refine routes since plan 020), from generate while a draft waits, and from draft edit/discard during an approval. Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
 | Frontend | try/catch around each action → toast. Loaders fall back to empty state. A cancelled generation is an info toast, not an error (plan 010). | Errors go only to toasts and `console.error`. (`warning` SSE events are shown since plan 009; the pipeline panel's fade and error styles are reset at each run since plan 011.) |
 
 **Logging** (plan 016, KI-025): `main.py` sets up console logging at INFO.
 - **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
 - **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
 
-**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 
