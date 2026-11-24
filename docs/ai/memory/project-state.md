@@ -11,12 +11,12 @@
 ## Version
 - Released: **2.0.0** (2026-11-24, plan 018, D-015). `app/backend/main.py` says `version="2.0.0"`. Major because the HTTP API changed: create returns 409 instead of overwriting, same-origin only, generate returns 409 while one runs.
 - 2.0.0 contains plans 001–017 and fixes all 40 known issues; per-plan detail lives in `docs/CHANGELOG.md` and `docs/ai/plans/`. 1.0.0 was 2026-07-13 (`dead3e3`).
-- **Release commit not committed yet** (plan 018). Tags `v1.0.0` (on `dead3e3`) and `v2.0.0` plus a GitHub Release come after the push, via the REST API.
+- Pushed 2026-11-24 (`03312e5` on GitHub). Annotated tags `v1.0.0` (`dead3e3`) and `v2.0.0` (`03312e5`); GitHub Release https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0 (latest). CI green on `main` and on the tag.
 - `[Unreleased]` is empty.
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plan 018 (release 2.0.0) is done in the working tree, waiting for commit, push, tags and Release. Plans 001–017 are done.
+- Plans 001–018 are done; no active plan. Everything is committed and pushed, and 2.0.0 is tagged and published.
 - CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
 - `data/` is git-ignored since plan 017, so `git status` no longer shows novel changes (gotchas).
 

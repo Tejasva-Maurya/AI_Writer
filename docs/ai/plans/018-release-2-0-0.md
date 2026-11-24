@@ -107,7 +107,7 @@ The user asked for a release. All 40 catalogued known issues are fixed (plans 00
 - [x] Docs updated per RULES.md §6 (+ docs/technical/09 KI status)
 - [x] docs/ai/memory/project-state.md updated
 - [x] Status → done (or abandoned with reason) and `reindex` run
-- [ ] Commit, push, tags and GitHub Release (steps 6–7): only on the user's word; recorded below when done
+- [x] Commit, push, tags and GitHub Release (steps 6–7), each on the user's word
 
 **Deviations from the plan:**
 - **RULES §7 and the CHANGELOG rules** now include the tag step. The releasing bullet says to tag the **pushed** release commit and publish the Release through the REST API (D-015), so the next release repeats this.
@@ -141,5 +141,9 @@ The user asked for a release. All 40 catalogued known issues are fixed (plans 00
     - no `version="1.0.0"` in `app/`, RULES or the technical docs
   - The old `[Unreleased]` body against the new 2.0.0 body: only additions.
   - The `data/` listing (5 files: paths, sizes, mtimes) was identical before and after.
-  - **Not yet:** the push, the tags, the Release and the release commit's CI. They run when the user asks.
+  - **Release (2026-11-24, on the user's word):**
+    - **Commit and push:** committed as `8913a7b` and pushed with the github-push script; GitHub has `03312e5` with the identical tree (`bb9ac06`). Local `main` was realigned with a mixed reset.
+    - **Tags:** annotated `v1.0.0` → `dead3e3` and `v2.0.0` → `03312e5`, tagger Tejasva_Maurya (`git ls-remote --tags` confirms both).
+    - **Release:** "NovelForge AI 2.0.0", latest, not a draft. Its notes are the 98-line CHANGELOG section with absolute doc links: https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0
+    - **CI:** green on all 4 jobs for `main` (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373445469) and for the `v2.0.0` tag (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373845132).
 - **Follow-ups:** none. New work goes under `[Unreleased]`, and new defects start at KI-041.

@@ -186,4 +186,4 @@
   - Docs: doc 09 statuses `Fixed in v2.0.0` (120); docs 01–08 headers `Applies to: v2.0.0 + [Unreleased]`; doc 08 notes; doc 03 §2.2; RULES §1 and §7 (tags via the API); docs map (`../data/` link fixed, current release).
   - project-state condensed to 34 lines.
 - **Plan:** 018 (done).
-- **Open threads:** Not committed yet. After the push: tags `v1.0.0`/`v2.0.0` and the GitHub Release via the REST API.
+- **Open threads:** None. Committed and pushed (`03312e5` on GitHub). Tags `v1.0.0`/`v2.0.0` and the Release (https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0) were created via the REST API. CI green on `main` (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373445469) and on the `v2.0.0` tag (https://github.com/Tejasva-Maurya/AI_Writer/actions/runs/45373845132).
