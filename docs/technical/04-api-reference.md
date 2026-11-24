@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s). **Last verified against code:** 2026-11-24.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -120,7 +120,7 @@ Only `plot` is required. Optional fields:
 - `review` (default `false`, plan 019): stop after step 6, keep the chapter as the draft `data/draft.json`, and end with `draft_complete` instead of running step 7. Approve it with `POST /api/draft/approve`. Without `review` the pipeline runs to `complete` as before, but it also saves the draft after step 6 and deletes it in step 7. So if step 7 fails, the chapter is kept as a draft and the stream ends with `error` + `draft_saved: true` (KI-041).
 - `tagged_characters` / `tagged_scenes` (default `[]`, plan 019): slugs the author picked with `@`. Each one that exists is treated as an existing primary character / main location in step 2, so the writer gets its full profile. Unknown slugs are ignored.
 
-**One LLM job at a time** (plan 010, KI-031; plan 019): while a generation, a draft approval or a rewrite runs, a request gets **409** (`A chapter is already being generated. Wait for it to finish or cancel it.`, or the approval/rewrite message). The guard for generations is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 6 finished (draft) or step 7 ran (chapter).
+**One LLM job at a time** (plan 010, KI-031; plans 019 and 020): while a generation, a draft approval, a rewrite or a Build-tab refine runs, a request gets **409** (`A chapter is already being generated. Wait for it to finish or cancel it.`, or the approval/rewrite/refine message). The guard for generations is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 6 finished (draft) or step 7 ran (chapter).
 
 **One draft at a time** (plan 019): while `data/draft.json` exists, a request gets **409** `A draft of chapter N is waiting for review. Approve or discard it first.`
 
@@ -199,6 +199,12 @@ Common body (`RefineRequest`):
 {"description": "rough free text", "name": "optional name hint", "existing_slug": "optional slug to merge into"}
 ```
 The response arrives when the specialist finishes (seconds to minutes). The call is awaited (async client), so the server keeps answering other requests meanwhile (KI-005, fixed in plan 005). The specialist stays loaded for 5 idle minutes afterwards (`keep_alive=300`, plan 013; was `-1`, forever, KI-029). If the `ollama` Python package is missing, these return **500**.
+
+**One LLM job at a time** (plan 020):
+- While a chapter is generated, a draft is approved or rewritten, or another refine runs, all three routes return **409** with that job's reason (e.g. `A chapter is already being generated. Wait for it to finish or cancel it.`) and don't call the specialist.
+- While a refine runs, generate, approve and rewrite return **409** `A profile is being refined with AI. Wait for it to finish.`
+- A draft that merely waits for review doesn't block a refine.
+- The data to merge into (the existing character or scene, the world) is read **after** the specialist call, so changes saved meanwhile are kept (KI-042).
 
 ### `POST /api/refine/character`
 - `existing_slug` given **and** found → truthy LLM fields overwrite the existing character, except `slug`, `name` and `first_appeared_chapter`. Saved. **200** merged `Character`.

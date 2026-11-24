@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019).
+> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019; §8 refine in the job guard, KI-042, plan 020).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -237,8 +237,9 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 
 - **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:530-532`).
 - **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast. Every save goes through `managers/storage.write_json` (temp file + atomic replace, plan 016, KI-026).
-- **One LLM job at a time** (plan 010, KI-031; plan 019). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter`, a draft approval or a rewrite gets **409**; while an approval or a rewrite runs (`_job`), so does a generation.
-  - `POST /api/generate-chapter/cancel` stops a generation (not an approval or rewrite).
+- **One LLM job at a time** (plan 010, KI-031; plans 019 and 020). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter`, a draft approval, a rewrite or a Build-tab refine gets **409**; while an approval, a rewrite or a refine runs (`_job`, via `_llm_job`), so does any other LLM job. So the specialist is never reloaded next to the writer during step 6 (§6).
+  - `POST /api/generate-chapter/cancel` stops a generation (not an approval, rewrite or refine).
+  - Code that reads profiles before an LLM call and saves them after it reads them again after the call (`finalize_chapter`, `refine_world`), so edits saved meanwhile are kept (KI-042, plan 020).
   - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream. The text written by step 6 is on disk as the draft by then.
   - **One draft at a time** (plan 019): while `data/draft.json` exists, a new generation gets **409**.
   - There are no other background jobs or locks.

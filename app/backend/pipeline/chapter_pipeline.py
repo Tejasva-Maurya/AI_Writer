@@ -75,8 +75,9 @@ def _apply_tags(resolved: list, tagged, existing, importance: str) -> list:
 async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List[str]]:
     """Step 7 for a written draft: summarise it, save the chapter, update the featured profiles and the novel meta, then
     delete the draft. Used by the one-click pipeline and by draft approval (plan 019). Profiles are read now, so edits
-    made while the draft was reviewed are kept. Returns the chapter and the non-fatal warnings. If the summary call
-    fails it raises, and the draft stays on disk (KI-041)."""
+    made while the draft was reviewed are kept, and read again after the summary call, so edits made during it are
+    kept too (KI-042). Returns the chapter and the non-fatal warnings. If the summary call fails it raises, and the
+    draft stays on disk (KI-041)."""
     warnings: List[str] = []
     chapter_number = draft.chapter_number
     full_text = draft.full_text
@@ -88,6 +89,11 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
     featured_char_profiles = [chars_dict[slug].model_dump() for slug in primary_chars if slug in chars_dict]
     featured_scene_profiles = [scenes_dict[slug].model_dump() for slug in main_scenes if slug in scenes_dict]
     post_data = await specialist.post_write_update(full_text, featured_char_profiles, featured_scene_profiles, spec_model)
+
+    # The author may have edited or deleted a profile while the specialist worked: update the profiles as they are now,
+    # not the copies above (KI-042). Nothing below awaits, so no other request can change them before the saves.
+    chars_dict = {c.slug: c for c in character_manager.get_all()}
+    scenes_dict = {s.slug: s for s in scene_manager.get_all()}
 
     # Save chapter (summary values are coerced to text, so a wrong type can't lose the written chapter, KI-015)
     chapter = Chapter(
