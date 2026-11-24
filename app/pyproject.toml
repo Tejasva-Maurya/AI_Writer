@@ -1,0 +1,16 @@
+# Tool settings only (the app has no build step and is not a package). Run from the repo root:
+#   py -m pytest app/tests        py -m ruff check app
+# Dev tools come from app/requirements-dev.txt (KI-025, D-013).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["frontend"]
+
+[tool.ruff.lint]
+# Pinned to the classic rule set (pyflakes F + pycodestyle E4/E7/E9: real bugs, not style), so results don't
+# change when ruff's defaults do. E402: modules import after the deliberate sys.path patch (docs/ai/RULES.md §3).
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E402"]

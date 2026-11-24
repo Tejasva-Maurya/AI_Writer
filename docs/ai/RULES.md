@@ -9,7 +9,7 @@
 1. **Read before you claim.** Open the relevant source files before you describe, plan or change anything. Never answer from memory, and never from docs alone.
 2. **Plan non-trivial work in plan mode.** Approved plans are **auto-saved** by a hook to `docs/ai/plans/NNN-slug.md`. You keep that plan's `status:` and *Execution log* current (§8).
 3. **Smallest correct diff, in the existing style.** No drive-by refactors, no new dependencies or frameworks without asking.
-4. **Verify** (§9) and report exactly what you ran and what you could **not** verify.
+4. **Verify** (§9): run the tests and lint, and report exactly what you ran and what you could **not** verify.
 5. **Update the paper trail in the same change:** `docs/CHANGELOG.md` → `[Unreleased]` (§7), every doc in the impact matrix (§6), `docs/technical/09` if a `KI-NNN` changed, `docs/ai/memory/project-state.md` (§10). A Stop hook blocks you once if source changed and the CHANGELOG didn't.
 6. **Never commit, push, or delete user data unless the user asks** (§5).
 
@@ -23,7 +23,7 @@
 | `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json` | inspect or back up novel content (**never modify without approval**, §5) |
 | `docs/` | Everything written *about* the tool: `user-guide.md`, `technical/01…09`, `CHANGELOG.md`, `ai/` (these rules, `plans/`, `memory/`, `templates/`) | read or update documentation, plans, the changelog or project memory |
 
-Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).
+Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `.github/` (CI workflow, a location GitHub requires; D-013), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).
 
 - **What:** NovelForge AI. A local, single-user light-novel writer. A FastAPI backend drives local LLMs through **Ollama**: a small *specialist* model (JSON tasks) and a large *writer* model (streamed prose), in a **7-step chapter pipeline** streamed to the browser over **SSE**.
 - **Stack:** Python 3.11+ · FastAPI · Pydantic v2 · ollama-python (needs ≥ 0.4) · httpx · vanilla HTML/CSS/JS (no build step) · JSON files under `data/` (no DB) · Windows `app/start.bat`.
@@ -37,7 +37,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 2. **Cite evidence.** When you state a fact about the code, cite `path:line` (or the symbol name) that you actually read in this session.
 3. **Never invent** endpoints, fields, functions, files, env vars, config files, CLI flags, model names or library APIs. If something "should" exist, `Grep` for it first. If it doesn't exist, say so.
 4. **Library APIs:** check the installed version before relying on a response shape (`python -m pip show ollama fastapi pydantic`). Example trap: ollama-python < 0.4 returns dicts, ≥ 0.4 returns attribute objects.
-5. **Say "not verified"** when you could not run something (e.g. no Ollama or GPU available). Never claim tests pass: **there is no test suite** (KI-025) unless you add one.
+5. **Say "not verified"** when you could not run something (e.g. no Ollama or GPU available). Never claim tests pass without running them: `py -m pytest app/tests` (and `py -m ruff check app`) since plan 016. Add or update tests for the behaviour you change.
 6. **Known defects are catalogued** in `docs/technical/09-known-issues-and-tech-debt.md` with permanent IDs. Check there before "discovering" a bug. Add new verified defects as the next `KI-NNN` (never renumber or delete; mark fixed ones `Fixed in vX.Y.Z`).
 7. **Memory entries are point-in-time.** Before you act on anything in `docs/ai/memory/`, re-verify it against the code.
 8. Do **not** use the CodeAssist MCP tools for analysing this repo unless the user explicitly asks. Use Read/Grep/Glob/Bash.
@@ -48,7 +48,8 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 |---|---|---|
 | `app/backend/main.py` | All HTTP routes, static serving, refine endpoints, model mgmt, export | Route changes → update docs/technical/04 + frontend callers |
 | `app/backend/models.py` | Pydantic schemas = **on-disk JSON schema** = API schema | New fields **must have defaults** (existing `data/*.json` must keep loading). Never rename/remove fields without a migration plan |
-| `app/backend/managers/*.py` | The **only** code that reads/writes `data/` (export serves from memory since plan 015) | Keep one module per entity, same function names |
+| `app/backend/managers/*.py` | The **only** code that reads/writes `data/` (export serves from memory since plan 015) | Keep one module per entity, same function names. Write through `storage.write_json` (atomic) and list through `storage.read_all` (logs skips); never `open(path, "w")` (KI-026) |
+| `app/tests/` | pytest suite with a fake `ollama`; an autouse fixture points every manager at a temp folder | A new manager must be added to the `data_dir` fixture in `conftest.py`. Never let a test touch the real `data/` |
 | `app/backend/agents/specialist.py` | Specialist LLM calls; JSON-only prompts (`format="json"`); `_extract_json`; `_call` always returns a dict | Consumers must tolerate `{}` and wrong types: coerce with `models.as_text`/`as_str_list`/`as_int`, and build entities through the models (they coerce, plan 009) |
 | `app/backend/agents/writer.py` | Streaming writer; `WRITER_SYSTEM` prompt | |
 | `app/backend/pipeline/chapter_pipeline.py` | 7-step orchestration; emits SSE | **SSE contract** (below) |
@@ -80,7 +81,7 @@ Root keeps only what tools require there: `.claude/` (Claude settings + hooks), 
 
 - Modify, delete, regenerate or reformat anything in **`data/`** (it is the user's novel). If a test needs data, create temporary entities with an obvious prefix (e.g. `zz_test_…`) and delete them afterwards, or copy `data/` to a temp folder.
 - `git commit`, `git push`, rewrite history, create branches/tags, or run `git rm`.
-- Add or upgrade dependencies, or change `app/requirements.txt` (then update docs/technical/06 + docs/technical/07 + CHANGELOG).
+- Add or upgrade dependencies, or change `app/requirements.txt` or `app/requirements-dev.txt` (then update docs/technical/06 + docs/technical/07 + CHANGELOG).
 - Change public API routes or payload shapes, the SSE contract, or Pydantic field names.
 - Bind the server to anything other than `127.0.0.1`, or widen security exposure.
 - Change default models, LLM parameters (`num_ctx`, `temperature`, `keep_alive`) or prompt wording beyond the task's scope.
@@ -103,6 +104,7 @@ When you change the left column, review and update the right column **in the sam
 | `app/frontend/*` behaviour / UI | `docs/technical/03` §4, `docs/technical/07-setup-and-usage.md`, `docs/technical/02` affected flow |
 | Keyboard shortcuts | `docs/technical/07` §5.7, `docs/technical/03` §4.5, `docs/user-guide.md` |
 | Ports, URLs, constants, models, LLM params | `docs/technical/06-configuration.md` (+ the 3 port locations) |
+| `app/tests/`, `app/pyproject.toml`, `app/requirements-dev.txt`, `.github/workflows/` | `docs/technical/07` §7 (Tests and lint), `docs/technical/06` §3, `docs/technical/03` §5 |
 | `app/requirements.txt`, `app/start.bat`, setup | `docs/technical/07` §2–3, `docs/technical/06` §3, `docs/technical/08` (if it changes an error), `docs/user-guide.md` |
 | A defect fixed or found | `docs/technical/09` (status / new KI), `docs/technical/08` (remove obsolete workaround) |
 | Architecture / new module | `docs/technical/01`, `docs/technical/03`, this file §3 |
@@ -143,12 +145,14 @@ When you change the left column, review and update the right column **in the sam
 
 Status lifecycle: `approved → in-progress → done` · `→ abandoned` · `→ superseded` (set automatically by a newer revision). Never delete or renumber plans.
 
-## 9. Verification (no test suite exists yet)
+## 9. Verification
 
-Run what applies and report the results honestly:
+Run what applies and report the results honestly. The first two always apply (CI runs them too):
 
 | Check | Command |
 |---|---|
+| Tests | `py -m pytest app/tests` (needs `app/requirements-dev.txt`; no Ollama needed) |
+| Lint | `py -m ruff check app` |
 | Python syntax | `python -m py_compile app/backend/main.py app/backend/models.py app/backend/agents/specialist.py app/backend/agents/writer.py app/backend/managers/*.py app/backend/pipeline/*.py` |
 | JS syntax | `node --check app/frontend/app.js` |
 | Backend imports | `cd app/backend && python -c "import main"` (needs `ollama` installed) |

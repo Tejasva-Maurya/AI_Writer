@@ -153,4 +153,16 @@
   - Old vs new, export: old rewrote/created `data/` files and returned 500 for `Test: A/B?`; new returned 200 for all and left `data/` untouched. The text is the same apart from line endings (old CRLF via a text-mode write on Windows, new LF).
   - Old vs new, `OLLAMA_HOST`: with it set to a fake Ollama, old failed on `:11434`; new listed and pulled. In the browser, an unreachable host names `http://127.0.0.1:11998`.
 - **Plan:** 015 (done).
-- **Open threads:** Not committed yet (waiting for the user). `data/Untitled_Novel.txt` (an old export copy) left in place, as it is user data.
+- **Open threads:** Committed and pushed in the same session. `data/Untitled_Novel.txt` (an old export copy) left in place, as it is user data.
+
+### 2026-11-24 — Claude Code (Opus 5.5) — fix KI-025, KI-026 (plan 016)
+- **Goal:** Add tests, lint, CI and logging; make data writes atomic and stop skipping unreadable files silently.
+- **Outcome:**
+  - `managers/storage.py` (`write_json`: temp file + fsync + `os.replace`, `os.link` for `create`; `read_all`: logged skips), used by all five managers.
+  - Console logging (`main.py`, pipeline `_sse`, specialist, pull, cancel).
+  - `app/tests/` (71 tests), `app/pyproject.toml`, `app/requirements-dev.txt`, `.github/workflows/ci.yml`, `.gitignore` `.ruff_cache/`.
+  - The user chose pytest + ruff and CI (D-013).
+  - ruff found KI-040 (a 3.11 syntax error from plan 015) and five unused imports; all fixed.
+  - Verified: 71 passed and ruff clean (pytest 9.2.0, ruff 0.17.6 in a temp folder). A naive-writer mutation fails 3 storage tests. Old vs new crash demo: old left a half-written character file that `get_all()` dropped silently; new kept it intact. The corrupt-file warning shows in the server console.
+- **Plan:** 016 (done).
+- **Open threads:** Not committed yet. CI is not run until pushed; the push needs the token's Workflows permission.

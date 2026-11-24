@@ -1,0 +1,9 @@
+# NovelForge AI development tools: tests and lint (KI-025, decision D-013).
+# Dev only: not needed to run the app, and app/start.bat does not install it.
+# From the repo root:  py -m pip install -r app/requirements-dev.txt
+#                      py -m pytest app/tests
+#                      py -m ruff check app
+# Verified 2026-11-24 with pytest 9.2.0 and ruff 0.17.6 on Python 3.14.5.
+-r requirements.txt
+pytest>=8
+ruff>=0.6

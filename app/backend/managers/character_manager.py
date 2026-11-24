@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Dict
 from models import Character
+from managers.storage import read_all, write_json
 
 # A slug is a filename stem: letters/digits of any script, "_" and "-" only. No dots, slashes or backslashes (KI-010).
 _SLUG_RE = re.compile(r"[\w-]+")
@@ -35,13 +36,7 @@ def ensure_dir():
 
 def get_all() -> List[Character]:
     ensure_dir()
-    chars = []
-    for f in _data_dir().glob("*.json"):
-        try:
-            with open(f, encoding="utf-8") as fp:
-                chars.append(Character(**json.load(fp)))
-        except Exception:
-            pass
+    chars = read_all(_data_dir(), "characters", lambda d: Character(**d))  # unreadable files are logged (KI-026)
     return sorted(chars, key=lambda c: c.name)
 
 
@@ -58,9 +53,7 @@ def get_by_slug(slug: str) -> Optional[Character]:
 
 def save(char: Character):
     ensure_dir()
-    path = _path(char.slug)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(char.model_dump(), f, indent=2, ensure_ascii=False)
+    write_json(_path(char.slug), char.model_dump())  # atomic replace (KI-026)
 
 
 def delete(slug: str) -> bool:
@@ -91,7 +84,6 @@ def create(char: Character):
     if clash is not None:
         raise FileExistsError(f"Character '{clash}' already exists")
     try:
-        with open(path, "x", encoding="utf-8") as f:
-            json.dump(char.model_dump(), f, indent=2, ensure_ascii=False)
+        write_json(path, char.model_dump(), exclusive=True)  # atomic, never replaces (KI-026)
     except FileExistsError:
         raise FileExistsError(f"Character '{char.slug}' already exists") from None

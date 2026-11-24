@@ -27,6 +27,12 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   - **Stop**: blocks finishing (once) when files under `app/` changed but `docs/CHANGELOG.md` was not updated.
   [plan 001] [plan 002]
 - **✕ Cancel** button next to **Generate Chapter**, and `POST /api/generate-chapter/cancel`: stops the running generation within a moment; nothing is saved unless the last step had already run. [plan 010] [KI-031]
+- **Tests, lint, CI and logging:**
+  - a pytest suite in `app/tests/` (71 tests: API, storage, the pipeline with a fake Ollama, helpers; it never touches `data/`)
+  - ruff lint, settings in `app/pyproject.toml`
+  - a GitHub Actions workflow running both on Ubuntu and Windows with Python 3.11 and 3.14
+  - console logging of warnings and errors (skipped data files, pipeline warnings, failed pulls)
+  - Dev-only tools are in `app/requirements-dev.txt`; run `py -m pytest app/tests` and `py -m ruff check app`. [plan 016] [KI-025]
 
 ### Changed
 - The app is now truly offline: its three fonts (Cinzel, Crimson Pro, JetBrains Mono) are bundled in `app/frontend/fonts/` with their SIL OFL licences, instead of being loaded from Google Fonts (twice) on every page load. The look is unchanged. [plan 014] [KI-034]
@@ -85,6 +91,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The Settings model browser no longer promises a "Shift+click" that doesn't exist; it points to the Set Writer / Set Specialist / ⬇ Pull buttons. The user guide now recommends the default models (`gemma3:12b` writer, `phi4-mini:3.8b` specialist) instead of `gemma3:12b` for both. [plan 014] [KI-023]
 - **📤 Export** works for any novel title and no longer leaves a copy in `data/`: the file is sent straight from memory, and characters Windows forbids in file names (`: ? * " < > |`) become `_` in the download name. Exports now use LF line endings on every system. Older `data/*.txt|md` copies are left in place and can be deleted. [plan 015] [KI-017]
 - Setting `OLLAMA_HOST` now applies to Settings' model list and **⬇ Pull** as well as generation, so all of them use the same Ollama; when it can't be reached, Settings names the address it tried. Without `OLLAMA_HOST` the address is `127.0.0.1:11434`, as generation already used. [plan 015] [KI-033]
+- Saving a character, location, chapter, the world or the novel settings is now all-or-nothing. A crash or full disk mid-save can no longer leave a half-written file that then silently vanished from the app; a data file that can't be read is now reported in the server console. [plan 016] [KI-026]
+- The server starts again on Python 3.11 (the stated minimum): plan 015's export code used syntax that only Python 3.12+ accepts. [plan 016] [KI-040]
 
 
 ### Security

@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Dict
 from models import Scene
+from managers.storage import read_all, write_json
 
 # A slug is a filename stem: letters/digits of any script, "_" and "-" only. No dots, slashes or backslashes (KI-010).
 _SLUG_RE = re.compile(r"[\w-]+")
@@ -35,13 +36,7 @@ def ensure_dir():
 
 def get_all() -> List[Scene]:
     ensure_dir()
-    scenes = []
-    for f in _data_dir().glob("*.json"):
-        try:
-            with open(f, encoding="utf-8") as fp:
-                scenes.append(Scene(**json.load(fp)))
-        except Exception:
-            pass
+    scenes = read_all(_data_dir(), "scenes", lambda d: Scene(**d))  # unreadable files are logged (KI-026)
     return sorted(scenes, key=lambda s: s.name)
 
 
@@ -58,9 +53,7 @@ def get_by_slug(slug: str) -> Optional[Scene]:
 
 def save(scene: Scene):
     ensure_dir()
-    path = _path(scene.slug)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(scene.model_dump(), f, indent=2, ensure_ascii=False)
+    write_json(_path(scene.slug), scene.model_dump())  # atomic replace (KI-026)
 
 
 def delete(slug: str) -> bool:
@@ -91,7 +84,6 @@ def create(scene: Scene):
     if clash is not None:
         raise FileExistsError(f"Scene '{clash}' already exists")
     try:
-        with open(path, "x", encoding="utf-8") as f:
-            json.dump(scene.model_dump(), f, indent=2, ensure_ascii=False)
+        write_json(path, scene.model_dump(), exclusive=True)  # atomic, never replaces (KI-026)
     except FileExistsError:
         raise FileExistsError(f"Scene '{scene.slug}' already exists") from None

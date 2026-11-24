@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 from models import Chapter
+from managers.storage import read_all, write_json
 
 
 def _data_dir() -> Path:
@@ -23,23 +24,14 @@ def get_chapter(number: int) -> Optional[Chapter]:
 
 def save_chapter(chapter: Chapter):
     ensure_dir()
-    path = _data_dir() / f"{chapter.chapter_number:03d}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(chapter.model_dump(), f, indent=2, ensure_ascii=False)
+    write_json(_data_dir() / f"{chapter.chapter_number:03d}.json", chapter.model_dump())  # atomic replace (KI-026)
 
 
 def get_all(include_text: bool = False) -> List[Chapter]:
     ensure_dir()
-    chapters = []
-    for f in sorted(_data_dir().glob("*.json")):
-        try:
-            with open(f, encoding="utf-8") as fp:
-                data = json.load(fp)
-                if not include_text:
-                    data["full_text"] = ""  # strip full text for listing
-                chapters.append(Chapter(**data))
-        except Exception:
-            pass
+    # Unreadable files are logged (KI-026). Listings strip the full text.
+    build = (lambda d: Chapter(**d)) if include_text else (lambda d: Chapter(**{**d, "full_text": ""}))
+    chapters = read_all(_data_dir(), "chapters", build)
     return sorted(chapters, key=lambda c: c.chapter_number)
 
 

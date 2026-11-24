@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from models import NovelMeta
+from managers.storage import write_json
 
 
 def _path() -> Path:
@@ -16,7 +17,4 @@ def load() -> NovelMeta:
 
 
 def save(meta: NovelMeta):
-    p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(meta.model_dump(), f, indent=2, ensure_ascii=False)
+    write_json(_path(), meta.model_dump())  # atomic replace (KI-026)

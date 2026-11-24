@@ -34,9 +34,10 @@ dist/
 # Ignore database files
 *.sqlite3
 
-# Ignore coverage and test artifacts
+# Ignore coverage, test and lint artifacts
 .coverage
 .pytest_cache/
+.ruff_cache/
 htmlcov/
 
 # Claude Code: personal settings and hook error log (shared settings.json and hooks ARE committed)

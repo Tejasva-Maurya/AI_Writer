@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015).
+> **Applies to:** v1.0.0 (commit `dead3e3`) + [Unreleased]. **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -131,7 +131,7 @@ flowchart TB
 3. `agents/*` depend on `models` and the `ollama` library. They never touch disk.
 4. `pipeline/*` depends on managers, agents and models.
 5. `main.py` depends on everything. The refine endpoints import `agents.specialist` lazily, inside the handler.
-6. Imports are **flat, not package-relative** (`from models import …`). This works because `main.py:18` and `chapter_pipeline.py:12` insert `app/backend/` into `sys.path`, and uvicorn is started with `app/backend/` as the working directory. Keep this style unless you restructure the whole package.
+6. Imports are **flat, not package-relative** (`from models import …`). This works because `main.py:19` and `chapter_pipeline.py:13` insert `app/backend/` into `sys.path`, and uvicorn is started with `app/backend/` as the working directory. Keep this style unless you restructure the whole package.
 
 ## 6. The dual-model design and VRAM strategy
 
@@ -180,6 +180,7 @@ AI_Writer/
 │   │   │   └── writer.py       (62 LOC) Streaming chapter writer (system prompt + async generator)
 │   │   ├── managers/                    JSON-file persistence, one module per entity type (paths → <repo>/data/)
 │   │   │   ├── __init__.py              re-exports the five managers
+│   │   │   ├── storage.py               atomic JSON writes + logged skips, shared by the managers (plan 016)
 │   │   │   ├── character_manager.py     data/characters/{slug}.json
 │   │   │   ├── scene_manager.py         data/scenes/{slug}.json
 │   │   │   ├── chapter_manager.py       data/chapters/{NNN}.json  (zero-padded to 3 digits)
@@ -193,8 +194,11 @@ AI_Writer/
 │   │   ├── app.js            (1890 LOC) All client logic (state, API helpers, rendering, SSE parsing, modals, model browser)
 │   │   ├── style.css         (2381 LOC) Dark "glass" design system (CSS custom properties, animations; no media queries)
 │   │   └── fonts/                       Self-hosted woff2 fonts + fonts.css (@font-face) + OFL licences (plan 014)
+│   ├── tests/                           pytest suite: API, storage, pipeline, helpers; fake ollama, temp data (plan 016)
 │   ├── start.bat                        Windows launcher (double-click)
-│   └── requirements.txt                 Python dependencies (lower bounds; verified versions in a comment)
+│   ├── requirements.txt                 Python dependencies (lower bounds; verified versions in a comment)
+│   ├── requirements-dev.txt             dev-only tools: pytest, ruff (not needed to run the app)
+│   └── pyproject.toml                   pytest + ruff settings only (the app is not a package)
 ├── data/                                NOVEL DATA (created/updated by the app; sample content is committed)
 │   ├── characters/*.json
 │   ├── scenes/*.json
@@ -209,23 +213,26 @@ AI_Writer/
 │   ├── technical/                       ← this documentation set (01…09)
 │   └── ai/                              AI workspace: RULES.md, plans/, memory/, templates/ (see docs/ai/README.md)
 ├── .claude/                             Claude Code project settings + workflow hooks (must stay at root)
+├── .github/workflows/ci.yml             CI: lint + tests + JS syntax on push (GitHub requires this location; D-013)
 ├── CLAUDE.md                            loader that imports docs/ai/RULES.md (must stay at root)
 ├── AGENTS.md                            pointer for non-Claude AI tools (must stay at root)
 ├── README.md                            map of the repository
 └── .gitignore
 ```
 
-How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, i.e. the repo-root `data/` (see 05 §1). The export route no longer touches `data/` (plan 015). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:46`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
+How the app finds its data from inside `app/`: each manager computes `Path(__file__).resolve().parents[3] / "data"`, i.e. the repo-root `data/` (see 05 §1). The export route no longer touches `data/` (plan 015). The frontend is served from `app/frontend/` (sibling of `app/backend/`, `main.py:51`). Stale `__pycache__/` folders (cpython-313) moved with the code. They are git-ignored, so the previously tracked copies drop out of git once the move is committed (KI-022).
 
 ## 8. Process & runtime model
 
-- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:518-520`).
-- **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast.
+- **One process, one worker.** `app/start.bat` runs `python -m uvicorn main:app --host 127.0.0.1 --port 8000` (no `--reload`) in a minimised window titled `NovelForge-Backend`, with the working directory set to `app/backend/`. Running `python main.py` instead starts uvicorn with `reload=True` (`main.py:530-532`).
+- **Async LLM calls.** Route handlers are `async def`, and both agents use `ollama.AsyncClient`. The specialist functions are `async def` and awaited, so the server keeps answering other requests while a model works (fixed KI-005 in plan 005; before, the sync `ollama.chat` froze the server). File I/O in the managers is still synchronous, but it is small and fast. Every save goes through `managers/storage.write_json` (temp file + atomic replace, plan 016, KI-026).
 - **One generation at a time** (plan 010, KI-031). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter` gets **409**.
   - `POST /api/generate-chapter/cancel` stops it.
   - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream.
   - There are no other background jobs or locks.
-- **State.** All durable state is in `data/`. In memory, the server keeps only the module-level constant `RECOMMENDED_MODELS` and the running generation's task (`_generation`, `main.py:166`), which is gone after a restart.
+- **Logging** (plan 016, KI-025). `main.py` configures console logging (`%(asctime)s %(levelname)s %(name)s: %(message)s`) next to uvicorn's own access log.
+  - Logged: data files the managers can't read, pipeline `warning`/`error` events, specialist replies without JSON, failed model pulls and cancelled generations.
+- **State.** All durable state is in `data/`. In memory, the server keeps only the module-level constant `RECOMMENDED_MODELS` and the running generation's task (`_generation`, `main.py:171`), which is gone after a restart.
 
 ## 9. Security posture (summary)
 
@@ -233,7 +240,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 |---|---|
 | Network exposure | Bound to loopback (`127.0.0.1`) only. |
 | Authentication | None. |
-| Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:38`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
+| Cross-site access | No CORS middleware: the UI calls `/api` on its own origin, so other websites can't call the API. `TrustedHostMiddleware` accepts only `Host: 127.0.0.1`/`localhost` (blocks DNS rebinding) (`main.py:43`). In v1.0.0 CORS was `*` (KI-010, fixed in plan 007). |
 | Input → filesystem | `slug` values (from the URL path, request bodies or LLM output) become filenames without sanitisation (KI-010). |
 | HTML injection | Most rendering goes through `escHtml()`. The world snapshot and the model browser do not (KI-011). |
 | Secrets | None used or stored. |

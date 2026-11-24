@@ -4,14 +4,17 @@ Handles extraction, entity resolution, profiling, context selection, and post-wr
 All calls return structured JSON. Last call per session uses keep_alive=0 to free VRAM.
 """
 import json
+import logging
 import re
-from typing import Dict, Any, List, Optional
-from models import Character, Scene, WorldSettings
+from typing import Dict, List, Optional
+from models import WorldSettings
 
 try:
     import ollama
 except ImportError:
     ollama = None
+
+log = logging.getLogger(__name__)
 
 
 def _extract_json(text: str) -> Dict:
@@ -54,7 +57,10 @@ async def _call(model: str, system: str, user: str, keep_alive: int = 300) -> Di
         format="json",  # Ollama JSON mode: the reply is a JSON document (KI-016)
         options={"num_ctx": 8192, "temperature": 0.1}
     )
-    parsed = _extract_json(response.message.content)
+    content = response.message.content or ""
+    parsed = _extract_json(content)
+    if not isinstance(parsed, dict) or (not parsed and content.strip() != "{}"):
+        log.warning("Specialist (%s) reply has no JSON object; using {} (%d chars): %.200s", model, len(content), content)
     return parsed if isinstance(parsed, dict) else {}  # callers always get a dict (KI-015)
 
 

@@ -2,7 +2,7 @@
 Context Builder — assembles the master prompt for the writer agent.
 Implements tiered chapter memory and smart context selection.
 """
-from typing import List, Dict, Optional
+from typing import List, Dict
 from models import Character, Scene, WorldSettings, Chapter
 
 

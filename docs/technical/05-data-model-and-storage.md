@@ -1,6 +1,6 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015).
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
@@ -22,8 +22,8 @@ data/
 | Encoding | UTF-8, `ensure_ascii=False` (non-Latin names are stored as-is), `indent=2` |
 | Directory creation | Lazy: `characters/`, `scenes/` and `chapters/` are created on first access. The root file's parent is created on save. |
 | Identity | Filename stem = `slug` (or chapter number). Renaming a character does **not** rename its file. Slugs must match `[\w-]+` (letters/digits of any script, `_`, `-`); anything else is refused before touching the disk. New slugs are always derived by the server (`make_slug`: lowercase, `_` separators), so new files are snake_case; older hyphenated files (e.g. `xiao-fan-scientist-inventor`) stay valid and are matched by the equivalence check (plan 007, KI-009/KI-010). |
-| Atomicity | Updates (`save`) overwrite the file directly, with no temp file and no locking. Creating a character or scene (`create`) uses an exclusive `open(…, "x")`, so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
-| Corruption handling | List operations skip unreadable/invalid files **silently**. Single-item reads raise (→ 500). |
+| Atomicity | Every write is atomic (plan 016, KI-026): `managers/storage.write_json` writes a temp file in the same folder, `fsync`s it, then `os.replace`s it into place, so a crash leaves the old file intact (before, `save` wrote in place). No locking. Creating a character or scene (`create`) uses an atomic exclusive move (`os.link`; an exclusive `open(…, "x")` where hard links aren't supported), so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
+| Corruption handling | List operations skip unreadable/invalid files and log `WARNING Skipped unreadable <folder>/<file>: <error>` to the server console (plan 016; before, silently). Single-item reads raise (→ 500). |
 | Versioning / migrations | None. Files are validated against the current Pydantic model on read, so **adding a required field or renaming a field breaks every existing file**. Always add new fields with defaults. |
 | Type coercion | Characters, scenes and world settings coerce wrong-typed values on read and write (`models.py`, plan 009): text fields accept numbers/lists/dicts, list fields a single string, chapter numbers numeric text (else 1), `type` anything ("main" → main, else temporary). Files saved with such values by older versions **load again** (they used to be skipped silently) and are written back valid on their next save. Already-valid files load unchanged (verified on the real `data/` files). Only a missing `name`/`slug` or invalid JSON still makes a file unloadable. |
 | One novel per folder | To keep several novels, keep separate copies of `data/` (see [07 §6](07-setup-and-usage.md#6-backup-reset-and-multiple-novels)). |

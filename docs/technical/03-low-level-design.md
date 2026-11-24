@@ -17,7 +17,7 @@ Contents
 
 | Topic | Convention |
 |---|---|
-| Python imports | Flat imports relative to `app/backend/` (`from models import Character`, `from managers import character_manager`). `sys.path` is patched in `main.py:18` and `chapter_pipeline.py:12`, and all data/frontend paths are built from `__file__`. The only working-directory dependency is uvicorn's module lookup: `uvicorn main:app` needs CWD = `app/backend/` (or `--app-dir app/backend`). |
+| Python imports | Flat imports relative to `app/backend/` (`from models import Character`, `from managers import character_manager`). `sys.path` is patched in `main.py:19` and `chapter_pipeline.py:13`, and all data/frontend paths are built from `__file__`. The only working-directory dependency is uvicorn's module lookup: `uvicorn main:app` needs CWD = `app/backend/` (or `--app-dir app/backend`). |
 | Models | Pydantic v2 `BaseModel`. Serialise with `.model_dump()`. Request bodies are **wrapper objects** (`{"character": {...}}`, `{"scene": {...}}`, `{"settings": {...}}`, `{"meta": {...}}`). |
 | Persistence | One manager module per entity. Each manager owns its path helper (`_data_dir()` / `_path()`), and the path is computed from `__file__` (three levels up → repo root → `data/`). JSON is written with `indent=2, ensure_ascii=False`, UTF-8. |
 | Identity | `slug` = filename stem. Characters/scenes: `data/<kind>/{slug}.json`. Chapters: `data/chapters/{number:03d}.json`. |
@@ -44,52 +44,58 @@ Contents
 | `UpdateSceneRequest` | `scene: Scene` | |
 | `UpdateWorldRequest` | `settings: WorldSettings` | |
 | `UpdateNovelMetaRequest` | `meta: NovelMeta` | |
-| `RefineRequest` *(defined in `main.py:410`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
+| `RefineRequest` *(defined in `main.py:422`)* | `description: str`, `name: Optional[str]=None`, `existing_slug: Optional[str]=None` | |
 
 ### 2.2 `app/backend/main.py`
 
 | Symbol | Lines | Behaviour |
 |---|---|---|
-| `app = FastAPI(title="AI Novel Writer", version="1.0.0")` | 34 | **Version source of truth** (keep in sync with CHANGELOG). |
-| `TrustedHostMiddleware` | 38 | Accepts only `Host: 127.0.0.1` or `localhost` (any port); other hosts get **400**. Blocks DNS rebinding. There is **no CORS middleware**: the UI calls `/api` on its own origin, so other websites can't call the API (KI-010, plan 007). |
-| `file_exists_handler` | 41-43 | App-wide `FileExistsError` → **409** `{"detail": …}` (a manager's `create()` conflict, KI-036). |
-| `FRONTEND_DIR` + `/static` mount | 46-48 | Mounts `app/frontend/` at `/static` if it exists (not used by `index.html`). |
-| `serve_index()` `GET /` | 51-56 | Reads and returns `index.html` on every request (so HTML edits need no restart). |
-| `serve_css()` `GET /style.css`, `serve_js()` `GET /app.js` | 59-66 | `FileResponse`. |
-| Character routes | 70-100 | `get_characters`; `create_character` (slug = `make_slug(slug or name)`, **422** if empty, **409** if taken); `update_character` (404 if missing or invalid slug, forces the path slug); `delete_character` (404 if missing or invalid slug). |
-| Scene routes | 104-134 | Mirror of the character routes. |
-| World routes | 138-146 | `GET` load, `PUT` save (full replace). |
-| Chapter routes | 150-161 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
-| `_generation`, `_CANCELLED_EVENT`, `_generation_running()` | 166-172 | Holder of the one running generation task (`{"task": None}` until the first run), the SSE line sent when it is cancelled, and "is it still running" (plan 010, KI-031). |
-| `generate_chapter` | 175-211 | **409** if a generation is running. Otherwise runs `run_pipeline` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
-| `cancel_generation()` `POST /api/generate-chapter/cancel` | 214-221 | Cancels the running task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. |
-| Novel-meta routes | 225-233 | `GET` load, `PUT` save (full replace). |
-| `_export_filename(title, fmt)` | 237-240 | Download name: spaces and Windows-forbidden characters → `_`, trailing dots/spaces dropped, `novel` if no letter or digit is left (plan 015, KI-017). |
-| `export_novel(fmt)` | 243-266 | `txt`/`md` only (400 otherwise). Returns the text from memory (`Response`, `Content-Disposition: attachment` built like `FileResponse`'s); writes nothing to disk (plan 015, KI-017; before, it wrote into `data/`). |
-| `health()` | 270-272 | `{"status":"ok","timestamp": ISO}`. |
-| `RECOMMENDED_MODELS` | 276-283 | 6 entries: `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b`, `phi4-mini:3.8b`, `qwen2.5:7b`, `deepseek-r1:7b`, each with `size/quality/note`. |
-| `_model_key(name)` | 286-288 | Compare key for model names: adds `:latest` when the last path segment has no tag (a registry host's `:port` is not a tag), as Ollama does (plan 012, KI-020). |
-| `_ollama_base_url(host)`, `OLLAMA_BASE_URL` | 291-312, 315 | `OLLAMA_HOST` → base URL, a port of ollama-python's `_parse_host` (default `http://127.0.0.1:11434`), read once at startup, so the model list and pull reach the same server as generation (plan 015, KI-033). |
-| `get_models()` | 318-345 | `httpx` GET `{OLLAMA_BASE_URL}/api/tags` (5 s); `ollama_error` names the address. Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. A recommended model is `installed` only if its `_model_key` equals one of the installed models' keys: an exact match, not the family prefix (plan 012, KI-020). |
-| `pull_model(body: dict)` | 348-406 | Untyped body. `model` is required (400). Streams `{OLLAMA_BASE_URL}/api/pull` progress as SSE. Ends with `success` only after Ollama's own `success` line; a non-200 status, an `{"error": …}` line or a missing confirmation ends with `error` (plan 010, KI-019). |
-| `RefineRequest` | 410-413 | Request body of the three refine routes. |
-| `refine_character` / `refine_scene` | 416-485 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
-| `refine_world` | 488-515 | See 02-W5. |
-| `__main__` | 518-520 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
+| `app = FastAPI(title="AI Novel Writer", version="1.0.0")` | 39 | **Version source of truth** (keep in sync with CHANGELOG). |
+| `logging.basicConfig`, `log` | 36-37 | Console logging for the app's modules at INFO (plan 016, KI-025); uvicorn keeps its own loggers. `pull_model` logs each failed pull; a cancelled generation is logged at INFO. |
+| `TrustedHostMiddleware` | 43 | Accepts only `Host: 127.0.0.1` or `localhost` (any port); other hosts get **400**. Blocks DNS rebinding. There is **no CORS middleware**: the UI calls `/api` on its own origin, so other websites can't call the API (KI-010, plan 007). |
+| `file_exists_handler` | 46-48 | App-wide `FileExistsError` → **409** `{"detail": …}` (a manager's `create()` conflict, KI-036). |
+| `FRONTEND_DIR` + `/static` mount | 51-53 | Mounts `app/frontend/` at `/static` if it exists (not used by `index.html`). |
+| `serve_index()` `GET /` | 56-61 | Reads and returns `index.html` on every request (so HTML edits need no restart). |
+| `serve_css()` `GET /style.css`, `serve_js()` `GET /app.js` | 64-71 | `FileResponse`. |
+| Character routes | 75-105 | `get_characters`; `create_character` (slug = `make_slug(slug or name)`, **422** if empty, **409** if taken); `update_character` (404 if missing or invalid slug, forces the path slug); `delete_character` (404 if missing or invalid slug). |
+| Scene routes | 109-139 | Mirror of the character routes. |
+| World routes | 143-151 | `GET` load, `PUT` save (full replace). |
+| Chapter routes | 155-166 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
+| `_generation`, `_CANCELLED_EVENT`, `_generation_running()` | 171-177 | Holder of the one running generation task (`{"task": None}` until the first run), the SSE line sent when it is cancelled, and "is it still running" (plan 010, KI-031). |
+| `generate_chapter` | 180-217 | **409** if a generation is running. Otherwise runs `run_pipeline` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
+| `cancel_generation()` `POST /api/generate-chapter/cancel` | 220-227 | Cancels the running task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. |
+| Novel-meta routes | 231-239 | `GET` load, `PUT` save (full replace). |
+| `_export_filename(title, fmt)` | 243-248 | Download name: spaces and Windows-forbidden characters → `_`, trailing dots/spaces dropped, `novel` if no letter or digit is left (plan 015, KI-017). |
+| `export_novel(fmt)` | 251-274 | `txt`/`md` only (400 otherwise). Returns the text from memory (`Response`, `Content-Disposition: attachment` built like `FileResponse`'s); writes nothing to disk (plan 015, KI-017; before, it wrote into `data/`). |
+| `health()` | 278-280 | `{"status":"ok","timestamp": ISO}`. |
+| `RECOMMENDED_MODELS` | 284-291 | 6 entries: `gemma3:12b`, `llama3.1:8b`, `mistral-nemo:12b`, `phi4-mini:3.8b`, `qwen2.5:7b`, `deepseek-r1:7b`, each with `size/quality/note`. |
+| `_model_key(name)` | 294-296 | Compare key for model names: adds `:latest` when the last path segment has no tag (a registry host's `:port` is not a tag), as Ollama does (plan 012, KI-020). |
+| `_ollama_base_url(host)`, `OLLAMA_BASE_URL` | 299-320, 323 | `OLLAMA_HOST` → base URL, a port of ollama-python's `_parse_host` (default `http://127.0.0.1:11434`), read once at startup, so the model list and pull reach the same server as generation (plan 015, KI-033). |
+| `get_models()` | 326-353 | `httpx` GET `{OLLAMA_BASE_URL}/api/tags` (5 s); `ollama_error` names the address. Returns `{installed[], recommended[] (+installed flag), ollama_running, ollama_error}`. A recommended model is `installed` only if its `_model_key` equals one of the installed models' keys: an exact match, not the family prefix (plan 012, KI-020). |
+| `pull_model(body: dict)` | 356-418 | Untyped body. `model` is required (400). Streams `{OLLAMA_BASE_URL}/api/pull` progress as SSE. Ends with `success` only after Ollama's own `success` line; a non-200 status, an `{"error": …}` line or a missing confirmation ends with `error` (plan 010, KI-019). |
+| `RefineRequest` | 422-425 | Request body of the three refine routes. |
+| `refine_character` / `refine_scene` | 428-497 | See 02-W4. Lazy `from agents import specialist`. Create derives the slug from the profile name (never the LLM's slug), **422** if empty, **409** if taken. |
+| `refine_world` | 500-527 | See 02-W5. |
+| `__main__` | 530-532 | `uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)`. |
 
 ### 2.3 `app/backend/managers/*`
 
-All five managers follow the same pattern. Directories are created lazily by `ensure_dir()` (characters, scenes, chapters) or by `save()` (`p.parent.mkdir`, for world/meta).
+All five managers follow the same pattern. Directories are created lazily by `ensure_dir()` (characters, scenes, chapters) or by `storage.write_json` (for world/meta). Every write and every listing goes through `managers/storage.py` (plan 016, KI-026).
 
 | Module | Functions | Details |
 |---|---|---|
-| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; **unreadable or invalid files are silently skipped**), `is_valid_slug(slug)` (`[\w-]+`: letters/digits of any script, `_`, `-`; never `.`, `/`, `\` or empty, KI-010), `_path(slug)` (raises `ValueError` for an invalid slug; every file access goes through it), `get_by_slug(slug) -> Optional[Character]` (`None` for an invalid slug), `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (refuses a slug equivalent to an existing file stem, i.e. same `_slugify` result, so `elder-wu` blocks `elder_wu`; then exclusive `open(…, "x")`: never overwrites, raises `FileExistsError("Character '<existing stem>' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool` (`False` for an invalid slug), `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
+| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; unreadable or invalid files are skipped **and logged**, via `storage.read_all`), `is_valid_slug(slug)` (`[\w-]+`: letters/digits of any script, `_`, `-`; never `.`, `/`, `\` or empty, KI-010), `_path(slug)` (raises `ValueError` for an invalid slug; every file access goes through it), `get_by_slug(slug) -> Optional[Character]` (`None` for an invalid slug), `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (refuses a slug equivalent to an existing file stem, i.e. same `_slugify` result, so `elder-wu` blocks `elder_wu`; then an atomic exclusive write, `storage.write_json(exclusive=True)`: never overwrites, raises `FileExistsError("Character '<existing stem>' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool` (`False` for an invalid slug), `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
 | `scene_manager` | identical API for `Scene` | identical `_slugify` (duplicated code). |
-| `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
+| `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips and logs bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
 | `world_manager` | `load() -> WorldSettings` (defaults if missing), `save(settings)` | `data/world_settings.json` |
 | `novel_meta_manager` | `load() -> NovelMeta`, `save(meta)` | `data/novel_meta.json` |
+| `storage` | `write_json(path, data, *, exclusive=False)`, `read_all(folder, label, build)` | The managers' shared file helpers (plan 016, KI-026); see below. |
 
-Writes are **not atomic** (direct `open(..., "w")`). A crash mid-write can leave a truncated file, which `get_all()` then silently skips.
+**Writes are atomic** (plan 016, KI-026). `write_json` serialises first (UTF-8, `indent=2`, the same bytes as before), writes a temp file `.<stem>.<random>.tmp` in the same folder, `fsync`s it, then moves it into place.
+- Saves use `os.replace`. `create()` uses `os.link`, which is atomic and fails if the name is taken; on filesystems without hard links it falls back to an exclusive `open(…, "x")`.
+- The temp file is always removed, so a crash or full disk mid-write leaves the old file intact.
+- `read_all` loads every `*.json` and logs `WARNING Skipped unreadable <folder>/<file>: <error>` for each file it can't read or validate.
+- Before plan 016, saves wrote in place (a crash left a truncated file) and `get_all()` skipped such files silently.
 
 ### 2.4 `app/backend/agents/specialist.py`
 
@@ -97,8 +103,8 @@ Module-level: `try: import ollama` / `except ImportError: ollama = None`. All fu
 
 | Function | Signature | Purpose | keep_alive |
 |---|---|---|---|
-| `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:25`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
-| `_call` | `async (model, system, user, keep_alive=-1) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, format="json", options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`, returned only if it is a dict, else `{}` (plan 009, KI-015). `format="json"` is Ollama's JSON mode (KI-016). Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
+| `_extract_json` | `(text: str) -> Dict` | 1) `json.loads` the whole text. 2) First fenced code block (any language tag; `json` is optional in the regex, `specialist.py:28`). 3) Greedy first-`{`-to-last-`}` match. Else `{}`. Never raises. | — |
+| `_call` | `async (model, system, user, keep_alive=300) -> Dict` | `await ollama.AsyncClient().chat(model, messages=[system,user], keep_alive, format="json", options={"num_ctx": 8192, "temperature": 0.1})` → `_extract_json(response.message.content)`, returned only if it is a dict, else `{}` (plan 009, KI-015). A reply without a JSON object is logged as a warning with its first 200 characters (plan 016). `format="json"` is Ollama's JSON mode (KI-016). Raises `RuntimeError("ollama Python package not installed: run pip install -r app/requirements.txt")` if `ollama` is missing. Non-blocking: other requests are served meanwhile (before plan 005 it used the sync `ollama.chat`, which froze the server, KI-005). One client per call, like the writer. | param |
 | `analyze_plot` | `(plot, model)` | Step 1 (the unused `novel_meta` argument was removed in plan 008) | 300 |
 | `resolve_entities` | `(entity_mentions, existing_chars, existing_scenes, model)` | Step 2 | 300 |
 | `profile_new_entities` | `(new_chars, new_scenes, plot, world, tone, chapter_number, model)` | Step 3. Returns early `{"characters":[],"scenes":[]}` when both lists are empty. | 300 |
@@ -158,7 +164,7 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
 
 `_canonical_entities(entries, existing, make_slug)` (plan 007, KI-009) post-processes the step-2 result for characters and scenes: an entry whose slug or name normalises (`make_slug`) to an existing entity's slug or name becomes `existing` with that entity's **real** slug; anything else becomes `new` with `slug = make_slug(name)`. Non-dict entries, entries without a usable name, and repeats are dropped. Step 3 then saves each profile under `make_slug(profile name)`, never the LLM's slug.
 
-- `_sse(event_type, **kwargs) -> str` → `f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"`.
+- `_sse(event_type, **kwargs) -> str` → `f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"`. `warning` and `error` events are also written to the server log (errors with their traceback detail; plan 016).
 - `async def run_pipeline(plot, chapter_number, novel_meta) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy).
 - Local data structures:
   - `resolved_chars` / `resolved_scenes`: lists of `{name, slug, status, importance}` taken from the LLM as-is.
@@ -282,22 +288,26 @@ Layout: fixed header (64 px), then `.app-layout` as a fixed flex row filling the
 
 | Layer | Strategy | Gaps |
 |---|---|---|
-| Managers | Reads of single items raise on corrupt JSON. `get_all()` swallows every exception per file. | No logging, so corrupted files disappear silently from the UI. |
+| Managers | Reads of single items raise on corrupt JSON. `get_all()` skips a file it can't read and logs a warning naming it. Writes are atomic (plan 016). | A skipped file is visible only in the server console, not in the UI. |
 | Specialist | Never raises on bad JSON (`{}`); raises on transport errors. | Type errors surface later in the pipeline. |
 | Writer | Converts any exception into an `error` tuple. | — |
 | Pipeline | Global try/except → `error` SSE with traceback. | Partial writes (step-3 profiles) are not rolled back. |
-| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | No logging. Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
+| Routes | `HTTPException` 400/404/500. Pydantic 422 on invalid bodies. **409** from the app-wide `FileExistsError` handler (`file_exists_handler`, right after the `TrustedHostMiddleware` setup in `main.py`), which catches a manager's `create()` conflict, and from `generate_chapter` while another generation runs (plan 010). Refine create maps the same error to 409 explicitly. Nothing else raises `FileExistsError` (all `mkdir` calls use `exist_ok=True`). | Refine endpoints wrap model construction but not the LLM call (transport errors → 500 with default message). |
 | Frontend | try/catch around each action → toast. Loaders fall back to empty state. A cancelled generation is an info toast, not an error (plan 010). | Errors go only to toasts and `console.error`. (`warning` SSE events are shown since plan 009; the pipeline panel's fade and error styles are reset at each run since plan 011.) |
 
-There is **no logging framework**. The only diagnostics are uvicorn access logs in the backend window, SSE `error.detail` tracebacks (not shown in the UI) and browser `console.*`.
+**Logging** (plan 016, KI-025): `main.py` sets up console logging at INFO.
+- **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
+- **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
+
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes. Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 
 | Item | Location |
 |---|---|
 | `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
-| `chapter_manager.get_recent_n` | `chapter_manager.py:53` |
-| `featured_scene_slugs` alias | `chapter_pipeline.py:207` |
-| `/static` mount | `main.py:47-48` |
+| `chapter_manager.get_recent_n` | `chapter_manager.py:45` |
+| `featured_scene_slugs` alias | `chapter_pipeline.py:214` |
+| `/static` mount | `main.py:52-53` |
 | `state._profileContext` (written, never read) | `app.js` |
 | Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |

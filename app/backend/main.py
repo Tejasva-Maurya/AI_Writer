@@ -8,6 +8,7 @@ import sys
 import json
 import asyncio
 import ipaddress
+import logging
 import urllib.parse
 import httpx
 from pathlib import Path
@@ -30,6 +31,10 @@ from models import (
 )
 from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager
 from pipeline.chapter_pipeline import run_pipeline
+
+# Console logging for the app's own modules (KI-025); uvicorn keeps its own access/error loggers
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
 
 app = FastAPI(title="AI Novel Writer", version="1.0.0")
 
@@ -185,6 +190,7 @@ async def generate_chapter(req: GenerateChapterRequest):
             async for sse_event in run_pipeline(req.plot, chapter_number, meta):
                 queue.put_nowait(sse_event)
         except asyncio.CancelledError:
+            log.info("Generation of chapter %d cancelled", chapter_number)
             queue.put_nowait(_CANCELLED_EVENT)
             raise
         finally:
@@ -237,7 +243,9 @@ async def update_novel_meta(req: UpdateNovelMetaRequest):
 def _export_filename(title: str, fmt: str) -> str:
     """Download name from the title: spaces and characters Windows forbids in filenames become "_" (KI-017)."""
     stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", title.replace(" ", "_")).rstrip(" .")
-    return f"{stem if re.search(r'[^\W_]', stem) else 'novel'}.{fmt}"
+    if not re.search(r"[^\W_]", stem):  # no letter or digit left (outside the f-string: Python 3.11, KI-040)
+        stem = "novel"
+    return f"{stem}.{fmt}"
 
 
 @app.get("/api/export/{fmt}")
@@ -352,6 +360,10 @@ async def pull_model(body: dict):
     if not model_name:
         raise HTTPException(400, "model name required")
 
+    def pull_error(message: str) -> str:
+        log.warning("Model pull of %s failed: %s", model_name, message)
+        return f"data: {json.dumps({'status': 'error', 'message': message})}\n\n"
+
     async def stream_pull():
         confirmed = False
         try:
@@ -368,7 +380,7 @@ async def pull_model(body: dict):
                             detail = json.loads(detail).get("error") or detail
                         except (ValueError, AttributeError):
                             pass
-                        yield f"data: {json.dumps({'status': 'error', 'message': f'Ollama returned {resp.status_code}: {detail}'})}\n\n"
+                        yield pull_error(f"Ollama returned {resp.status_code}: {detail}")
                         return
                     async for line in resp.aiter_lines():
                         if line.strip():
@@ -379,7 +391,7 @@ async def pull_model(body: dict):
                             if not isinstance(progress, dict):
                                 continue
                             if progress.get("error"):
-                                yield f"data: {json.dumps({'status': 'error', 'message': str(progress['error'])})}\n\n"
+                                yield pull_error(str(progress["error"]))
                                 return
                             status = progress.get("status", "")
                             if status == "success":
@@ -395,9 +407,9 @@ async def pull_model(body: dict):
             if confirmed:
                 yield f"data: {json.dumps({'status': 'success', 'model': model_name})}\n\n"
             else:
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Ollama ended the download without confirming success'})}\n\n"
+                yield pull_error("Ollama ended the download without confirming success")
         except Exception as e:
-            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            yield pull_error(str(e))
 
     return StreamingResponse(
         stream_pull(),

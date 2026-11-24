@@ -55,7 +55,7 @@ A cosmetic v1.0.0 side effect of KI-002, **fixed in [Unreleased] (plan 003)**. T
 - "Installed" badges match the exact model since plan 012 (KI-020). Before, any tag of the same family counted, so `gemma3:12b` could show as installed when only `gemma3:4b` was pulled. Verify with `ollama list`, and pull manually with `ollama pull <exact:tag>`.
 
 ### A9. A character/location I added by hand doesn't show up
-`get_all()` silently skips files that are invalid JSON or have no `name`/`slug`. Wrong-typed values (an unknown `type`, a numeric `age`, a string for a list) are coerced since plan 009, so such files load again. Validate the file: start Python in `app/backend/` and run `Character(**json.load(open(path)))`.
+`get_all()` skips files that are invalid JSON or have no `name`/`slug`, and since plan 016 the server console says which one and why (`WARNING managers.storage: Skipped unreadable characters/<file>: <error>`). Wrong-typed values (an unknown `type`, a numeric `age`, a string for a list) are coerced since plan 009, so such files load again. Validate the file: start Python in `app/backend/` and run `Character(**json.load(open(path)))`.
 
 ### A10. The same character exists twice with different slugs
 Since plan 007 new slugs are always `make_slug(name)`, the pipeline maps the specialist's matches onto existing slugs, and creating an equivalent slug (`xiao-fan` vs `xiao_fan`) is refused, so new duplicates should not appear. Duplicates created by older versions remain: merge them by hand (keep one file, delete the other, and fix `characters_featured` in the chapters that used the deleted slug).

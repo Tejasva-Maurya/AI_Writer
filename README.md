@@ -18,6 +18,7 @@ AI_Writer/
 ├── data/       ← your novel (written by the app)
 ├── docs/       ← documentation, changelog, plans, AI memory
 ├── .claude/    ← Claude Code settings + automation hooks (tool config, must stay here)
+├── .github/    ← CI workflow: lint + tests on every push (GitHub requires this location)
 ├── CLAUDE.md   ← loads the AI rules from docs/ai/RULES.md (must stay here)
 └── AGENTS.md   ← pointer for other AI coding tools (must stay here)
 ```

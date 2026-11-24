@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from models import WorldSettings
+from managers.storage import write_json
 
 
 def _path() -> Path:
@@ -16,7 +17,4 @@ def load() -> WorldSettings:
 
 
 def save(settings: WorldSettings):
-    p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(settings.model_dump(), f, indent=2, ensure_ascii=False)
+    write_json(_path(), settings.model_dump())  # atomic replace (KI-026)

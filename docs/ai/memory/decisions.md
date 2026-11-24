@@ -83,3 +83,17 @@
 - **Decision:** Bundle the fonts in `app/frontend/fonts/`: the 14 woff2 files Google serves for these families (all subsets, ~247 KB), a `fonts.css` with the same 27 `@font-face` rules pointing at `/static/fonts/`, and the three SIL OFL 1.1 licences (required when redistributing). `index.html` links `/static/fonts/fonts.css`; the existing `/static` mount serves it, so the backend is unchanged.
 - **Alternatives considered:** keep Google Fonts and reword the claim (no new files, but the page still contacts Google and looks different offline); only the latin subsets (smaller, but names with other scripts would switch to fallback fonts).
 - **Consequences:** No outside request from the UI. The fonts are frozen at the 2026-11-24 versions; the `fonts.css` header says how to regenerate them. Keep the OFL files next to the fonts.
+
+## D-013 — Tests with pytest, lint with ruff, CI on GitHub Actions, logging to the console
+- **Date:** 2026-11-24 · **Status:** Accepted · **Plan:** 016 (user choices, asked during planning)
+- **Context:** KI-025: no tests, linter, CI or logging; every change was checked with ad-hoc sandbox scripts, and a Python 3.11 syntax error (KI-040) reached `main` unnoticed because the dev machine runs 3.14.
+- **Decision:**
+  - **Tools:** pytest and ruff as dev-only dependencies in `app/requirements-dev.txt` (the runtime `requirements.txt` and `start.bat` are unchanged). Tool settings live in `app/pyproject.toml`; ruff's rule set is pinned to `E4, E7, E9, F` with target `py311`.
+  - **Tests:** in `app/tests/`, using FastAPI's `TestClient` on `127.0.0.1`, a recording fake `ollama` module, and an autouse fixture that points every manager at a temp folder, plus a session guard on the real `data/`.
+  - **CI:** `.github/workflows/ci.yml` runs lint, tests and `node --check` on Ubuntu and Windows × Python 3.11 and 3.14. `.github/` is an approved exception to "no new top-level folders" (GitHub requires the location).
+  - **Logging:** `logging.basicConfig` in `main.py`, with module loggers.
+- **Alternatives considered:**
+  - stdlib `unittest` (no new dependencies, but less convenient)
+  - pytest only (no linter)
+  - skipping CI (avoids the root folder and the token permission, but nothing checks Python 3.11)
+- **Consequences:** every change can be verified with two commands. Pushing a commit that touches `.github/workflows/` needs a token with the Workflows permission. A new manager must be added to the `data_dir` test fixture.

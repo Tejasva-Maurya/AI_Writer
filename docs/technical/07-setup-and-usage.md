@@ -167,7 +167,7 @@ The `Alt` shortcuts work with Caps Lock on or Shift held (since plan 013, KI-032
 - **Everything is in `data/`.** Back up by copying the folder while the server is stopped.
 - **Start a new novel:** stop the server, move `data/` somewhere else (e.g. `data_my_first_novel/`), and start again. The managers recreate empty folders and the defaults.
 - **Switch novels:** stop the server, swap folder names, start again.
-- **Edit by hand:** the JSON files can be edited with any editor (keep them valid JSON and keep the required fields `name`/`slug`/`chapter_number`). Invalid files are hidden from the UI without any error.
+- **Edit by hand:** the JSON files can be edited with any editor (keep them valid JSON and keep the required fields `name`/`slug`/`chapter_number`). A file that can't be read is left out of the UI, and the server console logs a warning naming it (since plan 016).
 
 ## 7. Developer quick reference
 
@@ -179,4 +179,27 @@ The `Alt` shortcuts work with Caps Lock on or Shift held (since plan 013, KI-032
 | Syntax-check frontend | `node --check app/frontend/app.js` |
 | Watch generation events raw | `curl -N -X POST http://127.0.0.1:8000/api/generate-chapter -H "Content-Type: application/json" -d '{"plot":"…"}'` |
 | Frontend changes | Just reload the browser (no build step; `index.html` is re-read on each request) |
-| Tests | None exist yet (KI-025) |
+| Tests and lint | See below; CI runs the same on every push (`.github/workflows/ci.yml`) |
+
+### Tests and lint
+
+Since plan 016 (KI-025). From the repository root, once:
+
+```bash
+py -m pip install -r app/requirements-dev.txt
+```
+
+Then:
+
+```bash
+py -m pytest app/tests
+py -m ruff check app
+```
+
+- **What the tests cover:** they need no Ollama (a fake `ollama` module records the calls) and never touch `data/`. Every manager is pointed at a temp folder, and the run fails if the real `data/` changed.
+  - `test_api.py`: CRUD, slugs and host checks, export, model list and pull.
+  - `test_storage.py`: atomic writes and logged skips.
+  - `test_pipeline.py`: a full generation with the fake, including the `keep_alive` choreography.
+  - `test_helpers.py`: Ollama address parsing, export names, model coercion.
+- **Lint:** ruff checks for real bugs (undefined names, unused imports, syntax that the minimum Python 3.11 can't parse); the rules are pinned in `app/pyproject.toml`.
+- **CI** (`.github/workflows/ci.yml`) runs lint, tests and `node --check app/frontend/app.js` on Ubuntu and Windows with Python 3.11 and 3.14.

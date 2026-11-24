@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015).
+> **Applies to:** v1.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016).
 > There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
@@ -22,25 +22,26 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 
 | Setting | Value | Location(s) | To change it |
 |---|---|---|---|
-| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:520` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
-| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:520` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
+| Backend bind host | `127.0.0.1` | `app/start.bat:66` (`--host`), `main.py:532` | Edit both. Do **not** bind `0.0.0.0` without adding auth (there is no authentication; `TrustedHostMiddleware` would also reject other host names). |
+| Backend port | `8000` | `app/start.bat:13` (`PORT`), `main.py:532` | Change **both** together. The frontend uses the relative `/api` (since plan 007), so it follows automatically. |
 | Frontend API base | `/api` (same origin) | `app.js:6` | Works for `http://127.0.0.1:8000` and `http://localhost:8000` alike (KI-021, fixed in plan 007). |
-| Ollama base URL (model list / pull) | `OLLAMA_HOST`, else `http://127.0.0.1:11434` | `main.py:291-315` (`_ollama_base_url`, `OLLAMA_BASE_URL`), used at `main.py:325`, `main.py:361` | Set `OLLAMA_HOST` before starting the server (read once at startup). Parsed exactly like ollama-python (`host`, `host:port`, `http(s)://…`, IPv6 in brackets; plan 015, KI-033). |
+| Ollama base URL (model list / pull) | `OLLAMA_HOST`, else `http://127.0.0.1:11434` | `main.py:299-323` (`_ollama_base_url`, `OLLAMA_BASE_URL`), used at `main.py:333`, `main.py:373` | Set `OLLAMA_HOST` before starting the server (read once at startup). Parsed exactly like ollama-python (`host`, `host:port`, `http(s)://…`, IPv6 in brackets; plan 015, KI-033). |
 | Ollama base URL (chat / generation) | ollama-python default: `OLLAMA_HOST`, else `http://127.0.0.1:11434` | `specialist.py` / `writer.py` use library defaults | The same address as the model list and pull (since plan 015; before, `OLLAMA_HOST` moved generation only, KI-033). |
-| Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:38` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
-| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:520` | — |
+| Allowed `Host` headers | `127.0.0.1`, `localhost` (any port) | `main.py:43` (`TrustedHostMiddleware`) | No CORS middleware: cross-origin browser calls are blocked (KI-010, plan 007). Add a host here only if you serve the UI under another local name. |
+| Logging | console, level INFO, format `%(asctime)s %(levelname)s %(name)s: %(message)s` | `main.py:36` (`logging.basicConfig`) | Edit the source to change the level (plan 016, KI-025). |
+| Uvicorn reload | off via `app/start.bat`; on via `python main.py` | `app/start.bat:66`, `main.py:532` | — |
 | Health polling (launcher) | every 2 s, 15 tries | `app/start.bat:72-80` | — |
 
 ### 2.2 LLM parameters
 
 | Parameter | Specialist | Writer | Location |
 |---|---|---|---|
-| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:55`, `writer.py:63` |
+| `num_ctx` (context window, tokens) | 8192 | 32768 | `specialist.py:58`, `writer.py:63` |
 | `temperature` | 0.1 | 0.8 | same |
 | `top_p` | (Ollama default) | 0.9 | `writer.py:63` |
-| `keep_alive` | `300` s by default: refine and steps 1–3, unloaded after 5 idle minutes (plan 013, KI-029, D-011; was `-1`). `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:41,199,239`, `writer.py:62` |
+| `keep_alive` | `300` s by default: refine and steps 1–3, unloaded after 5 idle minutes (plan 013, KI-029, D-011; was `-1`). `0` in `unload` (step 5, no generation) and `post_write_update` | `300` s | `specialist.py:44,205,245`, `writer.py:62` |
 | Streaming | no | yes | — |
-| JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:54` |
+| JSON mode (`format="json"`) | **on** for every specialist call (plan 009, KI-016) | not used (prose) | `specialist.py:57` |
 
 > `num_ctx 32768` on a 12B model can need much more VRAM than the model weights alone. If you hit out-of-memory errors, lowering this is the first knob to try, together with picking a smaller model.
 
@@ -51,16 +52,16 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Target chapter length | ~2000 words (stated twice) | `writer.py:23`, `writer.py:48` |
 | Narrative perspective | third-person limited unless world settings say otherwise | `writer.py:24` |
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
-| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:79` |
+| Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:85` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
-| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:153-165` (the only copy since plan 008) |
+| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:160-172` (the only copy since plan 008) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
-| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:177` (`_chapter_excerpt`) |
-| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:221-223` |
+| Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:183` (`_chapter_excerpt`) |
+| Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:227-229` |
 
 ### 2.4 Model catalogue (shown in Settings)
 
-`RECOMMENDED_MODELS` (`main.py:276-283`):
+`RECOMMENDED_MODELS` (`main.py:284-291`):
 
 | Model | Size (as listed) | Quality | Note |
 |---|---|---|---|
@@ -112,5 +113,9 @@ Lower bounds, not exact pins (KI-004, fixed in plan 005; policy in decision D-00
 | `ollama>=0.4,<1` | Typed responses (`response.message.content`) and `AsyncClient` with this signature exist from 0.4.0 (checked in the 0.4.0 and 0.6.3 sources). | runs on 0.6.3 (isolated `--target` install) |
 
 Removed in plan 005: `aiofiles` (Starlette no longer uses it; the app ran without it) and `python-multipart` (only needed for form or file uploads, which the app does not have). A fresh `pip install --dry-run -r app/requirements.txt` on Python 3.14.5 resolves 23 packages, all as wheels (no compiler needed).
+
+**Development dependencies** (`app/requirements-dev.txt`, plan 016, decision D-013): `-r requirements.txt`, `pytest>=8`, `ruff>=0.6`. They are not needed to run the app, and `start.bat` doesn't install them. Verified with pytest 9.2.0 and ruff 0.17.6. Their settings are in `app/pyproject.toml`:
+- pytest: `testpaths = ["tests"]`
+- ruff: target `py311`, the pinned rule set `E4, E7, E9, F`, with `E402` ignored for the deliberate `sys.path` patching
 
 A future "config" improvement (not implemented) would move host/port/Ollama URL/LLM parameters into a single settings module, using environment variables or a `config.json`. If you implement it, update this page and the doc-impact matrix in `docs/ai/RULES.md`.

@@ -1,25 +1,23 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 015. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-24, through plan 016. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 4 open · 35 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-017, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-027, KI-028, KI-029, KI-031, KI-032, KI-033, KI-034, KI-036, KI-037, KI-038, KI-039).
+**At a glance:** 2 open · 38 fixed in [Unreleased] (KI-001, KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-008, KI-009, KI-010, KI-011, KI-012, KI-013, KI-014, KI-015, KI-016, KI-017, KI-018, KI-019, KI-020, KI-021, KI-022, KI-023, KI-024, KI-025, KI-026, KI-027, KI-028, KI-029, KI-031, KI-032, KI-033, KI-034, KI-036, KI-037, KI-038, KI-039, KI-040).
 
-### Open (4)
+### Open (2)
 
 | ID | Sev | Area | Title | Status |
 |---|---|---|---|---|
-| KI-025 | Medium | Quality | No tests, no linting, no CI, no logging | Open |
-| KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped | Open |
 | KI-030 | Low | Repo | Sample/user data committed in `data/`; `total_chapters: 1` with no chapters | Open |
 | KI-035 | Low | Frontend | Desktop-only layout (no responsive CSS) | Open (design limitation) |
 
-### Fixed (35)
+### Fixed (38)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -49,6 +47,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-022 | Low | Repo | `__pycache__/*.pyc` (cpython-313) committed despite `.gitignore` | Fixed in Unreleased [plan 002] (no `.pyc` tracked on `main`, verified 2026-11-22) |
 | KI-023 | Low | Docs/UI | README architecture section wrong; UI copy promises "Shift+click" model selection | Fixed in Unreleased [plan 001] (README) and [plan 014] (UI copy, user-guide model recommendation) |
 | KI-024 | Low | Frontend | Pipeline panel fade/error styles never reset between runs ✔ | Fixed in Unreleased [plan 011] |
+| KI-025 | Medium | Quality | No tests, no linting, no CI, no logging ✔ | Fixed in Unreleased [plan 016] |
+| KI-026 | Low | Data | Non-atomic writes; corrupt files silently skipped ✔ | Fixed in Unreleased [plan 016] |
 | KI-027 | Medium | Frontend | Edit modals do full replace, so chapter tracking fields reset to 1 (once KI-001 is fixed) | Fixed in Unreleased [plan 003] (UI round-trips all fields; the PUT API stays a full replace) |
 | KI-028 | Low | Frontend | Frontend fallback specialist model (`gemma3:12b`) ≠ backend default (`phi4-mini:3.8b`) ✔ | Fixed in Unreleased [plan 012] |
 | KI-029 | Low | Backend | Refine endpoints keep the specialist resident in VRAM indefinitely (`keep_alive=-1`) ✔ | Fixed in Unreleased [plan 013] |
@@ -60,6 +60,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-037 | Low | Frontend | Streaming text cursor `▍` never hides (CSS `display: inline` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
 | KI-038 | Low | Backend | A name without letters/digits (e.g. `???`) gets an empty slug: saved as `.json`, and its card can't be edited or deleted ✔ | Fixed in Unreleased [plan 007] |
 | KI-039 | Low | Frontend | Multi-chapter notice never hides (CSS `display: flex` overrides `[hidden]`) ✔ | Fixed in Unreleased [plan 011] |
+| KI-040 | High | Backend | `main.py` does not parse on Python 3.11 (backslash inside an f-string expression, from plan 015) ✔ | Fixed in Unreleased [plan 016] |
 
 ---
 
@@ -205,10 +206,34 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The evidence below describes the pre-fix code.
 - `completePipeline` sets `opacity: 0.4` (`app.js:694`). `setStepError` sets inline red border/background (`:709-710`). `resetPipeline` clears neither. **Fix:** reset `style.opacity`, `borderColor` and `background` in `resetPipeline`.
 
-### KI-025 — No tests / lint / CI / logging · Medium
+### KI-025 — No tests / lint / CI / logging · Medium · ✅ Fixed in Unreleased (plan 016)
+- **Status: Fixed in Unreleased [plan 016]** (tooling chosen by the user, decision D-013).
+  - **Tests:** `app/tests/` holds 71 pytest tests (API, storage, pipeline, helpers).
+    - They use FastAPI's `TestClient` on `127.0.0.1` and a recording fake `ollama`, and redirect every manager to a temp folder.
+    - A session guard fails the run if the real `data/` changes.
+    - Run with `py -m pytest app/tests`.
+  - **Lint:** ruff, pinned to the classic bug-finding rules in `app/pyproject.toml`; run `py -m ruff check app`.
+    - It found five unused imports and one real bug (KI-040), all fixed.
+    - Dev tools are in `app/requirements-dev.txt`, separate from the app's requirements.
+  - **CI:** `.github/workflows/ci.yml` runs lint, tests and `node --check` on Ubuntu and Windows, with Python 3.11 and 3.14, on every push and pull request.
+  - **Logging:** console logging is configured in `main.py`. Warnings and errors are logged for skipped data files, pipeline `warning`/`error` events, non-JSON specialist replies, failed model pulls and cancelled generations.
+  - **Verified:**
+    - 71 passed locally (pytest 9.2.0, ruff 0.17.6, Python 3.14.5).
+    - With the storage helper swapped for the old in-place writer, 3 storage tests fail as intended.
+    - CI itself runs only on GitHub (not verifiable locally).
+  - The evidence below describes the pre-fix state.
 - No test files, no linters, no CI workflows. No `logging` usage (`except: pass` in managers hides errors). **Suggested start:** pytest + FastAPI `TestClient` with a stubbed `ollama` module; `ruff`; a `logging` config writing to the console.
 
-### KI-026 — Non-atomic writes; silent skips · Low
+### KI-026 — Non-atomic writes; silent skips · Low · ✅ Fixed in Unreleased (plan 016)
+- **Status: Fixed in Unreleased [plan 016].** `managers/storage.py`:
+  - **`write_json`** writes a temp file in the same folder (fsync), then `os.replace`s it into place. For `create()` it uses `os.link`, which is atomic and never replaces; without hard links it falls back to an exclusive open. The bytes are the same as before.
+  - **`read_all`** logs `Skipped unreadable <folder>/<file>: <error>` instead of skipping silently.
+  - All five managers use them; their function names are unchanged.
+  - **Verified on sandbox copies, old vs new, with a crash simulated mid-save:**
+    - Old left the character file half-written (189 of 377 bytes), and `get_all()` silently dropped it.
+    - New kept the file intact and listed, and left no temp file.
+    - A corrupt file was skipped silently on old; new logged `WARNING managers.storage: Skipped unreadable characters/zz_test_broken.json: JSONDecodeError: …`, also in the server console.
+  - The evidence below describes the pre-fix code.
 - Managers write in place. A crash mid-write corrupts the file, and `get_all()` then hides it. **Fix:** write to a temp file + `os.replace`, and log skipped files.
 
 ### KI-027 — Edit = full replace loses untracked fields · Medium · ✅ Fixed in Unreleased (plan 003)
@@ -303,3 +328,15 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - The notice "This plot may span multiple chapters" (`index.html:457`, `hidden` in the markup) was visible from page load. `DOM.multiChapterNotice.hidden = true` at the start of each run (`app.js:439`) had no effect, so it showed whether or not a `multi_chapter` event was sent.
   - Found 2026-11-23 [plan 011]: a page audit listed `#text-cursor` and `#multi-chapter-notice` as the only elements with `hidden` set whose computed `display` wasn't `none`. Plan 010's UI screenshots showed the notice although the stub never sent `multi_chapter`.
 - **Fix:** add `.multi-chapter-notice[hidden] { display: none; }` next to the rule.
+
+### KI-040 — `main.py` does not parse on Python 3.11 · High · Verified ✔ · ✅ Fixed in Unreleased (plan 016)
+- **Status: Fixed in Unreleased [plan 016].** `_export_filename` now computes the fallback name before the f-string (`main.py:243-248`).
+  - ruff (target `py311`) passes, and CI runs the suite on Python 3.11.
+  - The evidence below describes the plan 015 code.
+- **Evidence:**
+  - Plan 015's `_export_filename` returned `f"{stem if re.search(r'[^\W_]', stem) else 'novel'}.{fmt}"`.
+  - A backslash inside an f-string expression is allowed only from Python 3.12 (PEP 701). On Python 3.11, the stated minimum, `main.py` raises `SyntaxError` at import, so the server does not start.
+  - Not caught then because the dev machine runs Python 3.14 and there was no linter or CI.
+  - Found 2026-11-24 [plan 016] by ruff: `invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.11`.
+  - Present in commit `fa4332b` on `main` (2026-11-24) until plan 016.
+- **Fix:** move the conditional out of the f-string.

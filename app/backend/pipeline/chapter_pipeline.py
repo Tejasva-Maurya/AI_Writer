@@ -3,6 +3,7 @@ Chapter Pipeline — orchestrates the full 7-step multi-agent writing process.
 Emits Server-Sent Events (SSE) throughout for real-time UI updates.
 """
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,9 +17,15 @@ from managers import character_manager, scene_manager, world_manager, chapter_ma
 from agents import specialist, writer
 from pipeline.context_builder import build_master_prompt
 
+log = logging.getLogger(__name__)
+
 
 def _sse(event_type: str, **kwargs) -> str:
-    """Format a Server-Sent Event string."""
+    """Format a Server-Sent Event string. Warnings and errors also go to the server log (KI-025)."""
+    if event_type == "warning":
+        log.warning("%s", kwargs.get("message"))
+    elif event_type == "error":
+        log.error("%s%s", kwargs.get("message"), f"\n{kwargs['detail']}" if kwargs.get("detail") else "")
     data = {"type": event_type, **kwargs}
     return f"data: {json.dumps(data)}\n\n"
 
