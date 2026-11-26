@@ -239,4 +239,4 @@
   - Pushed `chore/remove-unused-helpers` with the github-push skill (`fbd038a`). The first try failed with a read timeout; GitHub was confirmed unchanged, and the retry succeeded.
   - Creating the PR with `gh pr create` (GraphQL) failed twice on network errors (connection reset, TLS handshake timeout). No PR existed either time; `gh api -X POST …/pulls` (REST) then created https://github.com/Tejasva-Maurya/AI_Writer/pull/3.
   - CI 8/8 green. Rebase-merged into `main` as `febf1d2` on the user's go-ahead.
-  - The branch still exists (fully merged).
+  - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `febf1d2` and that no PR was open on it.
