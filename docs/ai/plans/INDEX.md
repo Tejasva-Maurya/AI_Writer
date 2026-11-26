@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 021  
-**Total plans:** 20
+**Next number:** 022  
+**Total plans:** 21
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -30,3 +30,4 @@
 | 018 | [Release 2.0.0](018-release-2-0-0.md) | `done` | 2026-11-24 | — |
 | 019 | [Review chapter drafts, AI rewrites, prompt reuse and @-mentions (port of the improvement branch)](019-review-chapter-drafts-ai-rewrites-prompt-reuse-and-mentions.md) | `done` | 2026-11-24 | — |
 | 020 | [Refine endpoints join the one-LLM-job guard; edits made during a summary or world refine are no longer overwritten (KI-042)](020-refine-endpoints-join-the-one-llm-job-guard-edits-made.md) | `done` | 2026-11-24 | — |
+| 021 | [Remove the unused helpers and correct the dead-code inventory](021-remove-the-unused-helpers-and-correct-the-dead-code.md) | `done` | 2026-11-26 | — |

@@ -31,6 +31,10 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Docs: technical/02 (W3, new W11 draft review and W12 @-mentions), 03, 04, 05, 06, 07, 08 (A16–A18), 09 and the user guide describe the draft flow; stale `keep_alive -1` and "no JSON mode" notes corrected [plan 019]
 - The Build-tab refines (`POST /api/refine/character|scene|world`) now wait their turn with the other AI jobs: while a chapter is generated, a draft approved or rewritten, or another refine runs, they return **409** with the reason, shown in the Build tab, instead of loading the second model next to the writer; and generate/approve/rewrite return 409 for the few seconds a refine runs. ⚠ A new 409 on existing routes: under the rule D-015 applied, the next release would be 3.0.0 [plan 020]
 - Build-tab refine errors show the server's message instead of raw JSON [plan 020]
+- Docs: the dead-code inventory (technical/03 §6) is accurate again ("none known", with how it was checked), and technical/03 §2.2 and 04 no longer call the `/static` mount unused: it serves the self-hosted fonts [plan 021]
+
+### Removed
+- Unused internal helpers `chapter_manager.get_recent_n`, `character_manager.get_as_dict` and `scene_manager.get_as_dict`, and the write-only frontend state `state._profileContext` and `state.activeMode`. No behaviour change [plan 021]
 
 ### Fixed
 - A failure while summarizing (step 7), e.g. Ollama stopping, no longer loses the chapter that was just written: it is kept as a draft, and Approve retries [plan 019] [KI-041]

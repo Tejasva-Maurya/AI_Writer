@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased] (plans 019, 020). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plans 019–021). **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -58,7 +58,7 @@ Contents
 | `logging.basicConfig`, `log` | 36-37 | Console logging for the app's modules at INFO (plan 016, KI-025); uvicorn keeps its own loggers. `pull_model` logs each failed pull; a cancelled generation is logged at INFO. |
 | `TrustedHostMiddleware` | 43 | Accepts only `Host: 127.0.0.1` or `localhost` (any port); other hosts get **400**. Blocks DNS rebinding. There is **no CORS middleware**: the UI calls `/api` on its own origin, so other websites can't call the API (KI-010, plan 007). |
 | `file_exists_handler` | 46-48 | App-wide `FileExistsError` → **409** `{"detail": …}` (a manager's `create()` conflict, KI-036). |
-| `FRONTEND_DIR` + `/static` mount | 51-53 | Mounts `app/frontend/` at `/static` if it exists (not used by `index.html`). |
+| `FRONTEND_DIR` + `/static` mount | 51-53 | Mounts `app/frontend/` at `/static` if it exists. `index.html` loads the self-hosted fonts through it (`/static/fonts/fonts.css` and its woff2 files, plan 014). |
 | `serve_index()` `GET /` | 56-61 | Reads and returns `index.html` on every request (so HTML edits need no restart). |
 | `serve_css()` `GET /style.css`, `serve_js()` `GET /app.js` | 64-71 | `FileResponse`. |
 | Character routes | 75-105 | `get_characters`; `create_character` (slug = `make_slug(slug or name)`, **422** if empty, **409** if taken); `update_character` (404 if missing or invalid slug, forces the path slug); `delete_character` (404 if missing or invalid slug). |
@@ -89,9 +89,9 @@ All six managers follow the same pattern. Directories are created lazily by `ens
 
 | Module | Functions | Details |
 |---|---|---|
-| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; unreadable or invalid files are skipped **and logged**, via `storage.read_all`), `is_valid_slug(slug)` (`[\w-]+`: letters/digits of any script, `_`, `-`; never `.`, `/`, `\` or empty, KI-010), `_path(slug)` (raises `ValueError` for an invalid slug; every file access goes through it), `get_by_slug(slug) -> Optional[Character]` (`None` for an invalid slug), `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (refuses a slug equivalent to an existing file stem, i.e. same `_slugify` result, so `elder-wu` blocks `elder_wu`; then an atomic exclusive write, `storage.write_json(exclusive=True)`: never overwrites, raises `FileExistsError("Character '<existing stem>' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool` (`False` for an invalid slug), `get_as_dict() -> Dict[slug, Character]` *(unused)*, `make_slug(name)` | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
+| `character_manager` | `get_all() -> List[Character]` (sorted by `name`; unreadable or invalid files are skipped **and logged**, via `storage.read_all`), `is_valid_slug(slug)` (`[\w-]+`: letters/digits of any script, `_`, `-`; never `.`, `/`, `\` or empty, KI-010), `_path(slug)` (raises `ValueError` for an invalid slug; every file access goes through it), `get_by_slug(slug) -> Optional[Character]` (`None` for an invalid slug), `save(char)` (upsert: always overwrites; used by PUT, refine merge, step 7), `create(char)` (refuses a slug equivalent to an existing file stem, i.e. same `_slugify` result, so `elder-wu` blocks `elder_wu`; then an atomic exclusive write, `storage.write_json(exclusive=True)`: never overwrites, raises `FileExistsError("Character '<existing stem>' already exists")`; used by POST, refine create, step 3), `delete(slug) -> bool` (`False` for an invalid slug), `make_slug(name)` (the unused `get_as_dict` was removed in plan 021) | `_slugify`: lowercase → strip → remove `[^\w\s-]` → collapse `[\s_-]+` to `_` → strip `_`. Example: `"Xiao Fan"` → `xiao_fan`. |
 | `scene_manager` | identical API for `Scene` | identical `_slugify` (duplicated code). |
-| `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips and logs bad files; sorted by number), `get_next_number()` (max+1, or 1), `get_recent_n(n, include_text)` *(unused; ignores `include_text`)* | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
+| `chapter_manager` | `get_chapter(number)`, `save_chapter(chapter)`, `get_all(include_text=False)` (blanks `full_text` when False; skips and logs bad files; sorted by number), `get_next_number()` (max+1, or 1). (The unused `get_recent_n` was removed in plan 021.) | Filename `f"{n:03d}.json"`. Chapters ≥ 1000 get 4-digit names, which still sort correctly because `get_all` sorts by number, not filename. |
 | `world_manager` | `load() -> WorldSettings` (defaults if missing), `save(settings)` | `data/world_settings.json` |
 | `novel_meta_manager` | `load() -> NovelMeta`, `save(meta)` | `data/novel_meta.json` |
 | `draft_manager` | `load() -> Optional[Draft]` (`None` if missing; an unreadable or invalid file is logged and treated as no draft, so it can't block every generation), `save(draft)`, `delete() -> bool` | `data/draft.json`: one chapter waiting for review (plan 019). Written after step 6, deleted as the last action of step 7 or on discard. |
@@ -240,10 +240,9 @@ state = {
   _mentions: [],             // entities picked with @ in the plot box: {kind: 'character'|'scene', slug, name} (plan 019)
   _abilities, _habits, _inhabitants, _genreTags, _professions, _hierarchy, _factions: [],  // tag-input stores
   _relationships: {},        // relationship editor store
-  _profileContext: null,     // {type, slug} of the profile modal
   _editingCharSlug: null, _editingSceneSlug: null,   // null = create mode
-  // activeMode is set dynamically by switchMode() (not declared here)
 }
+// (The write-only keys _profileContext and activeMode were removed in plan 021.)
 ```
 
 Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works whether the UI is opened as `127.0.0.1` or `localhost`, and the server needs no CORS (KI-010/KI-021, fixed in plan 007).
@@ -347,10 +346,11 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 
 ## 6. Dead / unused code
 
-| Item | Location |
-|---|---|
-| `character_manager.get_as_dict`, `scene_manager.get_as_dict` | managers |
-| `chapter_manager.get_recent_n` | `chapter_manager.py:45` |
-| `/static` mount | `main.py:52-53` |
-| `state._profileContext` (written, never read), `state.activeMode` (written, never read) | `app.js` |
-| Unused imports: `Dict` (main.py), `Character`, `Scene` (specialist.py, only the names appear inside prompt strings), `Optional` (context_builder.py) | various |
+**None known** (checked 2026-11-26, plan 021). How it was checked:
+- **Python:** every `def` in `app/backend` that is referenced only once in `app/` is a FastAPI route or the exception handler (registered by decorators).
+- **Frontend:** no JS function in `app.js` is referenced only once (`app.js` + `index.html`), and every `DOM` cache key is used. No `state.<key>` is assigned without ever being read.
+- **Imports:** `py -m ruff check app` (rule F401, unused imports) is clean.
+
+Plan 021 removed what the previous inventory listed: `character_manager.get_as_dict`, `scene_manager.get_as_dict`, `chapter_manager.get_recent_n`, and the write-only `state._profileContext` and `state.activeMode`. Two old rows were not dead code at all:
+- The `/static` mount serves the self-hosted fonts (plan 014).
+- The listed unused imports had already been removed in plan 016.
