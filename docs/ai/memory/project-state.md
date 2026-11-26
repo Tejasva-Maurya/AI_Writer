@@ -16,7 +16,7 @@
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 001–020 are done; no active plan. Plan 020 (D-017) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (rebase merge, `d0494b8`; CI green, 8/8). Its branch `fix/refine-busy-guard` was deleted on 2026-11-26 at the user's request (fully merged first; GitHub has only `main`). Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
+- Plans 001–021 are done; no active plan. Plan 021 (dead-code removal, no behaviour change) is on branch `chore/remove-unused-helpers`, to reach `main` through a PR. Plan 020 (D-017) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (rebase merge, `d0494b8`; CI green, 8/8). Its branch `fix/refine-busy-guard` was deleted on 2026-11-26 at the user's request (fully merged first; GitHub has only `main`). Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
 - PRs: push the branch with the github-push skill, then open and merge the PR with `GH_TOKEN="$GH_PUSH_TOKEN" gh pr …`, so the personal account (not `gh`'s work login) is the PR author. Auto-fix can't be enabled for such PRs, because `gh` is signed in as the work account.
 - New since plan 019: `data/draft.json` (one draft at a time, `draft_manager`), `/api/draft*` routes, SSE `draft_complete`, `novel_meta.review_drafts` (default on).
 - CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
@@ -24,7 +24,7 @@
 
 ## Suggested next up
 1. Test draft review with a real Ollama (not possible on this machine): rewrite quality, approval timing, VRAM.
-2. Remaining follow-ups from plan 019 "Not included": unused helpers, context tiers when regenerating an earlier chapter, keeping partial text as a draft when the writer fails mid-stream. (Refine under the busy guard: done in plan 020.)
+2. Remaining follow-ups from plan 019 "Not included": context tiers when regenerating an earlier chapter, keeping partial text as a draft when the writer fails mid-stream. (Done: refine under the busy guard in plan 020, unused helpers in plan 021.)
 3. No KI is open (42 fixed). New defects get KI-043 onwards.
 
 ## Environment facts (dev machine, verified 2026-11-22)

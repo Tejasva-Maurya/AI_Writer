@@ -29,8 +29,7 @@ const state = {
   _factions: [],
   // Relationship editor
   _relationships: {},
-  // Profile view context
-  _profileContext: null,
+  // Edit modals: the slug being edited, null = create mode
   _editingCharSlug: null,
   _editingSceneSlug: null,
 };
@@ -1181,7 +1180,6 @@ function viewCharacterProfile(slug) {
   const char = state.characters.find(c => c.slug === slug);
   if (!char) return;
 
-  state._profileContext = { type: 'character', slug };
   $('profile-modal-title').textContent = char.name;
 
   const body = $('profile-modal-body');
@@ -1314,7 +1312,6 @@ function viewSceneProfile(slug) {
   const scene = state.scenes.find(s => s.slug === slug);
   if (!scene) return;
 
-  state._profileContext = { type: 'scene', slug };
   $('profile-modal-title').textContent = scene.name;
 
   const body = $('profile-modal-body');
@@ -1876,7 +1873,6 @@ function switchMode(newMode) {
     if (tab)   { tab.classList.toggle('active', active); tab.setAttribute('aria-selected', String(active)); }
     if (panel) { panel.hidden = !active; }
   });
-  state.activeMode = newMode;
 
   // When switching to world build mode, refresh the world snapshot
   if (newMode === 'world') renderWorldSnapshot();

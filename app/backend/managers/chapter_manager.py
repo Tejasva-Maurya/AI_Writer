@@ -40,8 +40,3 @@ def get_next_number() -> int:
     if not chapters:
         return 1
     return max(c.chapter_number for c in chapters) + 1
-
-
-def get_recent_n(n: int, include_text: bool = False) -> List[Chapter]:
-    all_ch = get_all(include_text=True)  # always need summaries
-    return all_ch[-(n):] if len(all_ch) >= n else all_ch

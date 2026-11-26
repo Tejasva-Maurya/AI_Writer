@@ -226,3 +226,13 @@
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (CI 8/8 green) and, on the user's go-ahead, rebase-merged it into `main` as `d0494b8`.
   - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `d0494b8` and that no PR was open on it.
   - The release-type question (3.0.0 vs 2.1.0, D-017) is for release time.
+
+### 2026-11-26 — Claude Code (Opus 5.5) — remove unused helpers (plan 021)
+- **Goal:** The next follow-up from plan 019: remove the unused helpers and make the dead-code inventory true.
+- **Outcome:**
+  - Removed `chapter_manager.get_recent_n`, `character_manager.get_as_dict`, `scene_manager.get_as_dict` (and their now-unused `Dict` imports), plus the write-only `state._profileContext` and `state.activeMode` in `app.js`.
+  - A scan found nothing else dead: single-reference Python defs are all decorator-registered routes or handlers; no JS function, `DOM` key or state key is unused or write-only.
+  - Docs: technical/03 §6 now says "none known" and how it was checked; §2.2, §2.3, §4.2 and the 04 `/static` row are corrected (the `/static` mount serves the fonts). CHANGELOG Removed + Changed.
+  - Verified: 116 tests pass, ruff clean, `node --check` and `py_compile` OK. Sandbox UI: character and location profile → Edit, all four mode tabs (dropdowns, world snapshot); console clean, `[hidden]` audit empty. Real `data/` unchanged.
+- **Plan:** 021 (done).
+- **Open threads:** Branch `chore/remove-unused-helpers` → push and PR, merge on the user's go-ahead.

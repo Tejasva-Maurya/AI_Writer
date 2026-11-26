@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional
 from models import Scene
 from managers.storage import read_all, write_json
 
@@ -64,10 +64,6 @@ def delete(slug: str) -> bool:
         path.unlink()
         return True
     return False
-
-
-def get_as_dict() -> Dict[str, Scene]:
-    return {s.slug: s for s in get_all()}
 
 
 def make_slug(name: str) -> str:
