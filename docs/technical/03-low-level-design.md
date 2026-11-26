@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased] (plans 019–021). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plans 019–022). **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -163,12 +163,20 @@ Abilities: … / Habits: … / Backstory: … / Relationships: k: v; … / Curre
 === LOCATIONS ===                   (scene_detail == "full")
 LOCATION: … / Type / Description / Atmosphere / Textures/Sensory / Significance / Inhabitants
 
-=== STORY SO FAR ===                (every chapter on disk, ascending; tier from chapter_tiers, default "micro")
+=== STORY SO FAR ===                (chapters on disk, ascending; tier from chapter_tiers, default "micro")
 Chapter n — Title (recent ending):  ← full_text tier: last 400 words
 Chapter n — Title:\n{full_summary|short|micro}   ← full
 Chapter n — Title: {short|micro}                   ← short
 Chapter n — Title: {micro}                         ← micro
+                                    (tier "skip": left out; the old version of a chapter being regenerated)
+
+=== LATER IN THE STORY ===          (tier "later" only, i.e. an earlier chapter is regenerated; plan 022)
+These chapters come after the one you are writing and are already written. Keep this chapter consistent
+with them, but do not reveal, anticipate or foreshadow their events.
+Chapter n — Title: {micro}
 ```
+
+Without `skip`/`later` tiers (every new chapter) the prompt is exactly as before plan 022 (KI-043).
 
 Iteration order of characters and scenes follows the insertion order of the `*_detail` dicts (LLM order first, then fallback additions).
 
@@ -184,6 +192,8 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
   1. Reads characters and scenes from disk.
   2. Awaits `post_write_update` (its only `await`). If that raises, the draft stays (KI-041). Then it reads characters and scenes from disk **again**, so an edit or deletion saved during the call is respected (KI-042, plan 020).
   3. Saves the chapter (the draft's title wins over the suggested one) and applies the validated character, scene and meta updates. These run without pausing, so a cancel can't stop them halfway.
+     - `last_seen_chapter` only moves forward (`max`).
+     - When chapters after this one exist (`last_later`, an earlier chapter was regenerated), it skips arc notes, levels, relationships and scene significance, keeps adding new abilities, and returns a warning saying so (KI-044, plan 022).
   4. Deletes the draft last.
   5. Returns the chapter and the warning messages; the caller emits or logs them.
 - Local data structures:
@@ -342,7 +352,7 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 - **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
 - **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
 
-**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020), regenerating an earlier chapter (`test_regenerate.py`, plan 022) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 

@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022). **Last verified against code:** 2026-11-26.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -218,6 +218,8 @@ py -m ruff check app
   - `test_storage.py`: atomic writes and logged skips.
   - `test_pipeline.py`: a full generation with the fake, including the `keep_alive` choreography, review mode, a failed step 7 keeping the draft (KI-041) and @-tags.
   - `test_draft.py`: the draft routes (edit, discard, rewrite, approve), the one-job-at-a-time guard and the `review_drafts` setting (plan 019).
+  - `test_refine.py`: the Build-tab refine routes, their place in the one-job-at-a-time guard, and edits made during an AI call (plan 020, KI-042).
+  - `test_regenerate.py`: regenerating an earlier chapter, i.e. the writer's prompt with later chapters and no profile rollback (plan 022, KI-043/KI-044).
   - `test_helpers.py`: Ollama address parsing, export names, model coercion.
 - **Lint:** ruff checks for real bugs (undefined names, unused imports, syntax that the minimum Python 3.11 can't parse); the rules are pinned in `app/pyproject.toml`.
 - **CI** (`.github/workflows/ci.yml`) runs lint, tests and `node --check app/frontend/app.js` on Ubuntu and Windows with Python 3.11 and 3.14.

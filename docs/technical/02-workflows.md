@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042; plan 022: regenerating an earlier chapter, KI-043/KI-044). **Last verified against code:** 2026-11-24.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -117,16 +117,29 @@ Notes:
 | 1 | `full_text` | Last 400 words of that chapter's text (`context_builder.py:83-87`) |
 | 2–4 | `full` | `full_summary` (falls back to short, then micro) |
 | 5–8 | `short` | `short_summary` (falls back to micro) |
-| ≥ 9, or ≤ 0 (e.g. regenerating an earlier chapter) | `micro` | `micro_summary` |
+| ≥ 9 | `micro` | `micro_summary` |
+| 0 (the chapter being regenerated) | `skip` | nothing: its old version is left out |
+| < 0 (chapters after one being regenerated) | `later` | `micro_summary`, in a separate `=== LATER IN THE STORY ===` section with the instruction to stay consistent but not reveal, anticipate or foreshadow them |
 
-> When regenerating chapter *k* with chapters after *k* already on disk, those **later** chapters are also included in "STORY SO FAR" (as `micro`, because `N − n ≤ 0`). The current chapter's old version is included too.
+> **Regenerating chapter *k*** (an explicit `chapter_number` that exists, with chapters after it on disk; API only).
+> - Before plan 022 the later chapters were listed in "STORY SO FAR" as `micro`, as if they had already happened, and the old version of *k* was included too (KI-043).
+> - For a new chapter nothing changes: there are no `skip`/`later` chapters, and the prompt is the same as before.
 
 #### Post-write character update rules
 
 For every slug in `post_data.character_updates` that exists:
-`last_seen_chapter = N`. Non-empty `arc_notes` replaces the old value. Non-empty `cultivation_level` replaces the old value. `new_abilities` (a list, or one string) is appended without duplicates, keeping order. `relationship_updates` (a dict) is merged into the existing relationships. All changes are validated together (`Character(**…)`, coercing types); if that fails, a `warning` is sent and the character keeps its old values. Non-dict `character_updates` or entries are ignored (plan 009, KI-015/KI-016). Chapter title and summaries are coerced to text, and an empty title becomes `Chapter N`, so a bad reply can no longer lose the chapter.
-Primary characters with no (successful) update still get `last_seen_chapter = N`.
-`scene_updates` returned by the LLM update the featured scenes' `significance` (only scenes marked `main` in this chapter, only non-empty text; anything else is ignored). Before plan 008 they were ignored (KI-013).
+- `last_seen_chapter = max(current, N)`, so it never moves backwards.
+- Non-empty `arc_notes` replaces the old value, and so does a non-empty `cultivation_level`.
+- `new_abilities` (a list, or one string) is appended without duplicates, keeping order.
+- `relationship_updates` (a dict) is merged into the existing relationships.
+- All changes are validated together (`Character(**…)`, coercing types). If that fails, a `warning` is sent and the character keeps its old values. Non-dict `character_updates` or entries are ignored (plan 009, KI-015/KI-016).
+- Chapter title and summaries are coerced to text, and an empty title becomes `Chapter N`, so a bad reply can no longer lose the chapter.
+
+Primary characters with no (successful) update still get `last_seen_chapter = N` if that is later than their current value.
+
+`scene_updates` returned by the LLM update the featured scenes' `significance`: only scenes marked `main` in this chapter, only non-empty text; anything else is ignored. Before plan 008 they were ignored (KI-013).
+
+**When chapters after N exist** (an earlier chapter was regenerated, plan 022): `arc_notes`, `cultivation_level`, `relationship_updates` and the scenes' `significance` are **not** applied, because the later chapters already describe the newer state. Only `new_abilities` and `last_seen_chapter` (the `max`) are applied, plus one `warning` that says so. Before, the profiles rolled back to chapter N's state (KI-044).
 
 ### W3.4 SSE event contract (backend → frontend)
 

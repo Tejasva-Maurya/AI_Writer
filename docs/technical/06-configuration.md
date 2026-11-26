@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016; `review_drafts` row, draft rewrite parameters, draft/mention constants: 2026-11-24, plan 019).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016; `review_drafts` row, draft rewrite parameters, draft/mention constants: 2026-11-24, plan 019; chapter tier and "later chapters" rows: 2026-11-26, plan 022).
 > There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
@@ -57,7 +57,8 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Writer persona and style rules | `WRITER_SYSTEM` | `writer.py:11-26` |
 | Tone vocabulary | action/dark/romantic/comedic/tense/mysterious/epic | `specialist.py:85` |
 | Previous-chapter excerpt length | last **400 words** | `context_builder.py:85-86` |
-| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro | `chapter_pipeline.py:160-172` (the only copy since plan 008) |
+| Chapter tier windows | N−1 full_text · N−2..4 full · N−5..8 short · older micro; when an earlier chapter is regenerated, N itself skip and later chapters `later` (plan 022) | step 4 in `chapter_pipeline.py` (the only copy since plan 008) |
+| "Later chapters" instruction | "Keep this chapter consistent with them, but do not reveal, anticipate or foreshadow their events." | `context_builder.build_master_prompt` (plan 022) |
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
 | Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:183` (`_chapter_excerpt`) |
 | Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:227-229` |

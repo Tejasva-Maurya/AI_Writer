@@ -39,6 +39,9 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Fixed
 - A failure while summarizing (step 7), e.g. Ollama stopping, no longer loses the chapter that was just written: it is kept as a draft, and Approve retries [plan 019] [KI-041]
 - Edits to a character or location saved while a chapter is being summarized, and World Settings saved while a World Build refine runs, are no longer overwritten; a character deleted meanwhile is no longer written back [plan 020] [KI-042]
+- Regenerating an earlier chapter (API `chapter_number`): the writer no longer reads the later chapters as "story so far" or sees the old version of the chapter. Later chapters come in their own "LATER IN THE STORY" section, with the instruction to stay consistent without revealing them. New chapters get the same prompt as before [plan 022] [KI-043]
+- Regenerating an earlier chapter no longer rolls character and location profiles back: "last seen" never moves backwards, and arc notes, levels, relationships and location significance keep the state the later chapters gave them (new abilities are still added; a warning says so) [plan 022] [KI-044]
+- Docs: technical/07 §7 now lists `test_refine.py` (plan 020) and `test_regenerate.py` [plan 022]
 
 ## [2.0.0] - 2026-11-24
 

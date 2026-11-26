@@ -240,3 +240,18 @@
   - Creating the PR with `gh pr create` (GraphQL) failed twice on network errors (connection reset, TLS handshake timeout). No PR existed either time; `gh api -X POST …/pulls` (REST) then created https://github.com/Tejasva-Maurya/AI_Writer/pull/3.
   - CI 8/8 green. Rebase-merged into `main` as `febf1d2` on the user's go-ahead.
   - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `febf1d2` and that no PR was open on it.
+
+### 2026-11-26 — Claude Code (Opus 5.5) — regenerating an earlier chapter (plan 022)
+- **Goal:** The next follow-up from plan 019: the context used when an earlier chapter is regenerated (API `chapter_number`).
+- **Outcome:**
+  - Found two defects, both fixed:
+    - **KI-043:** step 4 tiered `N − n <= 0` as `micro`, so later chapters and the old version of chapter N appeared in "STORY SO FAR".
+    - **KI-044:** step 7 set `last_seen = N` and overwrote arc notes, level, relationships and location significance with chapter N's state.
+  - The user chose a separate "later" section.
+  - Step 4 now gives the old version the tier `skip` and later chapters `later`.
+  - `build_master_prompt` adds `=== LATER IN THE STORY ===` (micro summaries plus "stay consistent, don't reveal, anticipate or foreshadow"). New chapters get the same prompt as before.
+  - `finalize_chapter` uses `max()` for `last_seen` and skips the state updates when later chapters exist; it still adds new abilities and returns a warning.
+  - Docs: 02 W3.3, 03 §2.6/§2.7/§5, 04, 05 §4, 06 §2.3, 07 §7 (also adds the `test_refine.py` that plan 020 missed), 08, 09 (KI-043/KI-044), CHANGELOG.
+  - Verified: the new `test_regenerate.py` (5 tests) had 4 failing on the old code for the KI reasons, and the new-chapter prompt test passed both before and after. Then all 121 passed; ruff and `py_compile` clean. Real `data/` unchanged. Real Ollama: not verified (whether models honour "don't reveal").
+- **Plan:** 022 (done).
+- **Open threads:** Branch `fix/regenerate-earlier-chapter` → push and PR, merge on the user's go-ahead.
