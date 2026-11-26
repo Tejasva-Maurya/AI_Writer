@@ -1,6 +1,6 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019; §4 regenerated chapters: 2026-11-26, plan 022).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
@@ -177,6 +177,8 @@ References are **not enforced**. Deleting a character leaves its slug inside cha
 | Chapters N−4…N−2 | Always | `full_summary` |
 | Chapters N−8…N−5 | Always | `short_summary` |
 | Older | Always | `micro_summary` |
+| Chapter N itself (its old version) | Never: left out when it is regenerated (plan 022) | — |
+| Chapters after N | Only when an earlier chapter is regenerated | `micro_summary` in a separate "LATER IN THE STORY" section, with "stay consistent, don't reveal" (plan 022, KI-043) |
 
 Because **every** chapter contributes at least its micro summary, the prompt grows linearly with novel length. The writer's `num_ctx` is 32,768 tokens.
 

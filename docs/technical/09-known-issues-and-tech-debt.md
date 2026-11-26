@@ -1,20 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-24, through plan 020. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-26, through plan 022. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 2 fixed in Unreleased (KI-041, KI-042).
+**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 4 fixed in Unreleased (KI-041 to KI-044).
 
 ### Open (0)
 
-None. A new defect gets the next ID, KI-043.
+None. A new defect gets the next ID, KI-045.
 
-### Fixed (42)
+### Fixed (44)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -62,6 +62,8 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-040 | High | Backend | `main.py` does not parse on Python 3.11 (backslash inside an f-string expression, from plan 015) ✔ | Fixed in v2.0.0 [plan 016] |
 | KI-041 | Medium | Pipeline | A failure in step 7 (summary) loses the chapter that was just written ✔ | Fixed in Unreleased [plan 019] |
 | KI-042 | Medium | Pipeline/Backend | Profile and world edits saved while step 7 or a world refine runs are overwritten (a deleted profile is written back) ✔ | Fixed in Unreleased [plan 020] |
+| KI-043 | Medium | Pipeline | Regenerating an earlier chapter lists the later chapters (and the old version) in "STORY SO FAR" ✔ | Fixed in Unreleased [plan 022] |
+| KI-044 | Medium | Pipeline | Regenerating an earlier chapter rolls profiles back (last seen, arc notes, level, relationships, location significance) ✔ | Fixed in Unreleased [plan 022] |
 
 ---
 
@@ -395,3 +397,30 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - `refine_character`/`refine_scene` were not affected: they read the existing profile after the call.
   - Found 2026-11-24 [plan 020] while adding the refine routes to the job guard. The guard alone couldn't fix it, because manual saves aren't LLM jobs.
 - **Fix:** re-read after the await; the pre-await copies only feed the prompts.
+
+### KI-043 — A regenerated earlier chapter is told that later chapters already happened · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 022)
+- **Status: Fixed in Unreleased [plan 022].**
+  - Step 4 gives the chapter being rewritten the tier `skip` (left out) and every later chapter the tier `later`.
+  - `build_master_prompt` lists the `later` chapters (micro summaries) in their own `=== LATER IN THE STORY ===` section, with "keep this chapter consistent with them, but do not reveal, anticipate or foreshadow their events".
+  - A new chapter's prompt is unchanged.
+  - Tested in `test_regenerate.py`: `test_regenerated_chapter_sees_later_chapters_only_as_later` and `test_master_prompt_skip_and_later_tiers` (both failed on the old code); `test_a_new_chapter_gets_the_same_prompt_as_before` pins the normal prompt.
+  - The evidence below describes the code before plan 022.
+- **Evidence:**
+  - Step 4 (`chapter_pipeline.py:276-289`) mapped every chapter with `N − n ≤ 0` to `micro`.
+  - `build_master_prompt` (`context_builder.py:136-143`) listed all chapters, ascending, under `=== STORY SO FAR ===`.
+  - So regenerating chapter 3 of 10 (API `chapter_number: 3`) put chapters 4–10 into the "story so far" and showed the writer the old chapter 3's summary.
+  - The behaviour was documented as a caveat in 02 W3.3 and listed as a plan 019 follow-up, but had no KI.
+- **Fix:** split the chapters into before / this one / after.
+
+### KI-044 — Regenerating an earlier chapter rolls character and location profiles back · Medium · Verified ✔ · ✅ Fixed in Unreleased (plan 022)
+- **Status: Fixed in Unreleased [plan 022].**
+  - `finalize_chapter()` sets `last_seen_chapter = max(current, N)`.
+  - When chapters after N exist, it doesn't apply `arc_notes`, `cultivation_level`, `relationship_updates` or a location's `new_significance`. It still adds new abilities, and returns a warning naming the later chapter.
+  - Tested in `test_regenerate.py`: `test_regenerated_earlier_chapter_does_not_roll_profiles_back` and `test_last_seen_never_moves_backwards`. Both failed on the old code: `last_seen` went 5 → 3 and 4 → 2, and the arc notes were overwritten.
+  - The evidence below describes the code before plan 022.
+- **Evidence:**
+  - Step 7 set `last_seen_chapter = N` for every updated or featured character (`chapter_pipeline.py:122`, `:139-144`).
+  - It also replaced arc notes, cultivation level and relationship descriptions (`:123-131`) and a location's significance (`:146-153`) with what the summary of chapter N said.
+  - After regenerating chapter 3 of 10, a character last seen in chapter 10 showed "Ch. 1 — 3", and their level and arc were back at chapter 3's.
+  - Found 2026-11-26 [plan 022] while fixing KI-043.
+- **Fix:** never move `last_seen` backwards; take state updates only from the newest chapter.

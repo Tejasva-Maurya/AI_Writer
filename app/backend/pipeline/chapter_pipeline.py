@@ -95,6 +95,15 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
     chars_dict = {c.slug: c for c in character_manager.get_all()}
     scenes_dict = {s.slug: s for s in scene_manager.get_all()}
 
+    # A regenerated earlier chapter (later chapters on disk) must not roll the profiles back to its point in the story:
+    # the later chapters already moved arc notes, levels, relationships and significance on (KI-044)
+    last_later = max((c.chapter_number for c in chapter_manager.get_all() if c.chapter_number > chapter_number),
+                     default=None)
+    if last_later is not None:
+        warnings.append(f"Chapter {chapter_number} comes before chapter {last_later}: arc notes, levels, relationships "
+                        f"and location significance were kept as the later chapters describe them; only new "
+                        f"abilities were added.")
+
     # Save chapter (summary values are coerced to text, so a wrong type can't lose the written chapter, KI-015)
     chapter = Chapter(
         chapter_number=chapter_number,
@@ -119,16 +128,17 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
             continue
         updates = updates if isinstance(updates, dict) else {}
         char = chars_dict[slug]
-        changes = {"last_seen_chapter": chapter_number}
-        if updates.get("arc_notes"):
-            changes["arc_notes"] = updates["arc_notes"]
-        if updates.get("cultivation_level"):
-            changes["cultivation_level"] = updates["cultivation_level"]
+        changes = {"last_seen_chapter": max(char.last_seen_chapter, chapter_number)}  # never backwards (KI-044)
+        if last_later is None:  # only the newest chapter describes the current state
+            if updates.get("arc_notes"):
+                changes["arc_notes"] = updates["arc_notes"]
+            if updates.get("cultivation_level"):
+                changes["cultivation_level"] = updates["cultivation_level"]
+            if isinstance(updates.get("relationship_updates"), dict):
+                changes["relationships"] = {**char.relationships, **updates["relationship_updates"]}
         new_abilities = as_str_list(updates.get("new_abilities"))
         if new_abilities:
             changes["abilities"] = list(dict.fromkeys(char.abilities + new_abilities))
-        if isinstance(updates.get("relationship_updates"), dict):
-            changes["relationships"] = {**char.relationships, **updates["relationship_updates"]}
         try:
             updated = Character(**{**char.model_dump(), **changes})
             chars_dict[slug] = updated
@@ -136,15 +146,17 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
         except Exception as e:
             warnings.append(f"Could not update character '{slug}': {e}")
 
-    # Update last_seen for all featured chars not already updated (including ones whose update was rejected)
+    # Update last_seen for all featured chars not already updated (including ones whose update was rejected).
+    # Never backwards: a regenerated earlier chapter keeps a later last_seen (KI-044)
     for slug in primary_chars:
-        if slug in chars_dict and chars_dict[slug].last_seen_chapter != chapter_number:
+        if slug in chars_dict and chars_dict[slug].last_seen_chapter < chapter_number:
             char = chars_dict[slug]
             char.last_seen_chapter = chapter_number
             character_manager.save(char)
 
-    # Update featured locations (KI-013): only a non-empty text significance, only for scenes in this chapter
-    scene_updates = post_data.get("scene_updates")
+    # Update featured locations (KI-013): only a non-empty text significance, only for scenes in this chapter, and
+    # only from the newest chapter (KI-044)
+    scene_updates = post_data.get("scene_updates") if last_later is None else None
     for slug, updates in (scene_updates.items() if isinstance(scene_updates, dict) else []):
         significance = updates.get("new_significance") if isinstance(updates, dict) else None
         if slug in main_scenes and slug in scenes_dict and isinstance(significance, str) and significance.strip():
@@ -272,14 +284,19 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, re
             if slug not in scene_detail:
                 scene_detail[slug] = "full" if s.get("importance") == "main" else "skip"
 
-        # Chapter tiers by distance from the chapter being written
+        # Chapter tiers by distance from the chapter being written. When an earlier chapter is regenerated, its old
+        # version is left out and the chapters after it go to their own "later" section, not "so far" (KI-043)
         chapter_tiers = {}
         for ch in all_chapters:
             n = ch.chapter_number
             key = str(n)
             if key not in chapter_tiers:
                 diff = chapter_number - n
-                if diff == 1:
+                if diff == 0:
+                    chapter_tiers[key] = "skip"
+                elif diff < 0:
+                    chapter_tiers[key] = "later"
+                elif diff == 1:
                     chapter_tiers[key] = "full_text"
                 elif 2 <= diff <= 4:
                     chapter_tiers[key] = "full"
@@ -287,8 +304,9 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, re
                     chapter_tiers[key] = "short"
                 else:
                     chapter_tiers[key] = "micro"
+        included = sum(1 for tier in chapter_tiers.values() if tier != "skip")
 
-        yield _sse("status", step=4, message=f"Context optimized: {sum(1 for v in char_detail.values() if v == 'full')} full profiles, {len(chapter_tiers)} chapter summaries")
+        yield _sse("status", step=4, message=f"Context optimized: {sum(1 for v in char_detail.values() if v == 'full')} full profiles, {included} chapter summaries")
 
         # ── STEP 5: RELEASE SPECIALIST VRAM ───────────────────────────
         yield _sse("status", step=5, message="Preparing for writing... (releasing specialist model)")

@@ -100,7 +100,7 @@ def build_master_prompt(
     chapters: List[Chapter],
     character_detail: Dict[str, str],  # slug → full|compressed|skip
     scene_detail: Dict[str, str],      # slug → full|skip
-    chapter_tiers: Dict[str, str]      # str(chapter_num) → tier
+    chapter_tiers: Dict[str, str]      # str(chapter_num) → full_text|full|short|micro (the past), later, skip
 ) -> str:
     sections = []
 
@@ -133,13 +133,24 @@ def build_master_prompt(
     if full_scenes:
         sections.append("=== LOCATIONS ===\n" + "\n\n".join(full_scenes))
 
-    # Chapter History
+    # Chapter History: the chapters before this one, then (when an earlier chapter is regenerated) the ones after it
     if chapters:
-        history_parts = []
+        history_parts, later_parts = [], []
         for chapter in sorted(chapters, key=lambda c: c.chapter_number):
             tier = chapter_tiers.get(str(chapter.chapter_number), "micro")
-            history_parts.append(_chapter_summary(chapter, tier))
+            if tier == "skip":  # the old version of the chapter being rewritten (KI-043)
+                continue
+            if tier == "later":
+                later_parts.append(_chapter_summary(chapter, "micro"))
+            else:
+                history_parts.append(_chapter_summary(chapter, tier))
         if history_parts:
             sections.append("=== STORY SO FAR ===\n" + "\n\n".join(history_parts))
+        if later_parts:
+            sections.append(
+                "=== LATER IN THE STORY ===\n"
+                "These chapters come after the one you are writing and are already written. Keep this chapter "
+                "consistent with them, but do not reveal, anticipate or foreshadow their events.\n"
+                + "\n".join(later_parts))
 
     return "\n\n".join(sections)

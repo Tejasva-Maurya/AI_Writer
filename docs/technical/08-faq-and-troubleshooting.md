@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b; plan 022: regenerating). **Last verified against code:** 2026-11-24.
 
 ## Part A — Troubleshooting
 
@@ -122,6 +122,8 @@ Through tiered summaries: the last 400 words of the previous chapter, full summa
 
 **Can I regenerate or edit a chapter?**
 Before it is saved, yes (plan 019): edit the draft directly, rewrite selected passages with AI, or discard it and generate again (the plot stays in the box, and **↺ Use this prompt again** in the Full View brings back an older one). After approval, not from the UI: you can edit `data/chapters/NNN.json` by hand (`full_text` and the summaries). To regenerate a saved chapter, call the API with an explicit `chapter_number` (it overwrites), or delete the file and generate again.
+- Since plan 022, regenerating an earlier chapter treats the chapters after it as *later* events. The writer is told to stay consistent with them without revealing them, and doesn't see the old version.
+- The character and location profiles keep the state the later chapters gave them; only new abilities are added, and a warning says so. Edit a profile by hand if the rewrite really changes it.
 
 **Can I write in another language?**
 Nothing prevents it. Write plots and profiles in that language and choose a model that handles it. The prompts themselves are English.
