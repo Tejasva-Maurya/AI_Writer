@@ -224,5 +224,5 @@
 - **Open threads:**
   - Pushed `fix/refine-busy-guard` with the github-push skill. The first attempt silently created nothing, so the remote was checked and the retry succeeded (`f27e286`).
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (CI 8/8 green) and, on the user's go-ahead, rebase-merged it into `main` as `d0494b8`.
-  - The branch still exists (fully merged).
+  - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `d0494b8` and that no PR was open on it.
   - The release-type question (3.0.0 vs 2.1.0, D-017) is for release time.
