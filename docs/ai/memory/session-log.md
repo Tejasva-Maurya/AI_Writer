@@ -258,4 +258,4 @@
   - Pushed `fix/regenerate-earlier-chapter` with the github-push skill on the first try (`155bc61`).
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/4 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
   - Rebase-merged into `main` as `fc75fc5` on the user's go-ahead.
-  - The branch still exists (fully merged).
+  - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `fc75fc5` and that no PR was open on it.
