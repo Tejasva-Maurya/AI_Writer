@@ -235,4 +235,8 @@
   - Docs: technical/03 §6 now says "none known" and how it was checked; §2.2, §2.3, §4.2 and the 04 `/static` row are corrected (the `/static` mount serves the fonts). CHANGELOG Removed + Changed.
   - Verified: 116 tests pass, ruff clean, `node --check` and `py_compile` OK. Sandbox UI: character and location profile → Edit, all four mode tabs (dropdowns, world snapshot); console clean, `[hidden]` audit empty. Real `data/` unchanged.
 - **Plan:** 021 (done).
-- **Open threads:** Branch `chore/remove-unused-helpers` → push and PR, merge on the user's go-ahead.
+- **Open threads:**
+  - Pushed `chore/remove-unused-helpers` with the github-push skill (`fbd038a`). The first try failed with a read timeout; GitHub was confirmed unchanged, and the retry succeeded.
+  - Creating the PR with `gh pr create` (GraphQL) failed twice on network errors (connection reset, TLS handshake timeout). No PR existed either time; `gh api -X POST …/pulls` (REST) then created https://github.com/Tejasva-Maurya/AI_Writer/pull/3.
+  - CI 8/8 green. Rebase-merged into `main` as `febf1d2` on the user's go-ahead.
+  - The branch still exists (fully merged).
