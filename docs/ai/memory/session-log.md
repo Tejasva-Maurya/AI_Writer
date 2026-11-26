@@ -254,4 +254,8 @@
   - Docs: 02 W3.3, 03 §2.6/§2.7/§5, 04, 05 §4, 06 §2.3, 07 §7 (also adds the `test_refine.py` that plan 020 missed), 08, 09 (KI-043/KI-044), CHANGELOG.
   - Verified: the new `test_regenerate.py` (5 tests) had 4 failing on the old code for the KI reasons, and the new-chapter prompt test passed both before and after. Then all 121 passed; ruff and `py_compile` clean. Real `data/` unchanged. Real Ollama: not verified (whether models honour "don't reveal").
 - **Plan:** 022 (done).
-- **Open threads:** Branch `fix/regenerate-earlier-chapter` → push and PR, merge on the user's go-ahead.
+- **Open threads:**
+  - Pushed `fix/regenerate-earlier-chapter` with the github-push skill on the first try (`155bc61`).
+  - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/4 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
+  - Rebase-merged into `main` as `fc75fc5` on the user's go-ahead.
+  - The branch still exists (fully merged).
