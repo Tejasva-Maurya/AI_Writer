@@ -336,4 +336,7 @@
   - Every UI label, message, route and setting it quotes was checked against the code. Three first-draft claims were wrong and corrected: there is no custom-name pull (now: a pull with Ollama stopped); Ollama down before Generate gives "Pipeline error"; "Pipeline warning" lines are in the browser console, not the backend log.
   - `docs/README.md` links it. `docs/technical/07` §3 drops the stale "use 127.0.0.1, not localhost" sentence (out of date since plan 007).
 - **Plan:** 026 (done).
-- **Open threads:** branch `docs/ollama-test-guide`; push, PR and merge pending the user's go-ahead. The guide itself is not run against a real Ollama (that is its purpose).
+- **Open threads:**
+  - Pushed `docs/ollama-test-guide` with the github-push skill on the first try (`80601ce`). Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/8 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
+  - Rebase-merged into `main` as `ae36b80` on the user's go-ahead. The branch still exists.
+  - The guide itself has not been run against a real Ollama (that is its purpose).
