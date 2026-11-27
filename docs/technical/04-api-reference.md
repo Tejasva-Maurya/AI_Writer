@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter; plan 023: partial chapters). **Last verified against code:** 2026-11-24.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -148,7 +148,7 @@ With `"review": true` the stream ends after step 6 with:
 data: {"type": "draft_complete", "chapter_number": 3, "full_text": "Thunder rolled across…", "word_count": 2011,
        "characters": ["xiao_fan"], "scenes": ["azure_cave"], "new_characters": ["elder_wu"], "new_scenes": []}
 ```
-Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Uncaught pipeline exceptions and a failed step 7 add `"detail": "traceback…"`; a failed step 7 also adds `"draft_saved": true` (plan 019). Writer errors carry `message` only. A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}`.
+Errors **do not** change the HTTP status (it is already 200). They arrive as `{"type":"error","message":"…"}`. Uncaught pipeline exceptions and a failed step 7 add `"detail": "traceback…"`; a failed step 7 also adds `"draft_saved": true` (plan 019). Writer errors carry `message` only, plus `"draft_saved": true` when text had already been written: that text is then the draft, and the message says "The N words written so far are kept as a draft" (plan 023). A cancelled generation ends with `{"type": "error", "message": "Generation cancelled", "cancelled": true}`.
 
 Consuming it from a shell:
 ```bash
@@ -158,6 +158,8 @@ curl -N -X POST http://127.0.0.1:8000/api/generate-chapter -H "Content-Type: app
 ### `POST /api/generate-chapter/cancel`
 No body. Cancels the running generation and waits up to 5 s for it to stop, so a new generation is accepted as soon as this returns (plan 010).
 **200** `{"cancelled": true}` if a generation was running, `{"cancelled": false}` if none was. The generation's own stream then ends with the cancelled `error` event above. Profiles already created in step 3 stay. A generation cancelled during steps 1–6 saves nothing; one cancelled during step 7 leaves the draft. Draft approvals and rewrites can't be cancelled.
+
+**Cancel vs a dropped connection** (plan 023, D-018): this endpoint discards the text written so far. A client that disconnects during step 6 (the browser tab closed or reloaded, `curl` aborted) also stops the generation, but **keeps** that text as the draft (`GET /api/draft`). So the next generate gets the 409 "a draft is waiting" until it is approved or discarded.
 
 ## Draft review (plan 019)
 

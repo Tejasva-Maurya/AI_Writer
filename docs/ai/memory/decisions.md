@@ -165,3 +165,20 @@
 - **Consequences:**
   - A refine can't run while a chapter is generated (minutes); the user sees why and retries.
   - The three refine routes gain a 409. Read like D-015, that is an API-contract change, so the next release would be MAJOR (3.0.0); decide at release time.
+
+## D-018 — A chapter that stops halfway is kept as a draft; only Cancel discards it
+- **Date:** 2026-11-27 · **Status:** Accepted · **Plan:** 023 (user choice: "Also when the tab closes")
+- **Context:** Step 6 returned before the draft was saved when the writer failed, and a closed tab cancelled the task with nothing saved (plan 010). Either way the words written so far existed only in the browser and were lost. Both a closed tab and **✕ Cancel** end in `task.cancel()`, so the pipeline could not tell them apart.
+- **Decision:**
+  - A writer error with text saves the draft and emits `error` with `draft_saved: true` (a field that already existed since plan 019). Step 7 is never run on partial text.
+  - A cancel during step 6 with text saves the draft when the caller's `keep_partial_on_cancel()` says so, then re-raises `CancelledError`.
+  - `main.py` tells the two apart with a flag: `cancel_generation` sets `_cancel["by_user"]` before `task.cancel()`, so a closed tab keeps the text and Cancel discards it.
+  - Steps 1-5 (no text yet) save nothing, as before.
+- **Alternatives considered:**
+  - keep only writer failures (a closed or reloaded tab would still lose the text)
+  - keep the text on Cancel too (Cancel would no longer mean "throw it away")
+  - let the browser resend its copy of the text (lost if the tab is gone)
+- **Consequences:**
+  - Partly reverses plan 010's "closing the tab stops the generation and saves nothing": it still stops, but the text is kept.
+  - A kept draft blocks the next Generate (409) until it is approved or discarded, like any draft.
+  - No new route, field or SSE event; rollback is reverting plan 023.

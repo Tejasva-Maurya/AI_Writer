@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022). **Last verified against code:** 2026-11-26.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022, 023; plan 023: a chapter that stops halfway is kept). **Last verified against code:** 2026-11-27.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -129,11 +129,15 @@ Colour code: **purple** = characters, **gold** = locations, **mint** = world.
    - **🗑 Discard** deletes the draft. If the AI created new characters or locations for it, you are asked whether to delete them too. The plot stays in the box, so you can adjust it and generate again.
    - Only one draft at a time: **Generate** with a draft waiting first asks to discard it.
 7. **Without review** (⚙ Settings → untick **Review each chapter as a draft before saving**): step 7 runs right after writing and the chapter is saved at once, as before plan 019. If step 7 fails, the chapter is kept as a draft anyway (KI-041).
-8. To stop a run, press **✕ Cancel** next to the Generate button (shown only while generating). The steps reset and a "Generation cancelled" toast appears. Nothing is saved while the text is still being written. A cancel during the summary keeps the written chapter as a draft. Character/location profiles created in step 3 stay.
+8. To stop a run, press **✕ Cancel** next to the Generate button (shown only while generating). The steps reset and a "Generation cancelled" toast appears. Cancel while the text is being written discards it. A cancel during the summary keeps the written chapter as a draft. Character/location profiles created in step 3 stay.
+9. **A chapter that stops halfway is kept** (plan 023):
+   - If the writer fails mid-chapter (Ollama stops, out of memory), or you close or reload the tab while it writes, the text written so far is kept as a draft.
+   - After a failure it opens at once, with a "words written so far are kept" message. After a closed tab it opens on your next visit.
+   - Finish it by hand or with AI rewrites and approve it, or discard it. Only **✕ Cancel** throws it away.
 
 Tips:
 - First generation is slow while models load into VRAM. Within 5 minutes the writer stays warm.
-- One chapter is generated at a time. If another tab (or a script) is already generating, **Generate** shows "A chapter is already being generated. Wait for it to finish or cancel it." Closing the tab that started a generation also stops it.
+- One chapter is generated at a time. If another tab (or a script) is already generating, **Generate** shows "A chapter is already being generated. Wait for it to finish or cancel it." Closing the tab that started a generation also stops it, and keeps what was written so far as a draft (plan 023).
 - If the plot clearly spans several chapters, you'll see a notice. Only the current chapter is written. Split the plot yourself.
 - Chapter quality depends heavily on the summaries of earlier chapters. Use a capable specialist model if summaries look poor.
 - To redo a chapter before it is saved, discard its draft and generate again (the plot stays in the box). There is no "regenerate" or "delete chapter" button for saved chapters. To redo the last saved chapter, delete `data/chapters/NNN.json` while the server runs, reload the page, and generate again.
@@ -220,6 +224,7 @@ py -m ruff check app
   - `test_draft.py`: the draft routes (edit, discard, rewrite, approve), the one-job-at-a-time guard and the `review_drafts` setting (plan 019).
   - `test_refine.py`: the Build-tab refine routes, their place in the one-job-at-a-time guard, and edits made during an AI call (plan 020, KI-042).
   - `test_regenerate.py`: regenerating an earlier chapter, i.e. the writer's prompt with later chapters and no profile rollback (plan 022, KI-043/KI-044).
+  - `test_partial.py`: a chapter that stops halfway, i.e. a writer failure or a closed tab keeps the text as a draft, and ✕ Cancel discards it (plan 023).
   - `test_helpers.py`: Ollama address parsing, export names, model coercion.
 - **Lint:** ruff checks for real bugs (undefined names, unused imports, syntax that the minimum Python 3.11 can't parse); the rules are pinned in `app/pyproject.toml`.
 - **CI** (`.github/workflows/ci.yml`) runs lint, tests and `node --check app/frontend/app.js` on Ubuntu and Windows with Python 3.11 and 3.14.

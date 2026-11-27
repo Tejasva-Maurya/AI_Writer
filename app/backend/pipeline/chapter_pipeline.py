@@ -2,12 +2,13 @@
 Chapter Pipeline — orchestrates the full 7-step multi-agent writing process.
 Emits Server-Sent Events (SSE) throughout for real-time UI updates.
 """
+import asyncio
 import json
 import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator, List, Optional, Tuple
+from typing import AsyncGenerator, Callable, List, Optional, Tuple
 
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -70,6 +71,18 @@ def _apply_tags(resolved: list, tagged, existing, importance: str) -> list:
             index[slug] = {"name": entity.name, "slug": slug, "status": "existing", "importance": importance}
             out.append(index[slug])
     return out
+
+
+def _save_draft(chapter_number: int, plot: str, full_text: str, primary_chars: List[str], main_scenes: List[str],
+                created_chars: List[str], created_scenes: List[str]) -> Draft:
+    """Save the written text, complete or not, as the draft (data/draft.json). Synchronous, so it is also safe while
+    the generation is being cancelled (plans 019, 023)."""
+    now = datetime.now().isoformat()
+    draft = Draft(chapter_number=chapter_number, plot_input=plot, full_text=full_text,
+                  characters_featured=primary_chars, scenes_featured=main_scenes,
+                  new_characters=created_chars, new_scenes=created_scenes, created_at=now, updated_at=now)
+    draft_manager.save(draft)
+    return draft
 
 
 async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List[str]]:
@@ -175,7 +188,8 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
 
 async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, review: bool = False,
                        tagged_characters: Optional[List[str]] = None,
-                       tagged_scenes: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
+                       tagged_scenes: Optional[List[str]] = None,
+                       keep_partial_on_cancel: Optional[Callable[[], bool]] = None) -> AsyncGenerator[str, None]:
     """
     Full 7-step pipeline. Yields SSE-formatted strings.
     Steps:
@@ -188,6 +202,8 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, re
       6. Write chapter (streaming), then save it as the draft (data/draft.json)
       7. Post-write: summarize + update profiles (finalize_chapter). With review=True the pipeline stops after step 6
          with `draft_complete`, and step 7 runs when the author approves the draft (plan 019).
+    If step 6 stops halfway, the text written so far becomes the draft when the writer fails, and when the generation
+    is cancelled while keep_partial_on_cancel() is true (a closed tab, not an explicit Cancel; plan 023, D-018).
     """
     spec_model = novel_meta.specialist_model
     write_model = novel_meta.writer_model
@@ -332,23 +348,39 @@ async def run_pipeline(plot: str, chapter_number: int, novel_meta: NovelMeta, re
 
         # ── STEP 6: WRITE CHAPTER (streaming) ────────────────────────
         yield _sse("status", step=6, message="Writing chapter...")
-        async for event_type, content in writer.stream_chapter(master_prompt, plot, chapter_number, write_model):
-            if event_type == "token":
-                full_text += content
-                yield _sse("token", content=content)
-            elif event_type == "error":
-                yield _sse("error", message=f"Writer error: {content}")
-                return
+        try:
+            async for event_type, content in writer.stream_chapter(master_prompt, plot, chapter_number, write_model):
+                if event_type == "token":
+                    full_text += content
+                    yield _sse("token", content=content)
+                elif event_type == "error":
+                    if not full_text.strip():
+                        yield _sse("error", message=f"Writer error: {content}")
+                        return
+                    # Keep what was written: it can be finished, rewritten or discarded; no step 7 on it (plan 023)
+                    _save_draft(chapter_number, plot, full_text, primary_chars, main_scenes,
+                                created_chars, created_scenes)
+                    yield _sse("error", draft_saved=True,
+                               message=f"Writer error: {content}. The {len(full_text.split())} words written so far "
+                                       f"are kept as a draft: finish them, rewrite them, or discard them.")
+                    return
+        except asyncio.CancelledError:
+            # A closed tab keeps the text written so far; an explicit Cancel discards it (plan 023, D-018)
+            if full_text.strip() and keep_partial_on_cancel is not None and keep_partial_on_cancel():
+                try:
+                    _save_draft(chapter_number, plot, full_text, primary_chars, main_scenes,
+                                created_chars, created_scenes)
+                    log.info("Generation of chapter %d stopped while writing: %d words kept as a draft",
+                             chapter_number, len(full_text.split()))
+                except Exception:  # a failed save must not turn the cancel into an error the task carries on with
+                    log.exception("Could not keep the unfinished chapter %d as a draft", chapter_number)
+            raise
 
         word_count = len(full_text.split())
         yield _sse("status", step=6, message=f"Chapter written: {word_count} words")
 
         # The written chapter goes to disk before step 7, so a failed summary can't lose it (KI-041, plan 019)
-        now = datetime.now().isoformat()
-        draft = Draft(chapter_number=chapter_number, plot_input=plot, full_text=full_text,
-                      characters_featured=primary_chars, scenes_featured=main_scenes,
-                      new_characters=created_chars, new_scenes=created_scenes, created_at=now, updated_at=now)
-        draft_manager.save(draft)
+        draft = _save_draft(chapter_number, plot, full_text, primary_chars, main_scenes, created_chars, created_scenes)
 
         if review:  # the author reviews the draft first; approving it runs step 7 (POST /api/draft/approve)
             yield _sse("draft_complete",

@@ -134,6 +134,7 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
    - Or click **🗑 Discard** to throw the draft away and try again with the same plot. You can also delete any characters or locations the AI created for it.
 5. Use **⛶ Full View** to open the chapter (or the draft) in a distraction-free reading modal
 6. Changed your mind mid-run? Click **✕ Cancel** next to the Generate button. The run stops and nothing is saved (new character/location profiles already created stay). One chapter is generated at a time, so a second tab gets "A chapter is already being generated" until the first finishes or is cancelled.
+   - If the AI stops halfway on its own (for example Ollama crashes), or you close or reload the tab while it writes, the text written so far is **kept as a draft**. You can finish it, rewrite parts of it, approve it or discard it. Only **✕ Cancel** throws it away.
 7. Prefer the old one-click flow? In **⚙ Settings**, untick **Review each chapter as a draft before saving**: chapters are then summarized and saved right after writing.
 
 ### Managing Characters

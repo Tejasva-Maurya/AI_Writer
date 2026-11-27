@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b; plan 022: regenerating). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b; plan 022: regenerating; plan 023: A15, A17b). **Last verified against code:** 2026-11-27.
 
 ## Part A — Troubleshooting
 
@@ -80,7 +80,7 @@ A name made only of symbols (e.g. `???`) is refused with **422** "name must cont
 Only one chapter is generated at a time (since plan 010, KI-031). Another tab or a script (API **409**) is still generating.
 - Wait for it to finish, or press **✕ Cancel** in the tab that started it.
 - A script can call `POST /api/generate-chapter/cancel`.
-- Closing the tab that started it also stops it.
+- Closing the tab that started it also stops it. What it had written so far is kept as a draft and opens on the next visit (plan 023).
 - If no generation should be running, restart the server: the guard lives in memory.
 - The same applies while a draft is being approved or a passage rewritten ("The draft is being approved…" / "A passage is being rewritten…"): wait a moment (plan 019).
 - And while a Build tab refines a profile ("A profile is being refined with AI…", plan 020): wait a few seconds and generate again.
@@ -96,6 +96,13 @@ Since plan 019 a new chapter first opens as a **draft** (**Draft · Chapter N** 
 
 ### A17. "Summary failed: … The chapter is kept as a draft" / "Could not approve the draft"
 The specialist couldn't summarise the chapter (usually Ollama stopped, or the specialist model isn't pulled; see A2). The written text is **not lost**: it stays as the draft (plan 019; before, it was lost, KI-041). Fix the cause, then press **✓ Approve & save** again.
+
+### A17b. "Writer error: … The N words written so far are kept as a draft"
+The writer model stopped mid-chapter (Ollama stopped or restarted, out of memory: see A2/A4). The text it had written is the draft (plan 023; before, it was lost).
+- Finish it yourself or with **✨ Rewrite selection**, then **✓ Approve & save**.
+- Or **🗑 Discard** it and generate again once Ollama runs.
+
+The same happens if you close or reload the tab while a chapter is being written: the draft opens on your next visit. Only **✕ Cancel** discards the text.
 
 ### A18. "Rewrite failed: …"
 The writer model couldn't rewrite the selection (Ollama not running, model not pulled, or out of memory: see A2/A4). The draft text is unchanged. "Select the passage to rewrite" or "Describe how the passage should change" means the selection or the instruction box was empty.
