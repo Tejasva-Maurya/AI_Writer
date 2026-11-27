@@ -4,6 +4,7 @@ Test setup (KI-025). Run from the repo root: py -m pytest app/tests
 - A recording fake `ollama` module is installed before any app import, so no Ollama server is needed.
 - Every manager is redirected to a temp folder for each test, and the run fails if the real data/ changed.
 """
+import asyncio
 import json
 import sys
 import types
@@ -17,9 +18,13 @@ sys.path.insert(0, str(BACKEND))
 
 
 # ── Fake ollama ────────────────────────────────────────────────
+BLOCK = object()  # in FakeOllama.chunks: the stream waits here until it is cancelled (a chapter still being written)
+
+
 class FakeOllama:
     """Records every call as (kind, model, keep_alive). Non-streamed chat replies come from `json_replies`
-    (in order, then `default_json`; an exception in the list is raised instead); a streamed chat yields `chunks`.
+    (in order, then `default_json`; an exception in the list is raised instead); a streamed chat yields `chunks`
+    (an exception there is raised mid-stream, `BLOCK` waits until cancelled).
     `chat_options` keeps the `options` of every non-streamed chat, `chat_messages` its messages."""
 
     def __init__(self):
@@ -63,7 +68,12 @@ class _AsyncClient:
         if stream:
             async def tokens():
                 for chunk in FAKE.chunks:
-                    yield _Response(chunk)
+                    if chunk is BLOCK:
+                        await asyncio.Event().wait()  # never set: only a cancel ends it
+                    elif isinstance(chunk, BaseException):
+                        raise chunk
+                    else:
+                        yield _Response(chunk)
             return tokens()
         FAKE.chat_options.append(kwargs.get("options"))
         FAKE.chat_messages.append(messages)

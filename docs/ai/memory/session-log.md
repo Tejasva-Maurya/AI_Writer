@@ -259,3 +259,15 @@
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/4 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
   - Rebase-merged into `main` as `fc75fc5` on the user's go-ahead.
   - The branch was deleted on 2026-11-26 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `fc75fc5` and that no PR was open on it.
+
+### 2026-11-27 — Claude Code (Opus 5.5) — a chapter that stops halfway is kept (plan 023)
+- **Goal:** The last follow-up from plan 019: keep the text written so far when step 6 stops halfway. The user chose to keep it on a writer failure **and** on a closed or reloaded tab; only ✕ Cancel discards it (D-018).
+- **Outcome:**
+  - `chapter_pipeline.py`: a `_save_draft()` helper (used by the normal path and both new ones). A writer error with text saves the draft and emits `error` with `draft_saved: true` and the word count; without text it is the old error. A `CancelledError` during step 6 with text saves the draft when `keep_partial_on_cancel()` returns true, then re-raises.
+  - `main.py`: `_cancel["by_user"]`, reset by generate and set by `cancel_generation` before `task.cancel()`, so a dropped stream keeps the text and Cancel discards it.
+  - No frontend change: the `error` handlers and `init()` already call `loadDraft()`.
+  - Tests: `conftest.FakeOllama.chunks` accepts exceptions and the `BLOCK` sentinel; the new `test_partial.py` (9 tests, one added after the diff review: a failed save while cancelling is logged, not raised) failed on the old code except the Cancel test (same behaviour before and after, by design). Starlette's `TestClient` buffers a streamed response, so the disconnect and Cancel tests call the route with `asyncio.run` and close `body_iterator` instead.
+  - Docs: 01 §8, 02 W3/W11, 03 §2.2/§2.7/§5, 04, 07 §5/§7, 08 (A15, A17b), user guide, CHANGELOG, D-018.
+  - Verified: all tests pass, ruff and `py_compile` clean; a sandbox UI check with a stub `ollama` (writer failure → toast and draft; reload mid-chapter → 5-word draft after the reload; Cancel → no draft; console clean). Real `data/` unchanged. Real Ollama: not verified.
+- **Plan:** 023 (done).
+- **Open threads:** branch `feat/keep-partial-chapter`; push, PR and merge pending the user's go-ahead.

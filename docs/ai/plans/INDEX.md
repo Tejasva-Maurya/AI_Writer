@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 023  
-**Total plans:** 22
+**Next number:** 024  
+**Total plans:** 23
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -32,3 +32,4 @@
 | 020 | [Refine endpoints join the one-LLM-job guard; edits made during a summary or world refine are no longer overwritten (KI-042)](020-refine-endpoints-join-the-one-llm-job-guard-edits-made.md) | `done` | 2026-11-24 | — |
 | 021 | [Remove the unused helpers and correct the dead-code inventory](021-remove-the-unused-helpers-and-correct-the-dead-code.md) | `done` | 2026-11-26 | — |
 | 022 | [Regenerating an earlier chapter: later chapters in their own prompt section, no profile rollback (KI-043, KI-044)](022-regenerating-an-earlier-chapter-later-chapters-in-their-own.md) | `done` | 2026-11-26 | — |
+| 023 | [Keep the text written so far as a draft when the writer fails or the tab closes mid-chapter](023-keep-the-text-written-so-far-as-a-draft-when-the-writer.md) | `done` | 2026-11-27 | — |

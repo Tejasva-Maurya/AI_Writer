@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019; §8 refine in the job guard, KI-042, plan 020).
+> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019; §8 refine in the job guard, KI-042, plan 020); 2026-11-27 (§8 a dropped connection keeps the partial chapter, plan 023).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -240,7 +240,7 @@ How the app finds its data from inside `app/`: each manager computes `Path(__fil
 - **One LLM job at a time** (plan 010, KI-031; plans 019 and 020). The pipeline runs as an `asyncio.Task` that feeds the SSE response through a queue. While it runs, another `POST /api/generate-chapter`, a draft approval, a rewrite or a Build-tab refine gets **409**; while an approval, a rewrite or a refine runs (`_job`, via `_llm_job`), so does any other LLM job. So the specialist is never reloaded next to the writer during step 6 (§6).
   - `POST /api/generate-chapter/cancel` stops a generation (not an approval, rewrite or refine).
   - Code that reads profiles before an LLM call and saves them after it reads them again after the call (`finalize_chapter`, `refine_world`), so edits saved meanwhile are kept (KI-042, plan 020).
-  - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream. The text written by step 6 is on disk as the draft by then.
+  - A client disconnect cancels it too, so a generation still lives only as long as its HTTP response stream. A disconnect **during** step 6 saves the text written so far as the draft; an explicit Cancel discards it (`_cancel["by_user"]`, plan 023, D-018). After step 6 the whole chapter is on disk as the draft anyway.
   - **One draft at a time** (plan 019): while `data/draft.json` exists, a new generation gets **409**.
   - There are no other background jobs or locks.
 - **Logging** (plan 016, KI-025). `main.py` configures console logging (`%(asctime)s %(levelname)s %(name)s: %(message)s`) next to uvicorn's own access log.

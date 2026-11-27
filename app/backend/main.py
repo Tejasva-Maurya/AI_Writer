@@ -173,6 +173,9 @@ async def get_chapter(number: int):
 # approval, a passage rewrite or a Build-tab refine. Cancel stops only a generation.
 _generation: Dict[str, Optional[asyncio.Task]] = {"task": None}
 _job: Dict[str, Optional[str]] = {"kind": None}  # "approve", "rewrite" or "refine" while one runs
+# Set by POST /api/generate-chapter/cancel: an explicit Cancel discards the text written so far, while a closed tab
+# (the stream's own cancel) keeps it as the draft (plan 023, D-018)
+_cancel: Dict[str, bool] = {"by_user": False}
 _CANCELLED_EVENT = f"data: {json.dumps({'type': 'error', 'message': 'Generation cancelled', 'cancelled': True})}\n\n"
 _JOB_BUSY = {
     "approve": "The draft is being approved. Wait for it to finish.",
@@ -215,12 +218,14 @@ async def generate_chapter(req: GenerateChapterRequest):
     meta = novel_meta_manager.load()
     chapter_number = req.chapter_number or chapter_manager.get_next_number()
     queue: asyncio.Queue = asyncio.Queue()
+    _cancel["by_user"] = False
 
     async def produce():
         try:
             async for sse_event in run_pipeline(req.plot, chapter_number, meta, review=req.review,
                                                 tagged_characters=req.tagged_characters,
-                                                tagged_scenes=req.tagged_scenes):
+                                                tagged_scenes=req.tagged_scenes,
+                                                keep_partial_on_cancel=lambda: not _cancel["by_user"]):
                 queue.put_nowait(sse_event)
         except asyncio.CancelledError:
             log.info("Generation of chapter %d cancelled", chapter_number)
@@ -255,6 +260,7 @@ async def cancel_generation():
     if not _generation_running():
         return {"cancelled": False}
     task = _generation["task"]
+    _cancel["by_user"] = True  # before the cancel: an explicit Cancel discards the text written so far (plan 023)
     task.cancel()
     await asyncio.wait({task}, timeout=5)  # once this returns, a new generation is accepted
     return {"cancelled": True}

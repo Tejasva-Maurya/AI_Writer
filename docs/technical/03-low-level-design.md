@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased] (plans 019–022). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plans 019–023). **Last verified against code:** 2026-11-24.
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -67,7 +67,8 @@ Contents
 | Chapter routes | 155-166 | `list_chapters` → `get_all(include_text=False)` (no `response_model`). `get_chapter(number)` → 404 if missing. |
 | `_generation`, `_job`, `_CANCELLED_EVENT`, `_JOB_BUSY`, `_generation_running()`, `_busy_reason()`, `_llm_job(kind)` | after the chapter routes | Holder of the one running generation task (`{"task": None}` until the first run), the kind of LLM job running outside it (`"approve"`/`"rewrite"`, plan 019; `"refine"`, plan 020), the SSE line sent when a generation is cancelled, and the 409 message for the current job, or `None` when idle (plan 010, KI-031; one LLM job at a time since plan 019). `_llm_job(kind)` is a context manager: **409** if busy, else it claims the slot for its body and always releases it; the check and the claim have no `await` between them (plan 020). |
 | `generate_chapter` | | **409** while any LLM job runs, or while a draft waits (plan 019). Otherwise runs `run_pipeline(…, review, tagged_characters, tagged_scenes)` in an `asyncio.Task` (`produce()`) that feeds an `asyncio.Queue`; the SSE response (`event_stream()`) yields from the queue and cancels the task in its `finally` (client disconnect). See 02-W3.2. |
-| `cancel_generation()` `POST /api/generate-chapter/cancel` | | Cancels the running generation task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. Approve and rewrite can't be cancelled. |
+| `cancel_generation()` `POST /api/generate-chapter/cancel` | | Sets `_cancel["by_user"] = True` (so the text written so far is discarded, plan 023), cancels the running generation task and waits up to 5 s for it to end. Returns `{"cancelled": true}`, or `{"cancelled": false}` when nothing was running. Approve and rewrite can't be cancelled. |
+| `_cancel` | | `{"by_user": False}`, reset by `generate_chapter`. It passes `keep_partial_on_cancel=lambda: not _cancel["by_user"]` to `run_pipeline`, so a closed tab (the stream's own `task.cancel()`) keeps the partial chapter and an explicit Cancel doesn't (D-018). |
 | Draft routes (plan 019) | `── DRAFT` section | `_require_draft()` (**404** "No draft is waiting for review"). `get_draft` → the draft or `null`. `update_draft` saves `full_text` and the stripped `title` (**409** during an approval). `delete_draft` (**409** during an approval, **404** if none). `rewrite_draft_passage` (**409** busy, **404**, **422** empty passage or instruction; `with _llm_job("rewrite")` around `writer.revise_passage`; **500** if the writer fails or returns nothing) → `{"replacement"}`. `approve_draft` (**409** busy, **404**, **422** empty text; saves the sent text and title, `with _llm_job("approve")` around `finalize_chapter`; **500** keeps the draft) → `{"chapter", "warnings"}`, warnings logged. See 02-W11. |
 | Novel-meta routes | 231-239 | `GET` load, `PUT` save (full replace). |
 | `_export_filename(title, fmt)` | 243-248 | Download name: spaces and Windows-forbidden characters → `_`, trailing dots/spaces dropped, `novel` if no letter or digit is left (plan 015, KI-017). |
@@ -187,7 +188,12 @@ Iteration order of characters and scenes follows the insertion order of the `*_d
 `_apply_tags(resolved, tagged, existing, importance)` (plan 019) runs after `_canonical_entities`: each tagged slug that exists becomes `existing` with `importance` (`"primary"` for characters, `"main"` for scenes), added to the list if the specialist missed it; unknown or non-string slugs are logged at INFO and ignored.
 
 - `_sse(event_type, **kwargs) -> str` → `f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"`. `warning` and `error` events are also written to the server log (errors with their traceback detail; plan 016).
-- `async def run_pipeline(plot, chapter_number, novel_meta, review=False, tagged_characters=None, tagged_scenes=None) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy). After step 6 it saves a `Draft`; with `review` it then emits `draft_complete` and returns, otherwise it calls `finalize_chapter`.
+- `async def run_pipeline(plot, chapter_number, novel_meta, review=False, tagged_characters=None, tagged_scenes=None, keep_partial_on_cancel=None) -> AsyncGenerator[str]`. Step logic is documented in [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy). After step 6 it saves a `Draft`; with `review` it then emits `draft_complete` and returns, otherwise it calls `finalize_chapter`.
+  - **Step 6 stopping halfway** (plan 023):
+    - On a writer `error` with text written, it saves that text as the draft (`_save_draft`) and emits `error` with `draft_saved: true`.
+    - On `CancelledError` with text written, it saves the draft only if `keep_partial_on_cancel` is given and returns true, then **re-raises**. The cancel is never swallowed: a failed save is logged (`log.exception`), not raised.
+    - Saving is synchronous, so it is safe while cancelling.
+- `_save_draft(chapter_number, plot, full_text, primary_chars, main_scenes, created_chars, created_scenes) -> Draft` builds and saves the draft. Three places use it: after step 6, on a writer error, on a cancel that keeps the text.
 - `async def finalize_chapter(draft, spec_model) -> Tuple[Chapter, List[str]]` (plan 019) is step 7 for a draft, shared by the one-click pipeline and `POST /api/draft/approve`.
   1. Reads characters and scenes from disk.
   2. Awaits `post_write_update` (its only `await`). If that raises, the draft stays (KI-041). Then it reads characters and scenes from disk **again**, so an edit or deletion saved during the call is respected (KI-042, plan 020).
@@ -352,7 +358,7 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 - **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
 - **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
 
-**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020), regenerating an earlier chapter (`test_regenerate.py`, plan 022) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020), regenerating an earlier chapter (`test_regenerate.py`, plan 022), chapters stopped halfway (`test_partial.py`, plan 023: the fake stream can raise or block, `conftest.BLOCK`) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 

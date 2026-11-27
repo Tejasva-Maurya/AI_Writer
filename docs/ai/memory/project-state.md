@@ -2,7 +2,7 @@
 
 > Auto-loaded into every Claude session (root `CLAUDE.md` → `docs/ai/RULES.md` → this file). Keep under ~40 lines. Update at the end of every working session.
 
-**Last updated:** 2026-11-26
+**Last updated:** 2026-11-27
 
 ## Repository layout (plan 002, D-007)
 - `app/` = application (`backend/`, `frontend/`, `start.bat`, `requirements.txt`) · `data/` = the novel · `docs/` = user guide, `technical/`, `CHANGELOG.md`, `ai/` (RULES, plans, memory, templates).
@@ -12,11 +12,11 @@
 - Released: **2.0.0** (2026-11-24, plan 018, D-015). `app/backend/main.py` says `version="2.0.0"`. Major because the HTTP API changed: create returns 409 instead of overwriting, same-origin only, generate returns 409 while one runs.
 - 2.0.0 contains plans 001–017 and fixes all 40 known issues; per-plan detail lives in `docs/CHANGELOG.md` and `docs/ai/plans/`. 1.0.0 was 2026-07-13 (`dead3e3`).
 - Pushed 2026-11-24 (`03312e5` on GitHub). Annotated tags `v1.0.0` (`dead3e3`) and `v2.0.0` (`03312e5`); GitHub Release https://github.com/Tejasva-Maurya/AI_Writer/releases/tag/v2.0.0 (latest). CI green on `main` and on the tag.
-- `[Unreleased]` holds plan 019 (draft review, AI rewrite, @-mentions, prompt reuse; KI-041 fixed; additive) and plan 020 (refines join the job guard; KI-042 fixed), plan 021 (dead-code removal) and plan 022 (regenerating an earlier chapter; KI-043, KI-044 fixed). Plan 020 adds a 409 to the refine routes: read like D-015, the next release would be **3.0.0**, not 2.1.0 (D-017; the user decides at release time).
+- `[Unreleased]` holds plan 019 (draft review, AI rewrite, @-mentions, prompt reuse; KI-041 fixed; additive), plan 020 (refines join the job guard; KI-042 fixed), plan 021 (dead-code removal), plan 022 (regenerating an earlier chapter; KI-043, KI-044 fixed) and plan 023 (a chapter that stops halfway is kept as a draft; D-018). Plan 020 adds a 409 to the refine routes: read like D-015, the next release would be **3.0.0**, not 2.1.0 (D-017; the user decides at release time).
 - Commits carry **no AI attribution trailers** (RULES §8.7, D-008) and are authored as **Tejasva_Maurya <mauryatejasva512004@gmail.com>** via repo-local git config, so GitHub credits the personal account Tejasva-Maurya (D-010). Every commit on `main` is credited to it.
 
 ## Active work
-- Plans 001–022 are done; no active plan. Plan 022 (regenerated earlier chapters: later chapters in their own prompt section, no profile rollback) was merged into `main` on 2026-11-26 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/4 (rebase merge, `fc75fc5`; CI green, 8/8). Its branch `fix/regenerate-earlier-chapter` was deleted on 2026-11-26 at the user's request (fully merged first; GitHub has only `main`). Plan 021 (dead-code removal, no behaviour change) was merged into `main` on 2026-11-26 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/3 (rebase merge, `febf1d2`; CI green, 8/8). Its branch `chore/remove-unused-helpers` was deleted on 2026-11-26 at the user's request (fully merged first; GitHub has only `main`). Plan 020 (D-017) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/2 (rebase merge, `d0494b8`; CI green, 8/8). Its branch `fix/refine-busy-guard` was deleted on 2026-11-26 at the user's request (fully merged first; GitHub has only `main`). Plan 019 (D-016) was merged into `main` on 2026-11-24 through PR https://github.com/Tejasva-Maurya/AI_Writer/pull/1 (rebase merge, `88c05c6`; CI green on the PR). It re-implements the old `improvement` branch (based on 1.0.0, not mergeable). Both branches were deleted on 2026-11-24 at the user's request, without a backup: GitHub has only `main`, and the generated chapter 1 that existed only on `improvement` is gone.
+- Plans 001–023 are done; no active plan. Plan 023 (a writer failure or a closed tab keeps the text written so far as a draft, only ✕ Cancel discards it; D-018) is on branch `feat/keep-partial-chapter`, PR not merged yet. Plans 019–022 were merged into `main` through PRs https://github.com/Tejasva-Maurya/AI_Writer/pull/1 to /pull/4 (rebase merges `88c05c6`, `d0494b8`, `febf1d2`, `fc75fc5`; CI green), and each branch was deleted afterwards at the user's request (GitHub has only `main`). The old `improvement` branch was deleted without a backup on 2026-11-24, so the generated chapter 1 that existed only there is gone.
 - PRs: push the branch with the github-push skill, then open and merge the PR with `GH_TOKEN="$GH_PUSH_TOKEN" gh pr …`, so the personal account (not `gh`'s work login) is the PR author. If `gh pr create` (GraphQL) keeps failing on the network, first check that no PR was made, then use `gh api -X POST repos/…/pulls` (REST) instead (worked 2026-11-26). Auto-fix can't be enabled for such PRs, because `gh` is signed in as the work account.
 - New since plan 019: `data/draft.json` (one draft at a time, `draft_manager`), `/api/draft*` routes, SSE `draft_complete`, `novel_meta.review_drafts` (default on).
 - CI (`.github/workflows/ci.yml`) runs on every push; the push token has the Workflows permission.
@@ -24,7 +24,7 @@
 
 ## Suggested next up
 1. Test draft review with a real Ollama (not possible on this machine): rewrite quality, approval timing, VRAM.
-2. Last follow-up from plan 019 "Not included": keeping partial text as a draft when the writer fails mid-stream. (Done: refine guard in plan 020, unused helpers in plan 021, regenerating an earlier chapter in plan 022.) Plan 022 left out a UI "Regenerate chapter" button (regeneration is API-only).
+2. All plan 019 "Not included" follow-ups are done (plans 020–023). Still open from plan 022: a UI "Regenerate chapter" button (regeneration is API-only).
 3. No KI is open (44 fixed). New defects get KI-045 onwards.
 
 ## Environment facts (dev machine, verified 2026-11-22)
