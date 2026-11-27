@@ -273,4 +273,5 @@
 - **Open threads:**
   - Pushed `feat/keep-partial-chapter` with the github-push skill on the first try (`e148ad8`).
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/5 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
-  - Rebase-merged into `main` as `f684a79` on the user's go-ahead. The branch still exists.
+  - Rebase-merged into `main` as `f684a79` on the user's go-ahead; the merge note was pushed as `e1933b9`.
+  - The branch was deleted on 2026-11-27 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `f684a79` and that no PR was open on it.
