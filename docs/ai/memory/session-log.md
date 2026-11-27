@@ -294,4 +294,7 @@
     - mobile and 1024 px layouts; console clean; `[hidden]` audit empty.
   - Real `data/` unchanged.
 - **Plan:** 024 (done).
-- **Open threads:** branch `feat/regenerate-chapter-button`; push, PR and merge pending the user's go-ahead.
+- **Open threads:**
+  - Pushed `feat/regenerate-chapter-button` with the github-push skill on the first try (`7bb6efc`).
+  - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/6 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
+  - Rebase-merged into `main` as `b8ec124` on the user's go-ahead. The branch still exists.
