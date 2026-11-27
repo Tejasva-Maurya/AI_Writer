@@ -23,6 +23,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **@-mentions in the plot box:** type `@` to insert an existing character or location by its exact name (any script, keyboard and mouse). Mentioned entities are sent as `tagged_characters` / `tagged_scenes` and always reach the writer with their full profile, even when the AI misses them [plan 019]
 - **Prompt used** in the Full View: the plot a chapter was written from, with **↺ Use this prompt again** [plan 019]
 - Setting **Review each chapter as a draft before saving** in ⚙ Settings (`novel_meta.review_drafts`, default on); off = the previous one-click flow [plan 019]
+- **⟳ Regenerate a saved chapter** from the UI: in the chapter's header or its Full View. Its prompt goes into the plot box ("Regenerating Chapter N", with **✕ New chapter instead**), you can change it, and the new version always opens as a draft, whatever the review setting. The saved chapter stays until you approve the draft, and **✓ Approve & save** asks before replacing it; **🗑 Discard** keeps the old one. The chapter header wraps its buttons below the title in narrow windows [plan 024]
 
 ### Changed
 - Generation, draft approval and passage rewrites run one at a time (409 while another runs), and step 7 now applies all updates without pausing, so a cancel can no longer leave them half done [plan 019]
@@ -43,6 +44,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Regenerating an earlier chapter (API `chapter_number`): the writer no longer reads the later chapters as "story so far" or sees the old version of the chapter. Later chapters come in their own "LATER IN THE STORY" section, with the instruction to stay consistent without revealing them. New chapters get the same prompt as before [plan 022] [KI-043]
 - Regenerating an earlier chapter no longer rolls character and location profiles back: "last seen" never moves backwards, and arc notes, levels, relationships and location significance keep the state the later chapters gave them (new abilities are still added; a warning says so) [plan 022] [KI-044]
 - Docs: technical/07 §7 now lists `test_refine.py` (plan 020) and `test_regenerate.py` [plan 022]
+- `POST /api/generate-chapter` rejects a `chapter_number` below 1 with 422; before, `-1` was saved as `data/chapters/-01.json` and `0` silently meant "next" [plan 024] [KI-045]
+- Docs: technical/04 no longer says that a dropped connection saves nothing before step 6 has finished (out of date since plan 023, which keeps the words written so far) [plan 024]
 
 ## [2.0.0] - 2026-11-24
 

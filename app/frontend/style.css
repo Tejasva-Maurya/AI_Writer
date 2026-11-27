@@ -961,6 +961,25 @@ body {
 
 .generate-row .btn-small { white-space: nowrap; }
 
+/* ⟳ Regenerate (plan 024): the plot box writes a new version of a saved chapter */
+.regenerate-notice {
+  display: flex;
+  flex-wrap: wrap;  /* narrow windows: the button goes below the text */
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--purple-dim);
+  border: 1px solid var(--purple-mid);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-primary);
+}
+.regenerate-notice[hidden] { display: none; }  /* same trap as .multi-chapter-notice (KI-039) */
+.regenerate-notice-text { flex: 1 1 240px; min-width: 0; }
+.regenerate-notice .btn-small { white-space: nowrap; }
+
 /* ── Pipeline Section ── */
 .pipeline-section {
   padding: 18px 20px;
@@ -1142,6 +1161,7 @@ body {
 
 .output-header {
   display: flex;
+  flex-wrap: wrap;  /* the buttons go below the title before it gets too short (plan 024) */
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 16px;
@@ -1152,7 +1172,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 260px;
   min-width: 0;
 }
 

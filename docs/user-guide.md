@@ -18,7 +18,7 @@ NovelForge AI is a complete creative writing pipeline for light novels. You desc
 - 📡 **Real-time Streaming** — Watch the chapter write itself word by word
 - ✏️ **Draft Review** — Edit the new chapter, let the AI rewrite any passage you select, then approve it (or discard it)
 - @ **Mentions** — Type `@` in the plot to insert a character or location by its exact name and make sure the AI uses its profile
-- 📚 **Chapter History** — Navigate and review any previously written chapter, with the prompt it was written from
+- 📚 **Chapter History** — Navigate and review any previously written chapter, with the prompt it was written from, and regenerate it as a new draft
 - 📤 **Export** — Download your entire novel as `.txt` or `.md`
 
 ---
@@ -157,6 +157,10 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
 - Click any chapter pill to load and display it
 - The currently active chapter is highlighted in purple
 - In **⛶ Full View**, open **Prompt used** to see the plot you wrote for that chapter, and click **↺ Use this prompt again** to copy it back into the plot box
+- **⟳ Regenerate** (in the chapter's header, or **⟳ Regenerate this chapter** in the Full View) writes a new version of a saved chapter:
+  - Its prompt goes into the plot box and the button reads **Regenerate Chapter N**. Change the prompt if you like, then press it. **✕ New chapter instead** goes back to writing the next chapter.
+  - The new version always opens as a draft, even if you turned draft review off. Your saved chapter stays as it is until you approve the draft, and **🗑 Discard** keeps it.
+  - **✓ Approve & save** asks before it replaces the saved chapter: the old text can't be recovered (export the novel first if you want to keep it)
 
 ### Keyboard Shortcuts
 

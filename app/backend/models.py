@@ -166,7 +166,7 @@ class Draft(BaseModel):
 
 class GenerateChapterRequest(BaseModel):
     plot: str
-    chapter_number: Optional[int] = None
+    chapter_number: Optional[int] = Field(default=None, ge=1)  # an existing number regenerates it; < 1 → 422 (KI-045)
     review: bool = False  # True: stop after writing and keep the chapter as a draft (plan 019)
     tagged_characters: List[str] = Field(default_factory=list)  # slugs picked with @ in the plot box
     tagged_scenes: List[str] = Field(default_factory=list)

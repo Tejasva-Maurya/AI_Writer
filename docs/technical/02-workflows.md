@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042; plan 022: regenerating an earlier chapter, KI-043/KI-044; plan 023: partial chapters kept). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042; plan 022: regenerating an earlier chapter, KI-043/KI-044; plan 023: partial chapters kept; plan 024: W13 ⟳ Regenerate, W9, W11). **Last verified against code:** 2026-11-27.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -19,6 +19,7 @@ This document describes every end-to-end flow in the application: what triggers 
 | W10 | [Export](#w10--export) | **📤 Export → .txt / .md** |
 | W11 | [Draft review (edit, AI rewrite, approve, discard)](#w11--draft-review-edit-ai-rewrite-approve-discard) | A generation in review mode, a draft left from a previous visit |
 | W12 | [@-mentions in the plot box](#w12--mentions-in-the-plot-box) | Typing `@` in the plot textarea |
+| W13 | [Regenerate a saved chapter](#w13--regenerate-a-saved-chapter) | **⟳ Regenerate** (chapter header, Full View) |
 
 ---
 
@@ -124,7 +125,7 @@ Notes:
 | 0 (the chapter being regenerated) | `skip` | nothing: its old version is left out |
 | < 0 (chapters after one being regenerated) | `later` | `micro_summary`, in a separate `=== LATER IN THE STORY ===` section with the instruction to stay consistent but not reveal, anticipate or foreshadow them |
 
-> **Regenerating chapter *k*** (an explicit `chapter_number` that exists, with chapters after it on disk; API only).
+> **Regenerating chapter *k*** (an explicit `chapter_number` that exists, with chapters after it on disk; from the UI through **⟳ Regenerate**, W13, since plan 024).
 > - Before plan 022 the later chapters were listed in "STORY SO FAR" as `micro`, as if they had already happened, and the old version of *k* was included too (KI-043).
 > - For a new chapter nothing changes: there are no `skip`/`later` chapters, and the prompt is the same as before.
 
@@ -331,6 +332,7 @@ Frontend `refineWorld()` (`app.js:1664-1696`) → `POST /api/refine/world` (`mai
 - While a draft waits for review, a pill opens the chapter in the Full View modal instead, so the draft stays in the output section (plan 019).
 - **⛶ Full View** → `openChapterViewModal(ch)` (default: `state.currentChapter`; in draft mode the draft as it is in the editor). It formats `full_text` (or copies the output area's HTML right after a one-click generation, or fetches the chapter) and shows the featured character/scene **slugs** as tags.
 - **Prompt used** (plan 019): a collapsed box above the text shows the chapter's `plot_input` (hidden when empty). **↺ Use this prompt again** copies it into the plot box (asking first if the box holds other text), switches to Plot Writing and clears the @-tags.
+- **⟳ Regenerate** (plan 024): in the chapter header while a saved chapter is shown, and **⟳ Regenerate this chapter** in the Full View of a saved chapter (not of the draft). Both start W13.
 
 ## W10 — Export
 
@@ -359,7 +361,7 @@ It lives in `data/draft.json` (one at a time) and survives a reload, a closed ta
   3. The server calls `writer.revise_passage` with the writer model (`num_ctx` 32768, so the chapter isn't cut; `keep_alive` 300) and returns `{replacement}`. A writer failure or an empty reply is a **500**; the text is never replaced by an error message.
   4. The editor is read-only meanwhile. The replacement goes in with `setRangeText` and stays selected. **↶ Undo rewrite** restores the text from before it (it asks first if you edited afterwards).
 - **Approve:**
-  1. Waits for a pending autosave, then `POST /api/draft/approve {full_text, title}`.
+  1. When the draft's number is a saved chapter (a regeneration, W13), it first asks "Approving replaces the saved Chapter *n* … Replace it?"; Cancel keeps the draft (plan 024). Then it waits for a pending autosave and sends `POST /api/draft/approve {full_text, title}`.
   2. The pipeline panel shows step 7 active.
   3. The server saves the text and title into the draft, then runs `finalize_chapter()`, which is step 7 of W3.3. An empty title lets the specialist suggest one.
   4. On success it returns `{chapter, warnings}`: the UI shows the chapter in the reading view, shows each warning as a toast, reloads chapters, characters, scenes and meta, and clears the plot and @-tags.
@@ -379,3 +381,26 @@ Plan 019 (`initMentions()` and helpers at the end of `app.js`).
 3. Keys: **↑/↓** move, **Enter** or **Tab** insert, **Esc** closes. A mouse click inserts too (on `mousedown`, so the caret stays). The list sits under the caret (measured with a hidden mirror element) and stays inside the plot box's width.
 4. Inserting replaces `@query` with the exact name plus a space, and remembers `{kind, slug, name}` in `state._mentions`.
 5. On **Generate**, `taggedEntities(plot)` sends the remembered slugs whose names are still in the plot, and that still exist, as `tagged_characters` / `tagged_scenes`. Step 2 then makes them existing primary characters / main locations, so the writer gets their full profiles even when the specialist misses them (W3.3).
+
+## W13 — Regenerate a saved chapter
+
+Plan 024, decision D-019 (`startRegeneration()` and helpers in `app.js`). The backend side is W3 with an explicit `chapter_number` (plan 022).
+
+1. **⟳ Regenerate** (chapter header) or **⟳ Regenerate this chapter** (Full View) → `startRegeneration(n)`:
+   - While a generation runs, it only shows a toast.
+   - It puts chapter *n*'s `plot_input` into the plot box, asking first if the box holds other text. A chapter without a saved prompt keeps the box as it is.
+   - It clears the @-tags, switches to Plot Writing and sets `state.regenerate = {chapter_number, title}`.
+2. The plot section is in **regenerate mode**:
+   - a notice "⟳ Regenerating Chapter *n* · "title". The saved chapter stays until you approve the new draft." with **✕ New chapter instead** (`stopRegeneration()`);
+   - the label `CHAPTER n`, the button **Regenerate Chapter *n***, and the hint "Will regenerate Chapter *n* as a draft".
+
+   You can change the prompt before you press the button.
+3. **Generate** sends `chapter_number: n` and **`review: true`, whatever the review setting** (D-019). The pipeline (W3) writes the new version into the draft. The saved chapter file is not touched yet.
+   - A draft that is already waiting must be discarded first ("Discard it and regenerate Chapter *n*?").
+   - An error or **✕ Cancel** before the draft exists keeps the mode, so you can retry.
+4. The draft opens (W11). `showDraft()` ends the mode, because the draft carries the number now. When its number is a saved chapter, the output title reads "New version: approving replaces the saved chapter" (unless the draft has a title), and the ready toast says "Approve to replace the saved chapter".
+5. **🗑 Discard** deletes only the draft: the saved chapter stays as it was.
+6. **✓ Approve & save** first asks "Approving replaces the saved Chapter *n* ("title") … can't be recovered. Replace it?". The same question appears for any draft whose number is a saved chapter, including one left from an earlier visit.
+   - **Cancel** keeps the draft.
+   - **OK** runs step 7 (`finalize_chapter`), which overwrites `data/chapters/{n:03d}.json`. The chapter count stays the same (`total_chapters` uses `max`), and the profiles keep their later state (plan 022).
+

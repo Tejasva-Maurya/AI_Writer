@@ -182,3 +182,18 @@
   - Partly reverses plan 010's "closing the tab stops the generation and saves nothing": it still stops, but the text is kept.
   - A kept draft blocks the next Generate (409) until it is approved or discarded, like any draft.
   - No new route, field or SSE event; rollback is reverting plan 023.
+
+## D-019 — ⟳ Regenerate loads the prompt for editing and always goes through a draft
+- **Date:** 2026-11-27 · **Status:** Accepted · **Plan:** 024 (user choices: "Load its prompt to edit", "Always as a draft")
+- **Context:** Plan 022 made regenerating an earlier chapter correct, but only the API could do it (`chapter_number`). Approving a regeneration overwrites `data/chapters/NNN.json`, and there is no version history, so the old text is gone for good.
+- **Decision:**
+  - **⟳ Regenerate** (chapter header, Full View) puts the chapter's prompt into the plot box in a "Regenerating Chapter N" mode. Generate then sends `chapter_number`. The usual reason to regenerate is a changed prompt.
+  - A regeneration always sends `review: true`, even with "Review each chapter as a draft" off. The saved chapter stays until the draft is approved, and Discard keeps it.
+  - Approving any draft whose number is a saved chapter asks first. This covers a draft left over from an earlier visit too.
+- **Alternatives considered:**
+  - start at once with the same prompt (faster, but you can't change what happens)
+  - follow the review setting, with a confirmation in one-click mode (the old chapter would be gone as soon as the writer finishes)
+  - keep the old version as a backup file (a new file in `data/` and a storage change, for a rare need)
+- **Consequences:**
+  - A regeneration always costs one Approve click.
+  - The UI now sends `chapter_number`. Plan 024 bounds it at ≥ 1 (KI-045), a new 422 on an existing route; read like D-015, the next release is MAJOR anyway (D-017).

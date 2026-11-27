@@ -275,3 +275,23 @@
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/5 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
   - Rebase-merged into `main` as `f684a79` on the user's go-ahead; the merge note was pushed as `e1933b9`.
   - The branch was deleted on 2026-11-27 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `f684a79` and that no PR was open on it.
+
+### 2026-11-27 — Claude Code (Opus 5.5) — ⟳ Regenerate a saved chapter (plan 024)
+- **Goal:** The UI button left from plan 022: regenerate a saved chapter without the API. User choices: load the prompt to edit; always as a draft (D-019).
+- **Outcome:**
+  - `app.js`:
+    - `state.regenerate` and `startRegeneration`, `stopRegeneration`, `updateRegenerateUi`, `generateLabel`, `replacesSavedChapter`, `draftHeading`.
+    - **⟳ Regenerate** in the chapter header (a saved chapter is shown) and in the Full View (a saved chapter, not the draft).
+    - `generateChapter` sends `chapter_number` and `review: true`; `showDraft` ends the mode; `approveDraft` asks before replacing a saved chapter.
+  - `index.html`, `style.css`: the plot-box notice `#regenerate-notice` (with a `[hidden]` rule), the two buttons, and an output header that wraps on narrow windows.
+  - KI-045 (found while reading): `chapter_number` -1 was saved as `chapters/-01.json`, and the next "highest + 1" became 0 (`000.json`). Now `Field(ge=1)` → 422. The test failed on the old code.
+  - Docs: 02 (new W13, W3/W9/W11), 03 (§2.1, §4), 04 (`chapter_number`; and the dropped-connection sentence, out of date since plan 023), 05, 07 (step 10, tips, tests), 08 FAQ, 09 (KI-045), user guide, CHANGELOG, D-019.
+  - Verified: 132 tests pass, ruff and `py_compile` clean, `node --check` OK.
+  - Sandbox UI check with a stub `ollama`:
+    - both buttons; the notice and ✕; with review off a regeneration still opens as a draft;
+    - Discard keeps the old chapter; a waiting draft gets the discard question; Approve asks (Cancel keeps the draft), then replaces it, still 2 chapters;
+    - Cancel keeps the mode; one-click new chapters work as before;
+    - mobile and 1024 px layouts; console clean; `[hidden]` audit empty.
+  - Real `data/` unchanged.
+- **Plan:** 024 (done).
+- **Open threads:** branch `feat/regenerate-chapter-button`; push, PR and merge pending the user's go-ahead.

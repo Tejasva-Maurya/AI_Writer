@@ -1,6 +1,6 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019; §4 regenerated chapters: 2026-11-26, plan 022).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019; §4 regenerated chapters: 2026-11-26, plan 022; §2 chapter overwrite note: 2026-11-27, plan 024).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
@@ -108,7 +108,7 @@ After each chapter, step 7 may update a **featured** scene's `significance` (sce
 | `word_count` | int | 0 | `len(full_text.split())` | UI, toasts |
 | `created_at` | ISO str | "" | `datetime.now().isoformat()` (local time, no TZ) | Not displayed |
 
-Chapters cannot be edited or deleted through the API or UI. Re-generating with an existing `chapter_number` overwrites the file.
+Chapters cannot be edited or deleted through the API or UI. Regenerating one overwrites its file: through the API with an existing `chapter_number`, or in the UI with **⟳ Regenerate**, which always goes through a draft, so the file is replaced only when that draft is approved (plan 024). Numbers below 1 are rejected (422, KI-045).
 
 ### 2.4 WorldSettings — `data/world_settings.json`
 
