@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter; plan 023: partial chapters; plan 024: `chapter_number` from the UI, ≥ 1). **Last verified against code:** 2026-11-27.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter; plan 023: partial chapters; plan 024: `chapter_number` from the UI, ≥ 1; plan 025: chapter versions). **Last verified against code:** 2026-11-27.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -26,6 +26,10 @@
 | PUT | `/api/world` | Replace world settings | `saveWorld` |
 | GET | `/api/chapters` | List chapters (no text) | `loadChapters` |
 | GET | `/api/chapters/{number}` | Get one chapter (with text) | `viewChapter`, `openChapterViewModal` |
+| GET | `/api/chapters/{number}/versions` | List a chapter's older versions (no text, newest first; plan 025) | `loadChapterVersions` |
+| GET | `/api/chapters/{number}/versions/{version_id}` | Get one older version (with text) | `openChapterVersion` |
+| DELETE | `/api/chapters/{number}/versions/{version_id}` | Delete an older version | `deleteChapterVersion` |
+| POST | `/api/chapters/{number}/versions/{version_id}/restore` | Make an older version the saved chapter again | `restoreChapterVersion` |
 | POST | `/api/generate-chapter` | **SSE** run the 7-step pipeline (one at a time), or steps 1–6 into a draft | `generateChapter` |
 | POST | `/api/generate-chapter/cancel` | Stop the running generation | `cancelGeneration` |
 | GET | `/api/draft` | The chapter draft waiting for review, or `null` | `loadDraft` |
@@ -106,6 +110,30 @@ Body: `{"settings": WorldSettings}` → **200** echoes settings. Full replace.
 
 ### `GET /api/chapters/{number}`
 **200** full `Chapter` including `full_text` · **404** `Chapter {n} not found` · **422** if `number` is not an int.
+
+## Chapter versions (plan 025)
+
+When a chapter is saved over an existing one with a different text (approving a regenerated draft, or a one-click `generate-chapter` with an existing `chapter_number`), step 7 first keeps the old chapter as an **older version**. Only the **newest 5** per chapter are kept; saving a 6th deletes the oldest. Versions are not exported and never count as chapters.
+
+A `ChapterVersion` is a `Chapter` plus `version_id` (`YYYYMMDD-HHMMSS-ffffff`, when it was replaced) and `replaced_at` (ISO time). For every route below, a `number` below 1, a `version_id` that isn't that exact format, or a version that doesn't exist gives **404** `Chapter {n} has no older version {id}`; a `number` that isn't an int gives **422**.
+
+### `GET /api/chapters/{number}/versions`
+**200** `ChapterVersion[]`, newest first, with **`full_text` set to `""`**; `[]` when the chapter has none (also for a number below 1).
+
+### `GET /api/chapters/{number}/versions/{version_id}`
+**200** the full `ChapterVersion` including `full_text`.
+
+### `DELETE /api/chapters/{number}/versions/{version_id}`
+**200** `{"success": true}`. The file is deleted; it can't be recovered. The chapter itself is not touched.
+
+### `POST /api/chapters/{number}/versions/{version_id}/restore`
+No body. **409** with the busy reason while a generation, a draft approval, a rewrite or a refine runs. Otherwise:
+1. the current chapter *n* (if it exists) is kept as a new older version;
+2. the version is saved as chapter *n* (a plain `Chapter`: `version_id`/`replaced_at` are dropped);
+3. the restored version's file is deleted;
+4. older versions beyond 5 are pruned.
+
+**200** `{"chapter": Chapter, "kept_version": "<id of the kept current text>" | null}`. Profiles and `novel_meta.total_chapters` are not changed. Each step keeps a copy until the next one has worked, so a failure in between loses no text.
 
 ## Generation
 

@@ -1,6 +1,6 @@
 # 01 — Overview & Architecture
 
-> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019; §8 refine in the job guard, KI-042, plan 020); 2026-11-27 (§8 a dropped connection keeps the partial chapter, plan 023).
+> **Applies to:** v2.0.0 + [Unreleased] (first documented at v1.0.0, commit `dead3e3`). **Last verified against code:** 2026-11-23 (§8 process model, plan 010; §6 specialist `keep_alive`, plan 013); 2026-11-24 (§2–4 and §7 fonts, plan 014; Ollama address, export and §4 rule 2, plan 015; §7 tree and §8, plan 016; §7 `data/` and `style.css`, §9 input and HTML rows, plan 017; §1, §5, §6, §7 managers/pipeline, §8 job guard and drafts, plan 019; §8 refine in the job guard, KI-042, plan 020); 2026-11-27 (§8 a dropped connection keeps the partial chapter, plan 023; §5 managers and §7 tree, `version_manager` and `data/chapter_versions/`, plan 025).
 > Code is the source of truth. If this document disagrees with the code, the code wins — and this document must be fixed (see [docs/ai/RULES.md](../ai/RULES.md)).
 
 ---
@@ -105,6 +105,7 @@ flowchart TB
         M4[world_manager]
         M5[novel_meta_manager]
         M6[draft_manager]
+        M7[version_manager]
     end
 
     MOD["app/backend/models.py<br/>Pydantic schemas"]
@@ -189,14 +190,15 @@ AI_Writer/
 │   │   │   ├── specialist.py  (367 LOC) 9 specialist LLM functions (JSON in/out) + robust JSON extraction
 │   │   │   └── writer.py      (~120 LOC) Streaming chapter writer (system prompt + async generator) and the draft passage rewrite
 │   │   ├── managers/                    JSON-file persistence, one module per entity type (paths → <repo>/data/)
-│   │   │   ├── __init__.py              re-exports the six managers
+│   │   │   ├── __init__.py              re-exports the seven managers
 │   │   │   ├── storage.py               atomic JSON writes + logged skips, shared by the managers (plan 016)
 │   │   │   ├── character_manager.py     data/characters/{slug}.json
 │   │   │   ├── scene_manager.py         data/scenes/{slug}.json
 │   │   │   ├── chapter_manager.py       data/chapters/{NNN}.json  (zero-padded to 3 digits)
 │   │   │   ├── world_manager.py         data/world_settings.json
 │   │   │   ├── novel_meta_manager.py    data/novel_meta.json
-│   │   │   └── draft_manager.py         data/draft.json  (the chapter waiting for review, plan 019)
+│   │   │   ├── draft_manager.py         data/draft.json  (the chapter waiting for review, plan 019)
+│   │   │   └── version_manager.py       data/chapter_versions/{NNN}-{id}.json  (older versions of a regenerated chapter, the newest 5; plan 025)
 │   │   └── pipeline/
 │   │       ├── chapter_pipeline.py (~370 LOC) 7-step orchestration, emits SSE strings; finalize_chapter (step 7, also for draft approval)
 │   │       └── context_builder.py  (145 LOC) Builds the writer's master prompt (tiered memory)
@@ -214,6 +216,8 @@ AI_Writer/
 │   ├── characters/*.json
 │   ├── scenes/*.json
 │   ├── chapters/NNN.json                created on first generated chapter
+│   ├── chapter_versions/NNN-{id}.json   older versions of regenerated chapters, the newest 5 each (plan 025)
+│   ├── draft.json                       only while a chapter waits for review (plan 019)
 │   ├── novel_meta.json
 │   ├── world_settings.json
 │   └── Untitled_Novel.txt               left by an older export; exports no longer write here (plan 015)

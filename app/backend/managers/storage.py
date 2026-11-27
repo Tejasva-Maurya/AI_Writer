@@ -41,10 +41,11 @@ def write_json(path: Path, data, *, exclusive: bool = False) -> None:
             os.unlink(tmp)
 
 
-def read_all(folder: Path, label: str, build: Callable[[dict], T]) -> List[T]:
-    """Load every *.json in folder with build(data). A file that cannot be read or validated is skipped and logged."""
+def read_all(folder: Path, label: str, build: Callable[[dict], T], pattern: str = "*.json") -> List[T]:
+    """Load every file in folder matching pattern with build(data). A file that cannot be read or validated is skipped
+    and logged."""
     items = []
-    for f in sorted(folder.glob("*.json")):
+    for f in sorted(folder.glob(pattern)):
         try:
             with open(f, encoding="utf-8") as fp:
                 items.append(build(json.load(fp)))

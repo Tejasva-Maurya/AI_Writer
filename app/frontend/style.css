@@ -1789,17 +1789,21 @@ body {
 .btn-cancel:hover { border-color: var(--text-secondary); color: var(--text-primary); }
 
 /* Chapter view */
+.chapter-view-top { flex-wrap: wrap; gap: 10px 12px; }  /* narrow windows: the buttons go below the title (plan 025) */
 .chapter-view-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 220px;
   min-width: 0;
 }
 .chapter-view-meta {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 .chapter-view-body { }
 .chapter-featured {
@@ -1865,6 +1869,47 @@ body {
   color: var(--text-secondary);
   white-space: pre-wrap;
 }
+
+/* Older versions of a chapter (plan 025): the list in the Full View, and the notice while one is read */
+.chapter-versions-list {
+  list-style: none;
+  margin: 10px 0 2px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chapter-version-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.chapter-version-meta {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.version-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 20px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-primary);
+}
+.version-notice[hidden] { display: none; }  /* same trap as .multi-chapter-notice (KI-039) */
+.version-notice-text { flex: 1 1 240px; min-width: 0; }
 
 .chapter-view-text {
   font-family: var(--font-body);

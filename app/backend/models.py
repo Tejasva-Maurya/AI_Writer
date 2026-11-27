@@ -139,6 +139,13 @@ class Chapter(BaseModel):
     created_at: str = ""
 
 
+class ChapterVersion(Chapter):
+    """The text a regenerated chapter replaced: data/chapter_versions/{n:03d}-{version_id}.json, the newest 5 per
+    chapter (plan 025). version_id is when it was replaced, YYYYMMDD-HHMMSS-ffffff."""
+    version_id: str = ""
+    replaced_at: str = ""
+
+
 class NovelMeta(BaseModel):
     title: str = "Untitled Novel"
     genre: str = ""

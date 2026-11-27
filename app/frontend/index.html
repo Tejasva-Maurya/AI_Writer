@@ -815,7 +815,7 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
   <!-- ── Chapter View Modal ── -->
   <div class="modal-overlay" id="modal-chapter" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" hidden>
     <div class="modal glass-panel modal-fullscreen">
-      <div class="modal-header">
+      <div class="modal-header chapter-view-top">
         <div class="chapter-view-header">
           <span class="output-chapter-badge" id="view-chapter-badge">Chapter 1</span>
           <h2 class="modal-title" id="chapter-modal-title">Chapter Title</h2>
@@ -842,6 +842,17 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
           <p class="chapter-prompt-text" id="view-prompt-text"></p>
           <button class="btn-small" id="btn-reuse-prompt" title="Copy this prompt into the plot box">↺ Use this prompt again</button>
         </details>
+        <!-- Older versions (plan 025): the texts a regenerated chapter replaced, the newest 5 -->
+        <details class="chapter-prompt chapter-versions" id="view-versions-box" hidden>
+          <summary id="view-versions-summary">Older versions</summary>
+          <ul class="chapter-versions-list" id="view-versions-list"></ul>
+        </details>
+        <div class="version-notice" id="view-version-notice" role="status" hidden>
+          <span class="version-notice-text" id="view-version-notice-text"></span>
+          <button class="btn-small" id="btn-version-current" title="Back to the saved chapter">← Current version</button>
+          <button class="btn-small" id="btn-version-restore" title="Make this the saved chapter again; the current text is kept as an older version">↺ Restore</button>
+          <button class="btn-small" id="btn-version-delete" title="Delete this older version">🗑 Delete</button>
+        </div>
         <div class="chapter-view-text" id="chapter-view-text"></div>
       </div>
     </div>

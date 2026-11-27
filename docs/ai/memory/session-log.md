@@ -299,3 +299,26 @@
   - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/6 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
   - Rebase-merged into `main` as `b8ec124` on the user's go-ahead; the merge note was pushed as `4ca41da`.
   - The branch was deleted on 2026-11-27 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `b8ec124` and that no PR was open on it.
+
+### 2026-11-27 — Claude Code (Opus 5.5) — older versions of a regenerated chapter (plan 025)
+- **Goal:** Keep the text a regenerated chapter replaces, with an option to delete it. User choices: read, restore and delete; only the newest 5 per chapter (D-020).
+- **Outcome:**
+  - Backend:
+    - `models.ChapterVersion(Chapter)` (+ `version_id`, `replaced_at`);
+    - a new `managers/version_manager.py` (`KEEP = 5`, a strict id regex, `archive`, `get_all`, `get`, `delete`, `prune`), re-exported in `managers/__init__.py`;
+    - `storage.read_all(pattern=…)`;
+    - `finalize_chapter` archives the old chapter right before the save when its text differs;
+    - 4 routes under `/api/chapters/{n}/versions` (restore: 409 while busy, archive → save → delete → prune).
+  - Frontend: an **Older versions** `<details>` in the Full View (Read / ↺ Restore / 🗑 Delete), the older-version notice (← Current version / Restore / Delete), and new approve-confirmation wording. The Full View header now wraps on narrow windows (plan 024's button had made it overlap on a phone).
+  - Tests: the new `test_versions.py` (14), and `version_manager` in the `data_dir` fixture. 10 failed before the pipeline and routes existed; the 4 invalid-id cases passed only because no route existed.
+  - Docs: 01, 02 (new W14), 03, 04 (new section), 05 (new §2.7; also the stale `plot_input` "not displayed" row), 06, 07, 08, the user guide, the README map, RULES §1, CHANGELOG, D-020.
+  - Verified: 146 tests pass, ruff clean, `py_compile` and `node --check` OK.
+  - Sandbox UI check with a stub `ollama`:
+    - 6 regenerations kept 5 versions and dropped the oldest;
+    - Read and ← Current version; Restore swapped the texts and updated the output section;
+    - Delete from the list and from the version view; Restore during a generation showed the 409 message;
+    - a new chapter showed no list; the new approve wording;
+    - 375 px, 1024 px and wide layouts; the `[hidden]` audit was empty.
+  - Real `data/` unchanged.
+- **Plan:** 025 (done). The work was handed from the original session to a side session mid-plan, so the user could keep talking there; the side session finished it.
+- **Open threads:** branch `feat/chapter-versions`; push, PR and merge pending the user's go-ahead.

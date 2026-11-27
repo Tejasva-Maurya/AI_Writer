@@ -26,11 +26,12 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 from models import (
-    Character, Scene, WorldSettings, Chapter, NovelMeta, Draft,
+    Character, Scene, WorldSettings, Chapter, ChapterVersion, NovelMeta, Draft,
     GenerateChapterRequest, UpdateCharacterRequest, UpdateSceneRequest,
     UpdateWorldRequest, UpdateNovelMetaRequest, UpdateDraftRequest, RewriteRequest, ApproveDraftRequest, as_str_list
 )
-from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager
+from managers import (character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager,
+                      draft_manager, version_manager)
 from pipeline.chapter_pipeline import run_pipeline, finalize_chapter
 from agents import writer
 
@@ -166,6 +167,52 @@ async def get_chapter(number: int):
     if not chapter:
         raise HTTPException(404, f"Chapter {number} not found")
     return chapter
+
+
+# ── CHAPTER VERSIONS (plan 025) ───────────────────────────────
+# The text a regenerated chapter replaced, the newest 5 per chapter: read, restore or delete (D-020)
+def _require_version(number: int, version_id: str) -> ChapterVersion:
+    try:
+        version = version_manager.get(number, version_id)
+    except ValueError:  # not a chapter number or not a version id: nothing can match (KI-010)
+        version = None
+    if not version:
+        raise HTTPException(404, f"Chapter {number} has no older version {version_id}")
+    return version
+
+
+@app.get("/api/chapters/{number}/versions", response_model=List[ChapterVersion])
+async def list_chapter_versions(number: int):
+    return version_manager.get_all(number)  # newest first, without the text
+
+
+@app.get("/api/chapters/{number}/versions/{version_id}", response_model=ChapterVersion)
+async def get_chapter_version(number: int, version_id: str):
+    return _require_version(number, version_id)
+
+
+@app.delete("/api/chapters/{number}/versions/{version_id}")
+async def delete_chapter_version(number: int, version_id: str):
+    _require_version(number, version_id)
+    version_manager.delete(number, version_id)
+    return {"success": True}
+
+
+@app.post("/api/chapters/{number}/versions/{version_id}/restore")
+async def restore_chapter_version(number: int, version_id: str):
+    """Make an older version the saved chapter again; the text it replaces is kept as a version in turn. Each step keeps
+    a copy until the next one has worked, and the oldest version is pruned last, so a failed step loses no text."""
+    if reason := _busy_reason():  # a generation or an approval could be writing this chapter
+        raise HTTPException(409, reason)
+    version = _require_version(number, version_id)
+    current = chapter_manager.get_chapter(number)
+    kept = version_manager.archive(current, prune_old=False) if current else None
+    restored = Chapter(**{**{k: v for k, v in version.model_dump().items() if k in Chapter.model_fields},
+                          "chapter_number": number})
+    chapter_manager.save_chapter(restored)
+    version_manager.delete(number, version_id)
+    version_manager.prune(number)
+    return {"chapter": restored.model_dump(), "kept_version": kept.version_id if kept else None}
 
 
 # ── GENERATE CHAPTER (SSE) ────────────────────────────────────

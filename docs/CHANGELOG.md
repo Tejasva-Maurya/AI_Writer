@@ -24,6 +24,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Prompt used** in the Full View: the plot a chapter was written from, with **↺ Use this prompt again** [plan 019]
 - Setting **Review each chapter as a draft before saving** in ⚙ Settings (`novel_meta.review_drafts`, default on); off = the previous one-click flow [plan 019]
 - **⟳ Regenerate a saved chapter** from the UI: in the chapter's header or its Full View. Its prompt goes into the plot box ("Regenerating Chapter N", with **✕ New chapter instead**), you can change it, and the new version always opens as a draft, whatever the review setting. The saved chapter stays until you approve the draft, and **✓ Approve & save** asks before replacing it; **🗑 Discard** keeps the old one. The chapter header wraps its buttons below the title in narrow windows [plan 024]
+- **Older versions of a regenerated chapter:** approving a regeneration (or regenerating through the API) keeps the text it replaces in `data/chapter_versions/`, the newest 5 per chapter. The chapter's Full View lists them under **Older versions**: **Read** one, **↺ Restore** it (the current text is kept as an older version in turn; refused with 409 while an AI job runs) or **🗑 Delete** it. New routes `GET /api/chapters/{n}/versions`, `GET`/`DELETE /api/chapters/{n}/versions/{id}` and `POST …/{id}/restore`. Older versions are not exported [plan 025]
 
 ### Changed
 - Generation, draft approval and passage rewrites run one at a time (409 while another runs), and step 7 now applies all updates without pausing, so a cancel can no longer leave them half done [plan 019]
@@ -46,6 +47,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Docs: technical/07 §7 now lists `test_refine.py` (plan 020) and `test_regenerate.py` [plan 022]
 - `POST /api/generate-chapter` rejects a `chapter_number` below 1 with 422; before, `-1` was saved as `data/chapters/-01.json` and `0` silently meant "next" [plan 024] [KI-045]
 - Docs: technical/04 no longer says that a dropped connection saves nothing before step 6 has finished (out of date since plan 023, which keeps the words written so far) [plan 024]
+- The Full View header no longer overlaps itself in narrow windows (badge, title, word count and ⟳ Regenerate): its buttons wrap below the title [plan 025]
 
 ## [2.0.0] - 2026-11-24
 

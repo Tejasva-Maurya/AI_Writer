@@ -1,6 +1,6 @@
 # 06 — Configuration Reference
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016; `review_drafts` row, draft rewrite parameters, draft/mention constants: 2026-11-24, plan 019; chapter tier and "later chapters" rows: 2026-11-26, plan 022).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (frontend fallback row: 2026-11-23, plan 012; `keep_alive` row: 2026-11-23, plan 013; `OLLAMA_HOST` header and rows: 2026-11-24, plan 015; logging row and dev dependencies: 2026-11-24, plan 016; `review_drafts` row, draft rewrite parameters, draft/mention constants: 2026-11-24, plan 019; chapter tier and "later chapters" rows: 2026-11-26, plan 022; older chapter versions row: 2026-11-27, plan 025).
 > There is **no configuration file**. The backend reads one environment variable, **`OLLAMA_HOST`** (the Ollama address, since plan 015; ollama-python reads the same variable for generation). Configuration is either **runtime** (stored in `data/novel_meta.json`, edited in the UI) or **hard-coded** in source. This page lists every knob and where it lives.
 
 ## 1. Runtime configuration (UI → `data/novel_meta.json`)
@@ -62,6 +62,7 @@ World settings (`data/world_settings.json`) are content, not configuration, but 
 | Compressed character fallback | `personality[:80]` | `context_builder.py:59` |
 | Post-write chapter budget | whole chapter up to ~**5000 tokens** (estimate: ¼ per ASCII char, 1 per other char); longer chapters → opening 40 % + ending 60 % | `specialist.py:183` (`_chapter_excerpt`) |
 | Summary lengths requested | micro 15–20 words, short 80–100, full 180–220 | `specialist.py:227-229` |
+| Older versions kept per chapter | **5** (`KEEP`): keeping a 6th deletes the oldest; the id format is `YYYYMMDD-HHMMSS-ffffff` (`_ID_RE`) | `managers/version_manager.py` (plan 025, D-020) |
 
 ### 2.4 Model catalogue (shown in Settings)
 

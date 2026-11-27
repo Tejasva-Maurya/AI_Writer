@@ -197,3 +197,20 @@
 - **Consequences:**
   - A regeneration always costs one Approve click.
   - The UI now sends `chapter_number`. Plan 024 bounds it at ≥ 1 (KI-045), a new 422 on an existing route; read like D-015, the next release is MAJOR anyway (D-017).
+
+## D-020 — A regenerated chapter keeps the text it replaces: the newest 5 versions, to read, restore or delete
+- **Date:** 2026-11-27 · **Status:** Accepted · **Plan:** 025 (user choices: "Read, restore, delete", "Only the newest 5")
+- **Context:** Since plan 024 a saved chapter can be regenerated from the UI, but approving the new draft overwrote `data/chapters/NNN.json` for good (D-019 only asked first).
+- **Decision:**
+  - Step 7 (`finalize_chapter`) copies the existing chapter to `data/chapter_versions/{NNN}-{YYYYMMDD-HHMMSS-ffffff}.json` right before it saves a different text over it. A failed copy raises, so the old text is never replaced without its copy (the draft stays).
+  - Only the newest **5** versions per chapter are kept; a 6th deletes the oldest (`version_manager.KEEP`).
+  - The Full View lists them: **Read**, **↺ Restore** and **🗑 Delete**. A restore keeps the current text as a version in turn, so nothing is lost, and is refused (409) while an AI job runs. Profiles and `total_chapters` are not changed by a restore.
+  - A separate folder and manager (`version_manager`), so versions never count as chapters, aren't exported and aren't used as context.
+- **Alternatives considered:**
+  - read and delete only (bringing a version back would mean copying its text by hand)
+  - keep every version until deleted (unbounded growth for a frequent action)
+  - keep versions inside `data/chapters/` (every chapter listing and the export would have to filter them out)
+- **Consequences:**
+  - Up to 5 extra files per regenerated chapter; a 6th regeneration drops the oldest without asking (the approve confirmation says so).
+  - Four new routes under `/api/chapters/{n}/versions` (additive).
+  - A restore doesn't roll profiles back (as in plan 022).

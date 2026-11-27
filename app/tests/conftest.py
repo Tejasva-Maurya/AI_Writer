@@ -115,7 +115,7 @@ def real_data_untouched():
 def data_dir(tmp_path, monkeypatch):
     """Point every manager at an empty temp data folder (add new managers here)."""
     from managers import (chapter_manager, character_manager, draft_manager, novel_meta_manager, scene_manager,
-                          world_manager)
+                          version_manager, world_manager)
 
     root = tmp_path / "data"
     monkeypatch.setattr(character_manager, "_data_dir", lambda: root / "characters")
@@ -124,6 +124,7 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(world_manager, "_path", lambda: root / "world_settings.json")
     monkeypatch.setattr(novel_meta_manager, "_path", lambda: root / "novel_meta.json")
     monkeypatch.setattr(draft_manager, "_path", lambda: root / "draft.json")
+    monkeypatch.setattr(version_manager, "_data_dir", lambda: root / "chapter_versions")
     FAKE.reset()
     return root
 
