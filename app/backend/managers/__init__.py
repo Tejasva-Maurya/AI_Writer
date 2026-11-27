@@ -1,5 +1,6 @@
 # managers package — expose all sub-managers via relative imports
-from . import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager
+from . import (character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager,
+               version_manager)
 
 __all__ = [
     "character_manager",
@@ -8,4 +9,5 @@ __all__ = [
     "chapter_manager",
     "novel_meta_manager",
     "draft_manager",
+    "version_manager",
 ]

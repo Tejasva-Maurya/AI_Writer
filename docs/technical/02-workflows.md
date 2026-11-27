@@ -1,6 +1,6 @@
 # 02 — Workflows
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042; plan 022: regenerating an earlier chapter, KI-043/KI-044; plan 023: partial chapters kept; plan 024: W13 ⟳ Regenerate, W9, W11). **Last verified against code:** 2026-11-27.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions; plan 020: refine job guard, KI-042; plan 022: regenerating an earlier chapter, KI-043/KI-044; plan 023: partial chapters kept; plan 024: W13 ⟳ Regenerate, W9, W11; plan 025: W14 older versions, W9, W13). **Last verified against code:** 2026-11-27.
 > Line references (`file:line`) point to v1.0.0 and will drift as code changes. Re-verify before relying on them.
 
 This document describes every end-to-end flow in the application: what triggers it, which components take part, what data is read and written, and how failures behave.
@@ -20,6 +20,7 @@ This document describes every end-to-end flow in the application: what triggers 
 | W11 | [Draft review (edit, AI rewrite, approve, discard)](#w11--draft-review-edit-ai-rewrite-approve-discard) | A generation in review mode, a draft left from a previous visit |
 | W12 | [@-mentions in the plot box](#w12--mentions-in-the-plot-box) | Typing `@` in the plot textarea |
 | W13 | [Regenerate a saved chapter](#w13--regenerate-a-saved-chapter) | **⟳ Regenerate** (chapter header, Full View) |
+| W14 | [Older chapter versions (read, restore, delete)](#w14--older-chapter-versions-read-restore-delete) | **Older versions** in the Full View of a regenerated chapter |
 
 ---
 
@@ -333,6 +334,7 @@ Frontend `refineWorld()` (`app.js:1664-1696`) → `POST /api/refine/world` (`mai
 - **⛶ Full View** → `openChapterViewModal(ch)` (default: `state.currentChapter`; in draft mode the draft as it is in the editor). It formats `full_text` (or copies the output area's HTML right after a one-click generation, or fetches the chapter) and shows the featured character/scene **slugs** as tags.
 - **Prompt used** (plan 019): a collapsed box above the text shows the chapter's `plot_input` (hidden when empty). **↺ Use this prompt again** copies it into the plot box (asking first if the box holds other text), switches to Plot Writing and clears the @-tags.
 - **⟳ Regenerate** (plan 024): in the chapter header while a saved chapter is shown, and **⟳ Regenerate this chapter** in the Full View of a saved chapter (not of the draft). Both start W13.
+- **Older versions** (plan 025): for a saved chapter the Full View also loads `GET /api/chapters/{n}/versions` and lists the texts earlier regenerations replaced (hidden when there are none). See W14.
 
 ## W10 — Export
 
@@ -400,7 +402,24 @@ Plan 024, decision D-019 (`startRegeneration()` and helpers in `app.js`). The ba
    - An error or **✕ Cancel** before the draft exists keeps the mode, so you can retry.
 4. The draft opens (W11). `showDraft()` ends the mode, because the draft carries the number now. When its number is a saved chapter, the output title reads "New version: approving replaces the saved chapter" (unless the draft has a title), and the ready toast says "Approve to replace the saved chapter".
 5. **🗑 Discard** deletes only the draft: the saved chapter stays as it was.
-6. **✓ Approve & save** first asks "Approving replaces the saved Chapter *n* ("title") … can't be recovered. Replace it?". The same question appears for any draft whose number is a saved chapter, including one left from an earlier visit.
+6. **✓ Approve & save** first asks "Approving replaces the saved Chapter *n* ("title") with this draft. The current text is kept as an older version in its Full View (the newest 5 are kept). Replace it?" (plan 025; before, "… can't be recovered"). The same question appears for any draft whose number is a saved chapter, including one left from an earlier visit.
    - **Cancel** keeps the draft.
-   - **OK** runs step 7 (`finalize_chapter`), which overwrites `data/chapters/{n:03d}.json`. The chapter count stays the same (`total_chapters` uses `max`), and the profiles keep their later state (plan 022).
+   - **OK** runs step 7 (`finalize_chapter`). Right before it overwrites `data/chapters/{n:03d}.json`, it keeps the old chapter as an older version (W14); if that copy fails, it raises and the draft stays. The chapter count stays the same (`total_chapters` uses `max`), and the profiles keep their later state (plan 022).
+
+## W14 — Older chapter versions (read, restore, delete)
+
+Plan 025, decision D-020 (`version_manager`; `loadChapterVersions()` and helpers in `app.js`).
+
+1. **Kept on replace.** When step 7 saves a chapter whose number already exists and whose text differs (the approval of a regeneration, W13, or a one-click API regeneration), `finalize_chapter` first calls `version_manager.archive(old)`.
+   - It writes `data/chapter_versions/{n:03d}-{version_id}.json`: the old chapter plus `version_id` (`YYYYMMDD-HHMMSS-ffffff`, when it was replaced) and `replaced_at`. The write is exclusive (a taken id moves on by 1 µs), and only then is the chapter replaced.
+   - `prune(n)` then keeps the **newest 5** versions of that chapter; older ones are deleted (logged).
+   - The same text approved again (a retry after a late failure) is not kept twice.
+2. **Listed in the Full View** (W9) of a saved chapter: "Older versions (*k*)" with one row per version, "Replaced {date} · "title" · *N* words", and **Read**, **↺ Restore**, **🗑 Delete**. The list is `GET /api/chapters/{n}/versions` (newest first, without the text) and is built with `textContent`.
+3. **Read** → `GET /api/chapters/{n}/versions/{id}`, shown in the same modal with the badge "Chapter *n* · older version", no ⟳ Regenerate and no list. A notice "Older version, replaced {date}." offers **← Current version**, **↺ Restore** and **🗑 Delete**.
+4. **↺ Restore** → `confirm()`, then `POST /api/chapters/{n}/versions/{id}/restore`:
+   - **409** while any AI job runs (generation, approval, rewrite, refine), with the server's reason in a toast;
+   - otherwise the server keeps the current chapter as a version (without pruning), saves the version as the chapter, deletes the restored version's file, then prunes. A failed step loses no text, and the count stays the same.
+   - The UI reloads the chapter list, shows the restored text in the output section if that chapter is shown there (and no draft is open), and reopens the Full View on it. Profiles and `total_chapters` are not changed.
+5. **🗑 Delete** → `confirm()`, then `DELETE /api/chapters/{n}/versions/{id}`; the list refreshes, or the Full View goes back to the saved chapter if that version was being read. A deleted version can't be recovered.
+6. Versions are not exported (`/api/export` reads `data/chapters/` only) and never count as chapters.
 

@@ -20,7 +20,7 @@
 | Folder | Holds | Open it when you… |
 |---|---|---|
 | `app/` | The application: `backend/`, `frontend/`, `start.bat`, `requirements.txt` | change, fix, run or install the tool |
-| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`, and `draft.json` while a chapter waits for review (plan 019). Local only: git-ignored since plan 017 (D-014), so `git status` never shows it | inspect or back up novel content (**never modify without approval**, §5) |
+| `data/` | The user's novel: `characters/`, `scenes/`, `chapters/`, `novel_meta.json`, `world_settings.json`, `draft.json` while a chapter waits for review (plan 019), and `chapter_versions/` with the older versions of regenerated chapters (plan 025). Local only: git-ignored since plan 017 (D-014), so `git status` never shows it | inspect or back up novel content (**never modify without approval**, §5) |
 | `docs/` | Everything written *about* the tool: `user-guide.md`, `technical/01…09`, `CHANGELOG.md`, `ai/` (these rules, `plans/`, `memory/`, `templates/`) | read or update documentation, plans, the changelog or project memory |
 
 Root keeps only what tools require there: `.claude/` (Claude settings + hooks), `.github/` (CI workflow, a location GitHub requires; D-013), `CLAUDE.md` (loader), `AGENTS.md`, `README.md` (map), `.gitignore`. **Do not add new top-level folders or files.** New code goes under `app/`, new documentation under `docs/`. The app finds `data/` through `Path(__file__).resolve().parents[N] / "data"` in each manager (docs/technical/05 §1).

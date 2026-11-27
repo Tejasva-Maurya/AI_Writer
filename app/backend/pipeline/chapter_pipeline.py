@@ -14,7 +14,8 @@ from typing import AsyncGenerator, Callable, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import Chapter, Character, Draft, Scene, NovelMeta, as_int, as_str_list, as_text
-from managers import character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager, draft_manager
+from managers import (character_manager, scene_manager, world_manager, chapter_manager, novel_meta_manager,
+                      draft_manager, version_manager)
 from agents import specialist, writer
 from pipeline.context_builder import build_master_prompt
 
@@ -131,6 +132,12 @@ async def finalize_chapter(draft: Draft, spec_model: str) -> Tuple[Chapter, List
         word_count=len(full_text.split()),
         created_at=datetime.now().isoformat()
     )
+    # A regenerated chapter keeps the text it replaces as an older version (the newest 5; plan 025, D-020). A failed
+    # copy raises before the save, so the old text is never lost and the draft stays to approve again (KI-041).
+    # The same text again (a retry after a later failure) is not kept twice.
+    old = chapter_manager.get_chapter(chapter_number)
+    if old and old.full_text != full_text:
+        version_manager.archive(old)
     chapter_manager.save_chapter(chapter)
 
     # Update character profiles: each change is validated (and coerced) by the model before saving (KI-015/KI-016)

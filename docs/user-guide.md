@@ -160,7 +160,11 @@ The app is laid out for a desktop browser window. In a narrow window (below abou
 - **⟳ Regenerate** (in the chapter's header, or **⟳ Regenerate this chapter** in the Full View) writes a new version of a saved chapter:
   - Its prompt goes into the plot box and the button reads **Regenerate Chapter N**. Change the prompt if you like, then press it. **✕ New chapter instead** goes back to writing the next chapter.
   - The new version always opens as a draft, even if you turned draft review off. Your saved chapter stays as it is until you approve the draft, and **🗑 Discard** keeps it.
-  - **✓ Approve & save** asks before it replaces the saved chapter: the old text can't be recovered (export the novel first if you want to keep it)
+  - **✓ Approve & save** asks before it replaces the saved chapter. The old text is not lost: it is kept as an older version
+- **Older versions** (in a regenerated chapter's Full View) lists the texts it replaced, the newest 5:
+  - **Read** opens one; **← Current version** goes back to the saved chapter
+  - **↺ Restore** makes it the saved chapter again, and keeps the text it replaces as an older version, so nothing is lost. It waits while the AI is writing
+  - **🗑 Delete** removes it for good. A 6th regeneration deletes the oldest version automatically, and older versions are not included in an export
 
 ### Keyboard Shortcuts
 

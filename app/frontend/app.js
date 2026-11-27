@@ -942,7 +942,8 @@ async function approveDraft() {
   const number = state.draft.chapter_number;
   const saved = state.chapters.find(ch => ch.chapter_number === number);
   if (saved && !confirm(`Approving replaces the saved Chapter ${number}` + (saved.title ? ` ("${saved.title}")` : '') +
-      ' with this draft. The old text can\'t be recovered.\n\nReplace it?')) {
+      ' with this draft. The current text is kept as an older version in its Full View (the newest 5 are kept).' +
+      '\n\nReplace it?')) {
     return;
   }
   clearTimeout(_draftSaveTimer);
@@ -1543,14 +1544,23 @@ async function saveSettings() {
 function openChapterViewModal(ch = state.currentChapter) {
   if (!ch) return;
 
-  $('view-chapter-badge').textContent = `Chapter ${ch.chapter_number}`;
+  $('view-chapter-badge').textContent = ch.is_version ? `Chapter ${ch.chapter_number} · older version`
+                                                      : `Chapter ${ch.chapter_number}`;
   $('chapter-modal-title').textContent = ch.title || `Chapter ${ch.chapter_number}`;
   $('view-word-count').textContent = `${(ch.word_count || 0).toLocaleString()} words`;
 
-  // ⟳ Regenerate for a saved chapter, not for the draft (plan 024)
+  // ⟳ Regenerate for a saved chapter, not for the draft (plan 024) or an older version (plan 025)
+  const isSaved = !ch.is_draft && !ch.is_version && state.chapters.some(c => c.chapter_number === ch.chapter_number);
   const regenerateBtn = $('btn-view-regenerate');
-  regenerateBtn.hidden = !!ch.is_draft || !state.chapters.some(c => c.chapter_number === ch.chapter_number);
+  regenerateBtn.hidden = !isSaved;
   regenerateBtn.dataset.chapterNum = ch.chapter_number;
+
+  // Older versions (plan 025): the list for a saved chapter, the notice while one of them is read
+  _viewedInModal = { number: ch.chapter_number, versionId: ch.is_version ? ch.version_id : null };
+  $('view-version-notice').hidden = !ch.is_version;
+  if (ch.is_version) $('view-version-notice-text').textContent = `Older version, replaced ${formatDateTime(ch.replaced_at)}.`;
+  $('view-versions-box').hidden = true;
+  if (isSaved) loadChapterVersions(ch.chapter_number);
 
   // Featured characters & scenes
   const charTags = $('view-char-tags');
@@ -1615,6 +1625,105 @@ function reusePrompt() {
   state._mentions = [];
   DOM.plotInput.focus();
   showToast('Prompt copied into the plot box.', 'info');
+}
+
+// ─────────────────────────────────────────────
+// OLDER CHAPTER VERSIONS (plan 025)
+// ─────────────────────────────────────────────
+// The texts a regenerated chapter replaced (the newest 5 are kept): listed in the Full View, to read, restore or
+// delete (D-020)
+let _viewedInModal = null;  // what the Full View shows: { number, versionId } (versionId null = the saved chapter)
+
+const formatDateTime = (iso) => {
+  const date = new Date(iso);
+  return isNaN(date) ? (iso || 'at an unknown time') : date.toLocaleString();
+};
+
+async function loadChapterVersions(number) {
+  try {
+    const versions = await apiGet(`/chapters/${number}/versions`);  // newest first, without the text
+    // The Full View may show something else by now
+    if (!_viewedInModal || _viewedInModal.number !== number || _viewedInModal.versionId) return;
+    renderChapterVersions(number, versions);
+  } catch (e) {
+    console.warn('[NovelForge] Could not load the older versions:', e.message);
+  }
+}
+
+function renderChapterVersions(number, versions) {
+  const box = $('view-versions-box');
+  const list = $('view-versions-list');
+  list.innerHTML = '';
+  box.hidden = versions.length === 0;
+  $('view-versions-summary').textContent = `Older versions (${versions.length})`;
+  versions.forEach(version => {
+    const item = document.createElement('li');
+    item.className = 'chapter-version-item';
+    const meta = document.createElement('span');
+    meta.className = 'chapter-version-meta';
+    meta.textContent = `Replaced ${formatDateTime(version.replaced_at)} · "${version.title || `Chapter ${number}`}" · ` +
+                       `${(version.word_count || 0).toLocaleString()} words`;
+    item.appendChild(meta);
+    [['Read', openChapterVersion], ['↺ Restore', restoreChapterVersion], ['🗑 Delete', deleteChapterVersion]]
+      .forEach(([label, action]) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-small';
+        btn.textContent = label;
+        btn.addEventListener('click', () => action(number, version.version_id));
+        item.appendChild(btn);
+      });
+    list.appendChild(item);
+  });
+}
+
+async function openChapterVersion(number, versionId) {
+  try {
+    const version = await apiGet(`/chapters/${number}/versions/${versionId}`);
+    openChapterViewModal({ ...version, is_version: true });
+  } catch (e) {
+    showToast(`Could not open the older version: ${errorText(e)}`, 'error');
+  }
+}
+
+async function showSavedChapterInModal(number) {
+  try {
+    openChapterViewModal(await apiGet(`/chapters/${number}`));
+  } catch (e) {
+    closeModal('modal-chapter');
+    showToast(`Could not load Chapter ${number}: ${errorText(e)}`, 'error');
+  }
+}
+
+async function restoreChapterVersion(number, versionId) {
+  if (!confirm(`Restore this older version of Chapter ${number}? It becomes the saved chapter again, and the current ` +
+               'text is kept as an older version.')) return;
+  try {
+    const res = await apiPost(`/chapters/${number}/versions/${versionId}/restore`, {});
+    await loadChapters();
+    if (!state.draft && state.currentChapter && state.currentChapter.chapter_number === number) {
+      state.currentChapter = res.chapter;  // the output section shows this chapter: show the restored text there too
+      showChapterOutput(res.chapter);
+    }
+    openChapterViewModal(res.chapter);
+    showToast(`Chapter ${number} restored. The text it replaced is kept as an older version.`, 'success', 6000);
+  } catch (e) {
+    showToast(`Could not restore the older version: ${errorText(e)}`, 'error', 6000);  // e.g. 409 while the AI works
+  }
+}
+
+async function deleteChapterVersion(number, versionId) {
+  if (!confirm(`Delete this older version of Chapter ${number}? It can't be recovered.`)) return;
+  try {
+    await apiDelete(`/chapters/${number}/versions/${versionId}`);
+  } catch (e) {
+    if (e.status !== 404) {  // 404: already gone
+      showToast(`Could not delete the older version: ${errorText(e)}`, 'error');
+      return;
+    }
+  }
+  showToast('Older version deleted.', 'info');
+  if (_viewedInModal && _viewedInModal.versionId === versionId) await showSavedChapterInModal(number);
+  else loadChapterVersions(number);
 }
 
 // ─────────────────────────────────────────────
@@ -1860,6 +1969,17 @@ function bindStaticEvents() {
   $('btn-regenerate-stop').addEventListener('click', () => {
     stopRegeneration();
     showToast('Back to writing the next new chapter.', 'info');
+  });
+
+  // The notice while the Full View shows an older version (plan 025)
+  $('btn-version-current').addEventListener('click', () => {
+    if (_viewedInModal) showSavedChapterInModal(_viewedInModal.number);
+  });
+  $('btn-version-restore').addEventListener('click', () => {
+    if (_viewedInModal?.versionId) restoreChapterVersion(_viewedInModal.number, _viewedInModal.versionId);
+  });
+  $('btn-version-delete').addEventListener('click', () => {
+    if (_viewedInModal?.versionId) deleteChapterVersion(_viewedInModal.number, _viewedInModal.versionId);
   });
 
   // Draft review and @-mentions (plan 019)

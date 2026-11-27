@@ -1,11 +1,11 @@
 # 05 — Data Model & Storage
 
-> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019; §4 regenerated chapters: 2026-11-26, plan 022; §2 chapter overwrite note: 2026-11-27, plan 024).
+> **Applies to:** v2.0.0 + [Unreleased]. **Last verified against code:** 2026-11-22 (§1 path note and export rows: 2026-11-24, plan 015; atomicity and corruption rows: 2026-11-24, plan 016; §1 git note and §5: 2026-11-24, plan 017; `draft.json`, §2.5 `review_drafts`, §2.6, §4 tags: 2026-11-24, plan 019; §4 regenerated chapters: 2026-11-26, plan 022; §2 chapter overwrite note: 2026-11-27, plan 024; §1, §2.3 and §2.7 chapter versions: 2026-11-27, plan 025).
 > Schema source of truth: `app/backend/models.py`. Storage source of truth: `app/backend/managers/*.py`.
 
 ## 1. Storage layout
 
-All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these six lines must change together. (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database. `data/` is not in git since plan 017 (KI-030, §5).
+All data lives in `<repo>/data/`, **outside** the application folder `app/`. Each manager computes the path from its own `__file__` as `Path(__file__).resolve().parents[3] / "data" / …` (`app/backend/managers/x.py` → up 3 levels = repo root). The location therefore does not depend on the working directory. If you ever move `app/backend/` deeper or shallower, these seven lines must change together (`version_manager` since plan 025). (The export route also wrote here until plan 015; it now writes nothing, KI-017.) There is no database. `data/` is not in git since plan 017 (KI-030, §5).
 
 ```
 data/
@@ -15,13 +15,15 @@ data/
 ├── scenes/{slug}.json                  Scene, 1 per file     (scene_manager)
 ├── chapters/{NNN}.json                 Chapter, 1 per file   (chapter_manager; NNN = zero-padded to 3 digits)
 ├── draft.json                          Draft, only while a chapter waits for review (draft_manager, plan 019)
+├── chapter_versions/{NNN}-{id}.json    ChapterVersion: the text a regenerated chapter replaced, the newest 5 per chapter
+│                                       (version_manager, plan 025; id = YYYYMMDD-HHMMSS-ffffff)
 └── {Title_With_Underscores}.{txt|md}   left by exports of older versions (since plan 015 export writes nothing here)
 ```
 
 | Property | Behaviour |
 |---|---|
 | Encoding | UTF-8, `ensure_ascii=False` (non-Latin names are stored as-is), `indent=2` |
-| Directory creation | Lazy: `characters/`, `scenes/` and `chapters/` are created on first access. The root file's parent is created on save. |
+| Directory creation | Lazy: `characters/`, `scenes/` and `chapters/` are created on first access, `chapter_versions/` when the first chapter is replaced (plan 025). The root file's parent is created on save. |
 | Identity | Filename stem = `slug` (or chapter number). Renaming a character does **not** rename its file. Slugs must match `[\w-]+` (letters/digits of any script, `_`, `-`); anything else is refused before touching the disk. New slugs are always derived by the server (`make_slug`: lowercase, `_` separators), so new files are snake_case; older hyphenated files (e.g. `xiao-fan-scientist-inventor`) stay valid and are matched by the equivalence check (plan 007, KI-009/KI-010). |
 | Atomicity | Every write is atomic (plan 016, KI-026): `managers/storage.write_json` writes a temp file in the same folder, `fsync`s it, then `os.replace`s it into place, so a crash leaves the old file intact (before, `save` wrote in place). No locking. Creating a character or scene (`create`) uses an atomic exclusive move (`os.link`; an exclusive `open(…, "x")` where hard links aren't supported), so it never replaces an existing file (also on case-only differences on Windows); a taken slug is a 409 or a pipeline `warning` (KI-036, plan 004). |
 | Corruption handling | List operations skip unreadable/invalid files and log `WARNING Skipped unreadable <folder>/<file>: <error>` to the server console (plan 016; before, silently). Single-item reads raise (→ 500), except the draft: an unreadable `draft.json` is logged and treated as no draft, so it can't block every generation (plan 019). |
@@ -98,7 +100,7 @@ After each chapter, step 7 may update a **featured** scene's `significance` (sce
 |---|---|---|---|---|
 | `chapter_number` | int | **required** | pipeline | Filename, ordering, tiering |
 | `title` | str | "" | step 7 LLM (`chapter_title`, fallback `"Chapter N"`) | UI, export, prompt labels |
-| `plot_input` | str | "" | pipeline (the author's plot) | Not displayed anywhere |
+| `plot_input` | str | "" | pipeline (the author's plot) | Full View **Prompt used** and reuse (plan 019), ⟳ Regenerate (plan 024) |
 | `full_text` | str | "" | step 6 (concatenated tokens) | Reader, export, `full_text` tier (last 400 words) |
 | `micro_summary` | str | "" | step 7 (15–20 words requested) | `micro` tier |
 | `short_summary` | str | "" | step 7 (80–100 words) | `short` tier |
@@ -108,7 +110,7 @@ After each chapter, step 7 may update a **featured** scene's `significance` (sce
 | `word_count` | int | 0 | `len(full_text.split())` | UI, toasts |
 | `created_at` | ISO str | "" | `datetime.now().isoformat()` (local time, no TZ) | Not displayed |
 
-Chapters cannot be edited or deleted through the API or UI. Regenerating one overwrites its file: through the API with an existing `chapter_number`, or in the UI with **⟳ Regenerate**, which always goes through a draft, so the file is replaced only when that draft is approved (plan 024). Numbers below 1 are rejected (422, KI-045).
+Chapters cannot be edited or deleted through the API or UI. Regenerating one overwrites its file: through the API with an existing `chapter_number`, or in the UI with **⟳ Regenerate**, which always goes through a draft, so the file is replaced only when that draft is approved (plan 024). Numbers below 1 are rejected (422, KI-045). The text it replaces is kept as an older version (§2.7, plan 025).
 
 ### 2.4 WorldSettings — `data/world_settings.json`
 
@@ -152,6 +154,18 @@ A written chapter that waits for review: at most one, written by the pipeline ri
 | `created_at` / `updated_at` | str | "" | ISO timestamps |
 
 A draft is not a chapter: it isn't listed, exported or used as context until it is approved. While it exists, a new generation is refused (409).
+
+### 2.7 ChapterVersion — `data/chapter_versions/{NNN}-{version_id}.json` (plan 025)
+
+The text a chapter had before a regeneration replaced it. Step 7 writes it right before it saves a chapter over an existing one with a different text; a failed write stops the save, so the old text is never lost (the draft stays). Only the **newest 5** per chapter are kept (`version_manager.KEEP`); writing a 6th deletes the oldest (logged).
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| every `Chapter` field (§2.3) | | | As the chapter was when it was replaced, including its summaries and `created_at` |
+| `version_id` | str | "" | `YYYYMMDD-HHMMSS-ffffff`: when it was replaced; also the file name after `{NNN}-`. Sorts chronologically |
+| `replaced_at` | ISO str | "" | The same moment as an ISO timestamp (local time, no TZ) |
+
+Versions are read, deleted and restored through `/api/chapters/{n}/versions…` ([04](04-api-reference.md#chapter-versions-plan-025)). Restoring one saves it back as chapter *n* (without `version_id`/`replaced_at`) and keeps the text it replaces as a new version. Versions are not chapters: they aren't listed with the chapters, exported or used as context. Deleting a chapter file by hand leaves its versions in place.
 
 ## 3. Relationships between entities
 
