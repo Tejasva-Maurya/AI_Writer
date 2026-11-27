@@ -1,20 +1,20 @@
 # 09 — Known Issues & Technical Debt
 
 > **Baseline:** v1.0.0, analysed 2026-11-22 by reading every source file. Items marked **Verified ✔** were also checked by execution (Pydantic validation against the real models, import test, sandbox runs).
-> **Statuses are kept current.** Last updated 2026-11-26, through plan 022. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
+> **Statuses are kept current.** Last updated 2026-11-27, through plan 024. The Summary splits **Open** from **Fixed**; fixed issues also carry **✅ Fixed** in their details heading.
 > **IDs are permanent.** Reference them in plans (`docs/ai/plans/`), commits and CHANGELOG entries, e.g. "Fixed: KI-001". When an issue is fixed, move its row to the **Fixed** table, set **Status** to `Fixed in Unreleased [plan NNN]` (renamed to `Fixed in vX.Y.Z` at release), and add `· ✅ Fixed …` to its details heading. Never delete a row or a details section.
 
 Severity: **High** = broken feature or data loss · **Medium** = wrong behaviour, a risk, or a significant limitation · **Low** = cosmetic, dead code, or minor.
 
 ## Summary
 
-**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 4 fixed in Unreleased (KI-041 to KI-044).
+**At a glance:** 0 open · 40 fixed in v2.0.0 (KI-001 to KI-040) · 5 fixed in Unreleased (KI-041 to KI-045).
 
 ### Open (0)
 
-None. A new defect gets the next ID, KI-045.
+None. A new defect gets the next ID, KI-046.
 
-### Fixed (44)
+### Fixed (45)
 
 Kept for history (IDs are permanent). The titles describe the defect as it was.
 
@@ -64,6 +64,7 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
 | KI-042 | Medium | Pipeline/Backend | Profile and world edits saved while step 7 or a world refine runs are overwritten (a deleted profile is written back) ✔ | Fixed in Unreleased [plan 020] |
 | KI-043 | Medium | Pipeline | Regenerating an earlier chapter lists the later chapters (and the old version) in "STORY SO FAR" ✔ | Fixed in Unreleased [plan 022] |
 | KI-044 | Medium | Pipeline | Regenerating an earlier chapter rolls profiles back (last seen, arc notes, level, relationships, location significance) ✔ | Fixed in Unreleased [plan 022] |
+| KI-045 | Low | Backend | `POST /api/generate-chapter` accepts `chapter_number` 0 or below: `-1` is saved as `chapters/-01.json` ✔ | Fixed in Unreleased [plan 024] |
 
 ---
 
@@ -424,3 +425,14 @@ Kept for history (IDs are permanent). The titles describe the defect as it was.
   - After regenerating chapter 3 of 10, a character last seen in chapter 10 showed "Ch. 1 — 3", and their level and arc were back at chapter 3's.
   - Found 2026-11-26 [plan 022] while fixing KI-043.
 - **Fix:** never move `last_seen` backwards; take state updates only from the newest chapter.
+
+### KI-045 — `chapter_number` below 1 is accepted and saved as a stray chapter file · Low · Verified ✔ · ✅ Fixed in Unreleased (plan 024)
+- **Status: Fixed in Unreleased [plan 024].**
+  - `GenerateChapterRequest.chapter_number` is `Field(default=None, ge=1)`, so 0 or a negative number gets **422** and nothing runs.
+  - Tested in `test_regenerate.py`: `test_chapter_number_below_one_is_rejected[0]` and `[-1]`. Both failed on the old code (200, and a chapter file was written).
+  - The evidence below describes the code before plan 024.
+- **Evidence:**
+  - `chapter_number: Optional[int] = None` had no lower bound (`models.py:169`), and `generate_chapter` used `req.chapter_number or chapter_manager.get_next_number()` (`main.py:219`).
+  - `-1` passed through and `save_chapter` wrote `data/chapters/-01.json` (`f"{n:03d}"`). The next "highest + 1" was then 0, so a following `chapter_number: 0` (or none) wrote `000.json`. Seen in a test run on 2026-11-27.
+  - API only: the UI never sends a number below 1. Found 2026-11-27 [plan 024] while reading the regeneration path for the new ⟳ Regenerate button.
+- **Fix:** reject numbers below 1 at the request model.

@@ -163,6 +163,12 @@
             <div class="mention-list" id="mention-list" role="listbox" aria-label="Characters and locations" hidden></div>
           </div>
 
+          <!-- ⟳ Regenerate (plan 024): the plot box writes a new version of a saved chapter, as a draft -->
+          <div class="regenerate-notice" id="regenerate-notice" role="status" hidden>
+            <span class="regenerate-notice-text" id="regenerate-notice-text"></span>
+            <button class="btn-small" id="btn-regenerate-stop" title="Stop regenerating: the plot box writes the next new chapter again">✕ New chapter instead</button>
+          </div>
+
           <div class="generate-row">
             <button class="btn-generate" id="btn-generate" aria-label="Generate chapter">
               <span class="generate-icon">▶</span>
@@ -446,6 +452,7 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
               <span id="word-count-num">0</span> words
             </span>
             <button class="btn-small" id="btn-view-full" title="View full chapter" aria-label="View full chapter in modal">⛶ Full View</button>
+            <button class="btn-small" id="btn-regenerate-chapter" title="Write a new version of this chapter. It opens as a draft; the saved chapter stays until you approve it" hidden>⟳ Regenerate</button>
           </div>
         </div>
 
@@ -815,6 +822,7 @@ Example: 'There are 9 cultivation realms: Body Tempering, Qi Condensation, Found
         </div>
         <div class="chapter-view-meta">
           <span class="stat-badge" id="view-word-count">0 words</span>
+          <button class="btn-small" id="btn-view-regenerate" title="Write a new version of this chapter. It opens as a draft; the saved chapter stays until you approve it" hidden>⟳ Regenerate this chapter</button>
           <button class="modal-close" data-modal="modal-chapter" aria-label="Close chapter view">✕</button>
         </div>
       </div>

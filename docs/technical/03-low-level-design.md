@@ -1,6 +1,6 @@
 # 03 — Low-Level Design (LLD)
 
-> **Applies to:** v2.0.0 + [Unreleased] (plans 019–023). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plans 019–024). **Last verified against code:** 2026-11-24 (§2.1 `GenerateChapterRequest` and §4 regenerate mode: 2026-11-27, plan 024).
 > Function signatures are copied from the source. Line numbers are v1.0.0 and drift over time; search by function name.
 
 Contents
@@ -40,7 +40,7 @@ Contents
 | `Chapter` | `chapter_number: int` (req), `title=""`, `plot_input=""`, `full_text=""`, `micro_summary=""`, `short_summary=""`, `full_summary=""`, `characters_featured: List[str]=[]` (slugs), `scenes_featured: List[str]=[]` (slugs), `word_count: int=0`, `created_at=""` (ISO string) | |
 | `NovelMeta` | `title="Untitled Novel"`, `genre=""`, `author=""`, `total_chapters: int=0`, `writer_model="gemma3:12b"`, `specialist_model="phi4-mini:3.8b"`, `created_at=""`, `review_drafts: bool=True` | `created_at` is never set by any code path. `review_drafts` (plan 019) is the UI's "Review each chapter as a draft" setting; the UI sends it as `review` with each generation. |
 | `Draft` | `chapter_number: int` (req), `plot_input=""`, `full_text=""`, `title=""`, `characters_featured: List[str]=[]`, `scenes_featured: List[str]=[]`, `new_characters: List[str]=[]`, `new_scenes: List[str]=[]` (slugs step 3 created), `created_at=""`, `updated_at=""` | The chapter waiting for review, `data/draft.json` (plan 019). `title` empty = the specialist suggests one at approval. |
-| `GenerateChapterRequest` | `plot: str`, `chapter_number: Optional[int]=None`, `review: bool=False`, `tagged_characters: List[str]=[]`, `tagged_scenes: List[str]=[]` | `review` stops after step 6 with a draft; the tags are slugs picked with `@` (plan 019). |
+| `GenerateChapterRequest` | `plot: str`, `chapter_number: Optional[int]=Field(None, ge=1)`, `review: bool=False`, `tagged_characters: List[str]=[]`, `tagged_scenes: List[str]=[]` | `review` stops after step 6 with a draft; the tags are slugs picked with `@` (plan 019). An existing `chapter_number` regenerates that chapter; below 1 is a 422 (plan 024, KI-045: before, `-1` was saved as `chapters/-01.json`). |
 | `UpdateDraftRequest` | `full_text: str`, `title=""` | `PUT /api/draft` (plan 019). |
 | `RewriteRequest` | `before=""`, `passage: str`, `after=""`, `instruction: str` | `POST /api/draft/rewrite`. Text pieces, not offsets: JS selection offsets count UTF-16 units, Python indexes code points (plan 019). |
 | `ApproveDraftRequest` | `full_text: Optional[str]=None`, `title: Optional[str]=None` | `POST /api/draft/approve`; `None` keeps the saved value (plan 019). |
@@ -239,7 +239,7 @@ Writer prompts (plain text, not JSON):
 
 | File | Structure |
 |---|---|
-| `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, the plot panel holding the `#mention-list` listbox for @-mentions, pipeline panel with 7 steps, output panel with the reading area `#output-body` and the draft panel `#draft-panel` (editor, rewrite row, selection hint, title, Discard, Approve; plan 019), multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings` (with the **Review each chapter as a draft** checkbox), `modal-chapter` (with the **Prompt used** `<details>`), `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
+| `index.html` | `<header>` (brand, inline-editable title, chapter badge, Settings, Export dropdown) → `<main class="app-layout">` with: left `<aside>` **CHARACTERS** (Main Cast / Supporting lists), center `<section>` (4 **mode tabs** + 4 mode panels, the plot panel holding the `#mention-list` listbox for @-mentions and the `#regenerate-notice` (plan 024), pipeline panel with 7 steps, output panel with **⟳ Regenerate** `#btn-regenerate-chapter` next to Full View (plan 024), the reading area `#output-body` and the draft panel `#draft-panel` (editor, rewrite row, selection hint, title, Discard, Approve; plan 019), multi-chapter notice, history bar), right `<aside>` **LOCATIONS** (+ New Location, World Settings). Six modals: `modal-character`, `modal-scene`, `modal-world`, `modal-settings` (with the **Review each chapter as a draft** checkbox), `modal-chapter` (with the **Prompt used** `<details>` and **⟳ Regenerate this chapter** `#btn-view-regenerate`, plan 024), `modal-profile`. Toast container. Script `app.js` loaded at end of body (no `defer`/module). |
 | `app.js` | One global script, no modules. Sections in order: state → DOM cache → init → API helpers → loaders/renderers (meta, characters, scenes, world, chapters) → chapter view → `generateChapter` → **draft review** (plan 019) → SSE parser → pipeline UI → character modal → scene modal → world modal → settings modal → chapter view modal → export → modal system → tag input → relationship editor → title edit → toasts → `escHtml` → static bindings → keyboard shortcuts → connection check → boot → **mode switcher** → world snapshot → existing-entity dropdowns → refine (char/scene/world) → **model browser** → second `DOMContentLoaded` → **@-mentions** (plan 019). The part from "mode switcher" on was evidently appended later; it is a separate binding block. |
 | `fonts/` | `fonts.css` (27 `@font-face` rules for Cinzel, Crimson Pro and JetBrains Mono, all subsets, `src` under `/static/fonts/`), the 14 woff2 files they point to, and the three SIL OFL licences. Linked first in `index.html`; served by the `/static` mount. Regeneration steps are in the `fonts.css` header (plan 014, KI-034). |
 | `style.css` | Sections: fonts (a pointer to `fonts/fonts.css`; the Google `@import` was removed in plan 014), `:root` tokens, reset, scrollbar, selection, animated background orbs, glass panel, header, app layout, sidebars, cards, center panel, pipeline, output, history bar, modals, form elements, tag input, toasts, animations (16 `@keyframes`), error/loading states, utilities, mode tabs, build panels, world snapshot, model browser, responsive layout. The responsive section (plan 017, KI-035) holds the only `@media` queries, at 1200, 900 and 600 px (§4.7). |
@@ -251,6 +251,7 @@ state = {
   characters: [], scenes: [], world: {}, chapters: [], novelMeta: {},
   currentChapter: null,      // full Chapter from GET /chapters/{n} or approval, or {chapter_number,title,word_count,characters_featured,scenes_featured,plot_input} after a one-click generation
   draft: null,               // the Draft waiting for review (GET /api/draft), null when none (plan 019)
+  regenerate: null,          // {chapter_number, title} while the plot box writes a new version of a saved chapter (plan 024)
   isGenerating: false,       // this tab's lock; the server also allows only one generation (409, plan 010)
   activeModal: null,         // id of the open modal overlay
   _mentions: [],             // entities picked with @ in the plot box: {kind: 'character'|'scene', slug, name} (plan 019)
@@ -288,7 +289,8 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Character | `openCharacterModal(slug?)`, `saveCharacter` (create sends `slug: ''` and the server derives it; edit sends `{...existing, ...form}` so the fields the modal doesn't show are kept), `deleteCharacter`, `viewCharacterProfile` |
 | Scene | `openSceneModal(slug?)`, `saveScene` (same payload rules as `saveCharacter`), `deleteScene`, `viewSceneProfile` |
 | World / settings | `openWorldModal`, `saveWorld`, `openSettingsModal` (fills the model selects from `state.novelMeta`, then `loadModels()` → `populateModelSelects` + `renderModelBrowser`), `saveSettings` (sends `{...state.novelMeta, …form}`; an empty select keeps the stored model), `renderWorldSnapshot` (⚠ unescaped `innerHTML`) |
-| Chapter modal | `openChapterViewModal(ch = state.currentChapter)` (a draft or a history chapter can be passed; fills the **Prompt used** box from `plot_input`), `reusePrompt` (plan 019) |
+| Chapter modal | `openChapterViewModal(ch = state.currentChapter)` (a draft or a history chapter can be passed; fills the **Prompt used** box from `plot_input`; shows **⟳ Regenerate this chapter** for a saved chapter, not for `draftAsChapter()`'s `is_draft`), `reusePrompt` (plan 019) |
+| Regenerate (plan 024, W13) | `startRegeneration(n)` (prompt of saved chapter *n* into the plot box, `state.regenerate`), `stopRegeneration`, `updateRegenerateUi` (notice, Generate label, hint), `generateLabel`, `replacesSavedChapter(draft)`, `draftHeading(draft)` (the output title of a draft that replaces a saved chapter). `generateChapter` sends `chapter_number` and `review: true` in this mode; `showDraft` ends it; `approveDraft` asks before replacing a saved chapter |
 | Export | `exportNovel(format)` |
 | Modal system | `openModal(id)` (closes any other open modal, locks body scroll, focuses the first input), `closeModal(id)` |
 | Components | `initTagInput(inputId, displayId, initialTags, stateKey)` (Enter or `,` adds a tag, Backspace on empty input removes the last; the input is cloned to drop old listeners), `renderTags`, `renderRelationships` |
@@ -313,6 +315,7 @@ Constant `API = '/api'` (`app.js:6`): same origin as the page, so it works wheth
 | Typing in `#draft-editor` / `#draft-title` | `bindDraftEvents` | Autosave after 1 s; `pagehide` sends a pending change with `keepalive` |
 | `#btn-draft-undo`, `#btn-draft-discard`, `#btn-draft-approve` | `bindDraftEvents` | `undoRewrite`, `discardDraft`, `approveDraft` |
 | `#btn-view-full`, `#btn-reuse-prompt` | `bindStaticEvents` | Full View of the chapter or the draft; `reusePrompt` |
+| `#btn-regenerate-chapter`, `#btn-view-regenerate`, `#btn-regenerate-stop` | `bindStaticEvents` | `startRegeneration` for the shown / viewed chapter; `stopRegeneration` (plan 024) |
 
 ### 4.6 Streaming paragraph algorithm (`token` handler, `app.js:491-527`)
 
@@ -358,7 +361,7 @@ Colour semantics: **purple = characters, gold = locations, mint = world**.
 - **Logged:** skipped data files, pipeline warnings and errors (with tracebacks), specialist replies without JSON, failed model pulls and cancelled generations.
 - **Other diagnostics:** uvicorn's access log, SSE `error.detail` and the browser console.
 
-**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020), regenerating an earlier chapter (`test_regenerate.py`, plan 022), chapters stopped halfway (`test_partial.py`, plan 023: the fake stream can raise or block, `conftest.BLOCK`) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
+**Tests** (plan 016): `app/tests/` (pytest) covers the API, storage, the pipeline with a fake `ollama`, the draft routes (`test_draft.py`, plan 019), the refine routes and the job guard (`test_refine.py`, plan 020), regenerating an earlier chapter (`test_regenerate.py`, plan 022; chapter numbers below 1, plan 024, KI-045), chapters stopped halfway (`test_partial.py`, plan 023: the fake stream can raise or block, `conftest.BLOCK`) and the pure helpers. The fixtures redirect every manager to a temp folder and fail the run if the real `data/` changes, including a file created and deleted again during the run (folder mtimes, plan 019). Run it with `py -m pytest app/tests`, and lint with `py -m ruff check app` (07 §7).
 
 ## 6. Dead / unused code
 

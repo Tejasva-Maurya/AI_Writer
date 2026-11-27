@@ -1,6 +1,9 @@
 """Regenerating an earlier chapter (API chapter_number with later chapters on disk): the writer's prompt keeps later
-chapters out of the past, and step 7 doesn't roll the profiles back (plan 022, KI-043, KI-044)."""
+chapters out of the past, and step 7 doesn't roll the profiles back (plan 022, KI-043, KI-044). The UI's
+⟳ Regenerate sends the same request (plan 024); chapter numbers start at 1 (KI-045)."""
 import json
+
+import pytest
 
 from managers import chapter_manager, character_manager, draft_manager, scene_manager
 from models import Chapter, Character, Draft, Scene, WorldSettings
@@ -106,3 +109,12 @@ def test_last_seen_never_moves_backwards(client, fake_ollama):
     fake_ollama.json_replies = [{"chapter_title": "Zz"}]
     assert client.post("/api/draft/approve", json={}).status_code == 200
     assert character_manager.get_by_slug("zz_side").last_seen_chapter == 4
+
+
+# ── Chapter numbers (KI-045) ───────────────────────────────────
+@pytest.mark.parametrize("number", [0, -1])
+def test_chapter_number_below_one_is_rejected(client, data_dir, number):
+    r = client.post("/api/generate-chapter", json={"plot": "zz", "chapter_number": number})
+    assert r.status_code == 422
+    assert not any((data_dir / "chapters").glob("*.json"))  # before: -1 was saved as chapters/-01.json, 0 meant "next"
+    assert draft_manager.load() is None

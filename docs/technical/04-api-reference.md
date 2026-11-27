@@ -1,6 +1,6 @@
 # 04 — API Reference
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter; plan 023: partial chapters). **Last verified against code:** 2026-11-24.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft routes, generate fields; plan 020: refine 409s; plan 021: `/static` row; plan 022: regenerating an earlier chapter; plan 023: partial chapters; plan 024: `chapter_number` from the UI, ≥ 1). **Last verified against code:** 2026-11-27.
 > Base URL: `http://127.0.0.1:8000`. All `/api/*` bodies are JSON unless marked **SSE**. No authentication. **Same-origin only**: there is no CORS, so browsers block calls from other websites, and the `Host` header must be `127.0.0.1` or `localhost` (otherwise **400**). Scripts and curl on this machine are unaffected (plan 007, KI-010).
 > FastAPI's auto-generated docs are also available while the server runs: **`/docs`** (Swagger UI) and **`/redoc`**. They are authoritative for request schemas.
 
@@ -116,13 +116,13 @@ Body:
  "review": true, "tagged_characters": ["xiao_fan"], "tagged_scenes": ["azure_cave"]}
 ```
 Only `plot` is required. Optional fields:
-- `chapter_number` (default: highest existing + 1). Passing an existing number **overwrites** that chapter (regeneration; the UI never sends it). Since plan 022, when chapters after it exist:
+- `chapter_number` (default: highest existing + 1; must be **≥ 1**, else **422**, plan 024, KI-045). Passing an existing number **overwrites** that chapter (regeneration). The UI sends it only from **⟳ Regenerate**, always together with `review: true`, so the old chapter is replaced only when the draft is approved (plan 024, D-019). Since plan 022, when chapters after it exist:
   - the writer's prompt leaves out the old version and lists the later chapters in their own "LATER IN THE STORY" section, not in "STORY SO FAR" (KI-043);
   - step 7 keeps the later state of the profiles (arc notes, levels, relationships, location significance) and never lowers `last_seen_chapter`; it only adds new abilities and sends a `warning` saying so (KI-044).
 - `review` (default `false`, plan 019): stop after step 6, keep the chapter as the draft `data/draft.json`, and end with `draft_complete` instead of running step 7. Approve it with `POST /api/draft/approve`. Without `review` the pipeline runs to `complete` as before, but it also saves the draft after step 6 and deletes it in step 7. So if step 7 fails, the chapter is kept as a draft and the stream ends with `error` + `draft_saved: true` (KI-041).
 - `tagged_characters` / `tagged_scenes` (default `[]`, plan 019): slugs the author picked with `@`. Each one that exists is treated as an existing primary character / main location in step 2, so the writer gets its full profile. Unknown slugs are ignored.
 
-**One LLM job at a time** (plan 010, KI-031; plans 019 and 020): while a generation, a draft approval, a rewrite or a Build-tab refine runs, a request gets **409** (`A chapter is already being generated. Wait for it to finish or cancel it.`, or the approval/rewrite/refine message). The guard for generations is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too, and nothing is saved unless step 6 finished (draft) or step 7 ran (chapter).
+**One LLM job at a time** (plan 010, KI-031; plans 019 and 020): while a generation, a draft approval, a rewrite or a Build-tab refine runs, a request gets **409** (`A chapter is already being generated. Wait for it to finish or cancel it.`, or the approval/rewrite/refine message). The guard for generations is the running pipeline task itself, so it is released as soon as the generation completes, fails or is cancelled. If the client disconnects (tab closed, curl aborted), the generation is cancelled too. Since plan 023, text written in step 6 is kept as the draft, while an explicit cancel (below) discards it; before step 6 nothing is saved.
 
 **One draft at a time** (plan 019): while `data/draft.json` exists, a request gets **409** `A draft of chapter N is waiting for review. Approve or discard it first.`
 

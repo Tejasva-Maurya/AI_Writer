@@ -16,6 +16,7 @@ const state = {
   novelMeta: {},
   currentChapter: null,
   draft: null,         // the chapter draft waiting for review (GET /api/draft), plan 019
+  regenerate: null,    // the saved chapter the plot box writes a new version of: { chapter_number, title }, plan 024
   isGenerating: false,
   activeModal: null,
   _mentions: [],       // entities picked with @ in the plot box: { kind, slug, name }
@@ -73,6 +74,8 @@ const DOM = {
   plotInput:         $('plot-input'),
   btnGenerate:       $('btn-generate'),
   btnCancelGenerate: $('btn-cancel-generate'),
+  regenerateNotice:  $('regenerate-notice'),
+  regenerateNoticeText: $('regenerate-notice-text'),
 
   // Center - Pipeline
   pipelineSection:   $('pipeline-section'),
@@ -88,6 +91,7 @@ const DOM = {
   chapterTextArea:   $('chapter-text-area'),
   textCursor:        $('text-cursor'),
   btnViewFull:       $('btn-view-full'),
+  btnRegenerateChapter: $('btn-regenerate-chapter'),
   multiChapterNotice:$('multi-chapter-notice'),
   multiChapterMessage:$('multi-chapter-message'),
 
@@ -351,6 +355,8 @@ async function loadChapters() {
     state.chapters = await apiGet('/chapters');
     renderChapterHistory();
     updateChapterHint();
+    // Whether the open draft replaces a saved chapter may have changed
+    if (state.draft) DOM.outputChapterTitle.textContent = draftHeading(state.draft, DOM.draftTitle.value.trim());
   } catch (e) {
     console.warn('[NovelForge] Could not load chapters:', e.message);
     state.chapters = [];
@@ -396,12 +402,67 @@ function nextChapterNumber() {
 }
 
 function updateChapterHint() {
-  const nextNum = nextChapterNumber();
-  DOM.chapterNumLabel.textContent = `CHAPTER ${nextNum}`;
+  const regen = state.regenerate;
+  const num = regen ? regen.chapter_number : nextChapterNumber();
+  DOM.chapterNumLabel.textContent = `CHAPTER ${num}`;
   DOM.nextChapterHint.textContent = state.draft
     ? `Draft of Chapter ${state.draft.chapter_number} is waiting for review`
-    : `Will generate Chapter ${nextNum}`;
+    : regen ? `Will regenerate Chapter ${num} as a draft` : `Will generate Chapter ${num}`;
 }
+
+const generateLabel = () => state.regenerate ? `Regenerate Chapter ${state.regenerate.chapter_number}` : 'Generate Chapter';
+
+// ─────────────────────────────────────────────
+// REGENERATE A SAVED CHAPTER (plan 024)
+// ─────────────────────────────────────────────
+// The chapter's prompt goes into the plot box, and Generate writes a new version of it. That version always opens as a
+// draft, so the saved chapter stays as it is until the draft is approved, and Discard keeps it (D-019).
+function startRegeneration(number) {
+  const chapter = state.chapters.find(ch => ch.chapter_number === number);
+  if (!chapter) return;
+  if (state.isGenerating) {
+    showToast('Wait until the running generation has finished.', 'error');
+    return;
+  }
+  const prompt = (chapter.plot_input || '').trim();
+  const current = DOM.plotInput.value.trim();
+  if (prompt && current && current !== prompt &&
+      !confirm(`Replace the text in the plot box with the prompt of Chapter ${number}?`)) return;
+  if (state.activeModal === 'modal-chapter') closeModal('modal-chapter');
+  switchMode('plot');
+  if (prompt) {  // a chapter without a saved prompt keeps what the plot box holds
+    DOM.plotInput.value = prompt;
+    state._mentions = [];
+  }
+  state.regenerate = { chapter_number: number, title: chapter.title || '' };
+  updateRegenerateUi();
+  DOM.plotInput.focus();
+  showToast(prompt ? `Change the prompt if you like, then press Regenerate Chapter ${number}.`
+                   : `Describe what the new Chapter ${number} should tell, then press Regenerate Chapter ${number}.`, 'info', 6000);
+}
+
+function stopRegeneration() {
+  if (!state.regenerate) return;
+  state.regenerate = null;
+  updateRegenerateUi();
+}
+
+function updateRegenerateUi() {
+  const regen = state.regenerate;
+  DOM.regenerateNotice.hidden = !regen;
+  if (regen) {
+    DOM.regenerateNoticeText.textContent = `⟳ Regenerating Chapter ${regen.chapter_number}` +
+      (regen.title ? ` · "${regen.title}"` : '') + '. The saved chapter stays until you approve the new draft.';
+  }
+  if (!state.isGenerating) DOM.btnGenerate.querySelector('.generate-text').textContent = generateLabel();
+  updateChapterHint();
+}
+
+// Approving a draft whose number is a saved chapter replaces that chapter
+const replacesSavedChapter = (draft) => state.chapters.some(ch => ch.chapter_number === draft.chapter_number);
+// The output title of a draft: its own title, else what approving it does
+const draftHeading = (draft, title = draft.title) => title ||
+  (replacesSavedChapter(draft) ? 'New version: approving replaces the saved chapter' : 'Review, edit, then approve');
 
 // ─────────────────────────────────────────────
 // VIEW CHAPTER
@@ -443,6 +504,7 @@ function showChapterOutput(chapter) {
     formatChapterText(DOM.chapterTextArea, chapter.full_text);
   }
   DOM.textCursor.hidden = true;
+  DOM.btnRegenerateChapter.hidden = false;  // a saved chapter is shown (plan 024)
 
   DOM.outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -469,9 +531,11 @@ async function generateChapter() {
     return;
   }
   if (state.isGenerating) return;
+  const regen = state.regenerate;  // a new version of a saved chapter (plan 024)
   // One draft at a time: a new chapter needs the waiting draft approved or discarded first (plan 019)
   if (state.draft && !(await discardDraft(
-    `A draft of Chapter ${state.draft.chapter_number} is waiting for review.\n\nDiscard it and generate a new chapter?`))) {
+    `A draft of Chapter ${state.draft.chapter_number} is waiting for review.\n\n` +
+    (regen ? `Discard it and regenerate Chapter ${regen.chapter_number}?` : 'Discard it and generate a new chapter?')))) {
     return;
   }
 
@@ -479,6 +543,7 @@ async function generateChapter() {
   DOM.btnGenerate.disabled = true;
   DOM.btnGenerate.querySelector('.generate-text').textContent = 'Generating...';
   DOM.btnCancelGenerate.hidden = false;
+  DOM.btnRegenerateChapter.hidden = true;
 
   // Reset & show pipeline
   resetPipeline();
@@ -488,10 +553,13 @@ async function generateChapter() {
   DOM.multiChapterNotice.hidden = true;
   DOM.newEntities.innerHTML = '';
 
-  // The backend numbers the chapter (highest on disk + 1), so nothing is overwritten. This number is for display only.
-  const chapterNumber = nextChapterNumber();
+  // A new chapter is numbered by the backend (highest on disk + 1), so this number is for display only; a regeneration
+  // sends the number of the chapter it rewrites
+  const chapterNumber = regen ? regen.chapter_number : nextChapterNumber();
   // review: stop after writing and open the chapter as a draft. Tags: the @-picked entities still named in the plot
   const body = { plot, review: state.novelMeta.review_drafts !== false, ...taggedEntities(plot) };
+  // A regeneration is always a draft, whatever the setting: the saved chapter stays until it is approved (D-019)
+  if (regen) Object.assign(body, { chapter_number: regen.chapter_number, review: true });
 
   let streamedText = '';
   let currentParagraph = null;
@@ -590,7 +658,8 @@ async function generateChapter() {
           new_characters: data.new_characters || [],
           new_scenes: data.new_scenes || [],
         });
-        showToast(`Draft of Chapter ${data.chapter_number} is ready: edit it, then Approve to save it.`, 'info', 6000);
+        showToast(`Draft of Chapter ${data.chapter_number} is ready: edit it, then Approve to ` +
+                  (replacesSavedChapter(data) ? 'replace the saved chapter.' : 'save it.'), 'info', 6000);
       },
 
       complete: async (data) => {
@@ -607,6 +676,7 @@ async function generateChapter() {
           scenes_featured: data.scenes || [],
           plot_input: plot,                            // Full View "Prompt used" (plan 019)
         };
+        DOM.btnRegenerateChapter.hidden = false;      // a saved chapter is shown (plan 024)
         await Promise.all([loadChapters(), loadCharacters(), loadNovelMeta()]); // step 7 updated profiles and total_chapters
         showToast(`✓ Chapter ${data.chapter_number} complete — ${data.word_count?.toLocaleString()} words`, 'success');
         DOM.plotInput.value = '';
@@ -649,7 +719,7 @@ async function generateChapter() {
   } finally {
     state.isGenerating = false;
     DOM.btnGenerate.disabled = false;
-    DOM.btnGenerate.querySelector('.generate-text').textContent = 'Generate Chapter';
+    DOM.btnGenerate.querySelector('.generate-text').textContent = generateLabel();
     DOM.btnCancelGenerate.hidden = true;
     DOM.btnCancelGenerate.disabled = false;
   }
@@ -696,8 +766,10 @@ function showDraft(draft) {
   DOM.outputBody.hidden = true;
   DOM.draftPanel.hidden = false;
   DOM.textCursor.hidden = true;
+  DOM.btnRegenerateChapter.hidden = true;
+  stopRegeneration();  // the draft carries the chapter number now (plan 024)
   DOM.outputChapterBadge.textContent = `Draft · Chapter ${draft.chapter_number}`;
-  DOM.outputChapterTitle.textContent = draft.title || 'Review, edit, then approve';
+  DOM.outputChapterTitle.textContent = draftHeading(draft);
   DOM.draftEditor.value = draft.full_text || '';
   DOM.draftTitle.value = draft.title || '';
   DOM.draftInstruction.value = '';
@@ -866,6 +938,13 @@ async function approveDraft() {
     showToast('The draft is empty: write something or discard it.', 'error');
     return;
   }
+  // A regenerated chapter replaces the saved one, also when the draft is left from an earlier visit (plan 024)
+  const number = state.draft.chapter_number;
+  const saved = state.chapters.find(ch => ch.chapter_number === number);
+  if (saved && !confirm(`Approving replaces the saved Chapter ${number}` + (saved.title ? ` ("${saved.title}")` : '') +
+      ' with this draft. The old text can\'t be recovered.\n\nReplace it?')) {
+    return;
+  }
   clearTimeout(_draftSaveTimer);
   _draftSaveTimer = null;
   await _draftSaveChain;
@@ -922,6 +1001,7 @@ function draftAsChapter() {
     plot_input: draft.plot_input,
     characters_featured: draft.characters_featured || [],
     scenes_featured: draft.scenes_featured || [],
+    is_draft: true,  // no ⟳ Regenerate in the Full View (plan 024)
   };
 }
 
@@ -1467,6 +1547,11 @@ function openChapterViewModal(ch = state.currentChapter) {
   $('chapter-modal-title').textContent = ch.title || `Chapter ${ch.chapter_number}`;
   $('view-word-count').textContent = `${(ch.word_count || 0).toLocaleString()} words`;
 
+  // ⟳ Regenerate for a saved chapter, not for the draft (plan 024)
+  const regenerateBtn = $('btn-view-regenerate');
+  regenerateBtn.hidden = !!ch.is_draft || !state.chapters.some(c => c.chapter_number === ch.chapter_number);
+  regenerateBtn.dataset.chapterNum = ch.chapter_number;
+
   // Featured characters & scenes
   const charTags = $('view-char-tags');
   const sceneTags = $('view-scene-tags');
@@ -1766,6 +1851,16 @@ function bindStaticEvents() {
   // View full chapter (or the draft being reviewed)
   DOM.btnViewFull.addEventListener('click', () => openChapterViewModal(state.draft ? draftAsChapter() : undefined));
   $('btn-reuse-prompt').addEventListener('click', reusePrompt);
+
+  // ⟳ Regenerate a saved chapter (plan 024)
+  DOM.btnRegenerateChapter.addEventListener('click', () => {
+    if (state.currentChapter) startRegeneration(state.currentChapter.chapter_number);
+  });
+  $('btn-view-regenerate').addEventListener('click', (e) => startRegeneration(Number(e.currentTarget.dataset.chapterNum)));
+  $('btn-regenerate-stop').addEventListener('click', () => {
+    stopRegeneration();
+    showToast('Back to writing the next new chapter.', 'info');
+  });
 
   // Draft review and @-mentions (plan 019)
   bindDraftEvents();

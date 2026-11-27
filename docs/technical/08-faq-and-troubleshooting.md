@@ -1,6 +1,6 @@
 # 08 — FAQ & Troubleshooting
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b; plan 022: regenerating; plan 023: A15, A17b). **Last verified against code:** 2026-11-27.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: A16–A18, drafts; plan 020: A15, A15b; plan 022: regenerating; plan 023: A15, A17b; plan 024: regenerating from the UI). **Last verified against code:** 2026-11-27.
 
 ## Part A — Troubleshooting
 
@@ -128,7 +128,10 @@ JSON extraction and summarisation don't need a big model. Prose quality does. Th
 Through tiered summaries: the last 400 words of the previous chapter, full summaries of the 3 before that, short summaries of the 4 before those, and one-line summaries of everything older. Plus profiles of the characters/locations involved. See [02 §W3.3](02-workflows.md#w33-pipeline-steps-appbackendpipelinechapter_pipelinepy).
 
 **Can I regenerate or edit a chapter?**
-Before it is saved, yes (plan 019): edit the draft directly, rewrite selected passages with AI, or discard it and generate again (the plot stays in the box, and **↺ Use this prompt again** in the Full View brings back an older one). After approval, not from the UI: you can edit `data/chapters/NNN.json` by hand (`full_text` and the summaries). To regenerate a saved chapter, call the API with an explicit `chapter_number` (it overwrites), or delete the file and generate again.
+Before it is saved, yes (plan 019): edit the draft directly, rewrite selected passages with AI, or discard it and generate again (the plot stays in the box, and **↺ Use this prompt again** in the Full View brings back an older one). A saved chapter can be **regenerated** from the UI (plan 024):
+- Press **⟳ Regenerate** in its header, or **⟳ Regenerate this chapter** in the Full View. Its prompt goes into the plot box; change it if you like, then press **Regenerate Chapter N**.
+- The new version always opens as a draft. The saved chapter is replaced only when you approve it, after a confirmation; **🗑 Discard** keeps the old one.
+- Through the API, send an explicit `chapter_number` (it must be 1 or more). The UI never edits a saved chapter's text in place: edit `data/chapters/NNN.json` by hand for that (`full_text` and the summaries).
 - Since plan 022, regenerating an earlier chapter treats the chapters after it as *later* events. The writer is told to stay consistent with them without revealing them, and doesn't see the old version.
 - The character and location profiles keep the state the later chapters gave them; only new abilities are added, and a warning says so. Edit a profile by hand if the rewrite really changes it.
 

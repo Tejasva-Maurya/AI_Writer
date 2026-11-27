@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022, 023; plan 023: a chapter that stops halfway is kept). **Last verified against code:** 2026-11-27.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022, 023, 024; plan 023: a chapter that stops halfway is kept; plan 024: ⟳ Regenerate). **Last verified against code:** 2026-11-27.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -134,13 +134,17 @@ Colour code: **purple** = characters, **gold** = locations, **mint** = world.
    - If the writer fails mid-chapter (Ollama stops, out of memory), or you close or reload the tab while it writes, the text written so far is kept as a draft.
    - After a failure it opens at once, with a "words written so far are kept" message. After a closed tab it opens on your next visit.
    - Finish it by hand or with AI rewrites and approve it, or discard it. Only **✕ Cancel** throws it away.
+10. **Regenerate a saved chapter** (plan 024): open it from the history bar and press **⟳ Regenerate** in its header, or **⟳ Regenerate this chapter** in the Full View.
+   - Its prompt goes into the plot box. A notice says which chapter you are regenerating, and the button reads **Regenerate Chapter N**. Change the prompt if you like, then press it. **✕ New chapter instead** leaves this mode.
+   - The new version **always opens as a draft**, even with review turned off. The saved chapter stays as it is until you approve the draft; **🗑 Discard** keeps the old one.
+   - **✓ Approve & save** asks before it replaces the saved chapter. The old text can't be recovered. Profiles keep what later chapters established (plan 022).
 
 Tips:
 - First generation is slow while models load into VRAM. Within 5 minutes the writer stays warm.
 - One chapter is generated at a time. If another tab (or a script) is already generating, **Generate** shows "A chapter is already being generated. Wait for it to finish or cancel it." Closing the tab that started a generation also stops it, and keeps what was written so far as a draft (plan 023).
 - If the plot clearly spans several chapters, you'll see a notice. Only the current chapter is written. Split the plot yourself.
 - Chapter quality depends heavily on the summaries of earlier chapters. Use a capable specialist model if summaries look poor.
-- To redo a chapter before it is saved, discard its draft and generate again (the plot stays in the box). There is no "regenerate" or "delete chapter" button for saved chapters. To redo the last saved chapter, delete `data/chapters/NNN.json` while the server runs, reload the page, and generate again.
+- To redo a chapter before it is saved, discard its draft and generate again (the plot stays in the box). To redo a saved chapter, use **⟳ Regenerate** (step 10). There is no "delete chapter" button: to remove the last saved chapter, delete `data/chapters/NNN.json` while the server runs and reload the page.
 
 ### 5.3 Characters
 
@@ -223,7 +227,7 @@ py -m ruff check app
   - `test_pipeline.py`: a full generation with the fake, including the `keep_alive` choreography, review mode, a failed step 7 keeping the draft (KI-041) and @-tags.
   - `test_draft.py`: the draft routes (edit, discard, rewrite, approve), the one-job-at-a-time guard and the `review_drafts` setting (plan 019).
   - `test_refine.py`: the Build-tab refine routes, their place in the one-job-at-a-time guard, and edits made during an AI call (plan 020, KI-042).
-  - `test_regenerate.py`: regenerating an earlier chapter, i.e. the writer's prompt with later chapters and no profile rollback (plan 022, KI-043/KI-044).
+  - `test_regenerate.py`: regenerating an earlier chapter, i.e. the writer's prompt with later chapters and no profile rollback (plan 022, KI-043/KI-044), and chapter numbers below 1 rejected (plan 024, KI-045).
   - `test_partial.py`: a chapter that stops halfway, i.e. a writer failure or a closed tab keeps the text as a draft, and ✕ Cancel discards it (plan 023).
   - `test_helpers.py`: Ollama address parsing, export names, model coercion.
 - **Lint:** ruff checks for real bugs (undefined names, unused imports, syntax that the minimum Python 3.11 can't parse); the rules are pinned in `app/pyproject.toml`.
