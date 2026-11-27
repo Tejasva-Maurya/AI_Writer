@@ -5,8 +5,8 @@
 > Status lifecycle: `approved` → `in-progress` → `done` | `abandoned` | `superseded`.
 
 **Active:** none  
-**Next number:** 026  
-**Total plans:** 25
+**Next number:** 027  
+**Total plans:** 26
 
 | # | Title | Status | Approved | Supersedes |
 |---|---|---|---|---|
@@ -35,3 +35,4 @@
 | 023 | [Keep the text written so far as a draft when the writer fails or the tab closes mid-chapter](023-keep-the-text-written-so-far-as-a-draft-when-the-writer.md) | `done` | 2026-11-27 | — |
 | 024 | [Regenerate a saved chapter from the UI (⟳ Regenerate), always through a draft; reject chapter numbers below 1 (KI-045)](024-regenerate-a-saved-chapter-from-the-ui-regenerate-always.md) | `done` | 2026-11-27 | — |
 | 025 | [Keep older versions of a regenerated chapter (newest 5), with read, restore and delete in the Full View](025-keep-older-versions-of-a-regenerated-chapter-newest-5-with.md) | `done` | 2026-11-27 | — |
+| 026 | [Manual test guide for a machine with Ollama: setup, copy-paste prompts and a checklist](026-manual-test-guide-for-a-machine-with-ollama-setup-copy.md) | `done` | 2026-11-27 | — |

@@ -7,6 +7,7 @@ Everything written **about** the tool lives in this `docs/` folder. The applicat
 docs/
 ├── README.md          ← you are here (map)
 ├── user-guide.md      end-user guide: setup, models, usage, shortcuts, troubleshooting
+├── testing-with-ollama.md  manual test guide with real models: setup, copy-paste prompts, checklist
 ├── CHANGELOG.md       version history (Keep a Changelog + SemVer)
 ├── technical/         how the tool works, for developers (01…09 below)
 └── ai/                AI-assisted development workspace
@@ -23,6 +24,7 @@ docs/
 |---|---|
 | install and use the app | [user-guide.md](user-guide.md), then [technical/07 Setup & Usage](technical/07-setup-and-usage.md) |
 | fix an error | [technical/08 FAQ & Troubleshooting](technical/08-faq-and-troubleshooting.md) |
+| test the tool with real models on a machine with Ollama | [testing-with-ollama.md](testing-with-ollama.md) |
 | know what's broken before relying on it | [technical/09 Known Issues](technical/09-known-issues-and-tech-debt.md) |
 | see what changed between versions | [CHANGELOG.md](CHANGELOG.md) |
 | see what's being worked on / was planned | [ai/plans/INDEX.md](ai/plans/INDEX.md) and [ai/memory/project-state.md](ai/memory/project-state.md) |
