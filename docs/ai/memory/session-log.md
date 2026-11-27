@@ -338,5 +338,6 @@
 - **Plan:** 026 (done).
 - **Open threads:**
   - Pushed `docs/ollama-test-guide` with the github-push skill on the first try (`80601ce`). Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/8 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
-  - Rebase-merged into `main` as `ae36b80` on the user's go-ahead. The branch still exists.
+  - Rebase-merged into `main` as `ae36b80` on the user's go-ahead; the merge note was pushed as `26b336b`.
+  - The branch was deleted on 2026-11-27 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `ae36b80`, that no PR was open on it and that no worktree used it.
   - The guide itself has not been run against a real Ollama (that is its purpose).
