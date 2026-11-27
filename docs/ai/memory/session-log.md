@@ -321,4 +321,6 @@
     - 375 px, 1024 px and wide layouts; the `[hidden]` audit was empty.
   - Real `data/` unchanged.
 - **Plan:** 025 (done). The work was handed from the original session to a side session mid-plan, so the user could keep talking there; the side session finished it.
-- **Open threads:** branch `feat/chapter-versions`; push, PR and merge pending the user's go-ahead.
+- **Open threads:**
+  - Handed over mid-plan to a side session, which ran the sandbox check, wrote the docs, pushed `feat/chapter-versions` (`84fc98c`) and opened https://github.com/Tejasva-Maurya/AI_Writer/pull/7. CI 8/8 green; 146 tests passed again in the original session before the merge.
+  - Rebase-merged into `main` as `35ab933` on the user's go-ahead. The branch still exists.
