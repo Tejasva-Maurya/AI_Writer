@@ -270,4 +270,7 @@
   - Docs: 01 §8, 02 W3/W11, 03 §2.2/§2.7/§5, 04, 07 §5/§7, 08 (A15, A17b), user guide, CHANGELOG, D-018.
   - Verified: all tests pass, ruff and `py_compile` clean; a sandbox UI check with a stub `ollama` (writer failure → toast and draft; reload mid-chapter → 5-word draft after the reload; Cancel → no draft; console clean). Real `data/` unchanged. Real Ollama: not verified.
 - **Plan:** 023 (done).
-- **Open threads:** branch `feat/keep-partial-chapter`; push, PR and merge pending the user's go-ahead.
+- **Open threads:**
+  - Pushed `feat/keep-partial-chapter` with the github-push skill on the first try (`e148ad8`).
+  - Opened https://github.com/Tejasva-Maurya/AI_Writer/pull/5 through the REST endpoint (after checking that no PR existed). CI 8/8 green.
+  - Rebase-merged into `main` as `f684a79` on the user's go-ahead. The branch still exists.
