@@ -1,6 +1,6 @@
 # 07 — Setup & Usage Guide
 
-> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022, 023, 024, 025; plan 023: a chapter that stops halfway is kept; plan 024: ⟳ Regenerate; plan 025: older versions). **Last verified against code:** 2026-11-27.
+> **Applies to:** v2.0.0 + [Unreleased] (plan 019: draft review, @-mentions, prompt reuse; §7 test list: plans 020, 022, 023, 024, 025; plan 023: a chapter that stops halfway is kept; plan 024: ⟳ Regenerate; plan 025: older versions; plan 026: §3 localhost note, link to the Ollama test guide). **Last verified against code:** 2026-11-27.
 > For known defects that affect individual steps, see [09 — Known Issues](09-known-issues-and-tech-debt.md). Workarounds are noted inline with ⚠.
 
 **Where things are:** the tool lives in **`app/`** (launcher `app/start.bat`, code in `app/backend/` and `app/frontend/`). Your novel lives in **`data/`**. Documentation lives in **`docs/`**.
@@ -72,7 +72,7 @@ python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 Development with auto-reload: `python main.py` (runs uvicorn with `reload=True`), or add `--reload` to the command above.
 
-Then open **http://127.0.0.1:8000**. Use `127.0.0.1`, not `localhost`: the frontend calls `http://127.0.0.1:8000/api` explicitly.
+Then open **http://127.0.0.1:8000** (`http://localhost:8000` works too: the page calls the API at its own address, `/api`, and the server accepts both host names since plan 007). To test with real models, follow [the Ollama test guide](../testing-with-ollama.md).
 
 ### Smoke test
 ```bash

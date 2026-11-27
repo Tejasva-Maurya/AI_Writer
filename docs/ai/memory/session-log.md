@@ -325,3 +325,15 @@
   - Handed over mid-plan to a side session, which ran the sandbox check, wrote the docs, pushed `feat/chapter-versions` (`84fc98c`) and opened https://github.com/Tejasva-Maurya/AI_Writer/pull/7. CI 8/8 green; 146 tests passed again in the original session before the merge.
   - Rebase-merged into `main` as `35ab933` on the user's go-ahead; the merge note was pushed as `e20247a`.
   - The branch was deleted on 2026-11-27 at the user's request (on GitHub through `DELETE /git/refs/heads/…` with the personal token, and locally). It was checked first that its files were identical to `35ab933`, that no PR was open on it and that no worktree used it.
+
+### 2026-11-27 — Claude Code (Opus 5.5) — manual test guide for a machine with Ollama (plan 026)
+- **Goal:** The user asked for a guide, with prompts and a checklist, to test the tool on a machine that has Ollama. This machine has none, so every LLM feature since plan 019 has been checked only with a stub.
+- **Outcome:**
+  - New `docs/testing-with-ollama.md`:
+    - the machine (Python, Ollama, VRAM for the 32k-context writer, lighter models), setup (`start.bat` or manual uvicorn, smoke checks, optional pytest/ruff) and a test record;
+    - 14 test sessions with original copy-paste prompts (a small test novel: Mei Ashgrove, Captain Rho Tanvir, 林雪, Cinder Wharf), each with "Expect" and "Note" lines;
+    - a prose-quality rubric (Q1–Q8), a checklist with IDs, and what to send back.
+  - Every UI label, message, route and setting it quotes was checked against the code. Three first-draft claims were wrong and corrected: there is no custom-name pull (now: a pull with Ollama stopped); Ollama down before Generate gives "Pipeline error"; "Pipeline warning" lines are in the browser console, not the backend log.
+  - `docs/README.md` links it. `docs/technical/07` §3 drops the stale "use 127.0.0.1, not localhost" sentence (out of date since plan 007).
+- **Plan:** 026 (done).
+- **Open threads:** branch `docs/ollama-test-guide`; push, PR and merge pending the user's go-ahead. The guide itself is not run against a real Ollama (that is its purpose).
